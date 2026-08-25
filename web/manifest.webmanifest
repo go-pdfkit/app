@@ -1,0 +1,11 @@
+{
+  "name": "PDF workbench",
+  "short_name": "PDF",
+  "description": "Open, rearrange, stamp and save a PDF entirely inside your browser tab.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#10131a",
+  "theme_color": "#14b8a6",
+  "icons": []
+}

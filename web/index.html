@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF workbench — offline, in your tab</title>
+<meta name="description" content="Open, rearrange, stamp and save a PDF entirely inside your browser tab. No upload, no server, works with the network off.">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root { color-scheme: light dark; }
+  html, body { margin: 0; background: #10131a; color: #e8eaf2;
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 20px 16px 40px; }
+  header { text-align: center; margin-bottom: 18px; }
+  h1 { font-size: 1.5rem; letter-spacing: -.02em; margin: 0 0 4px; }
+  .tagline { color: #99a0b5; margin: 0; }
+  .stage { position: relative; }
+  #screen { display: block; width: 100%; height: auto; background: #fff;
+    border: 1px solid #262c40; border-radius: 12px; opacity: 0; transition: opacity .2s; }
+  .stage.ready #screen { opacity: 1; }
+  #loading { position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px; background: #10131a;
+    border: 1px solid #262c40; border-radius: 12px; color: #99a0b5; }
+  .stage.ready #loading { display: none; }
+  .track { width: min(420px, 60vw); height: 8px; border-radius: 6px; background: #1b2130; overflow: hidden; }
+  .fill { height: 100%; width: 0; background: #14b8a6; transition: width .12s ease; }
+  #pct { font-family: ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+  .note { color: #99a0b5; font-size: .9rem; text-align: center; margin-top: 14px; }
+  .note strong { color: #e8eaf2; font-weight: 600; }
+  #err { display: none; color: #ff6b60; font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: .85rem; white-space: pre-wrap; margin: 14px 0; }
+  #err.show { display: block; }
+  input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>PDF workbench</h1>
+    <p class="tagline">Open a PDF, rearrange it, stamp it, save it — without it leaving this tab.</p>
+  </header>
+  <div class="stage" id="stage">
+    <canvas id="screen" width="1000" height="720"></canvas>
+    <div id="loading">
+      <div>loading the workbench</div>
+      <div class="track"><div class="fill" id="fill"></div></div>
+      <div id="pct">0%</div>
+    </div>
+  </div>
+  <pre id="err"></pre>
+  <p class="note">Everything happens on this machine. There is <strong>no server</strong> to send a
+    file to: the whole tool is one program your browser downloaded once, and it keeps
+    working with the network off.</p>
+  <input type="file" id="file" accept="application/pdf,.pdf">
+</div>
+<script src="wasm_exec.js"></script>
+<script>
+// Stream the wasm so the progress bar means something, then start it.
+(async function () {
+  const stage = document.getElementById('stage');
+  const fill = document.getElementById('fill');
+  const pct = document.getElementById('pct');
+  const err = document.getElementById('err');
+  const fail = (e) => { err.textContent = String(e && e.stack || e); err.classList.add('show'); };
+  try {
+    const res = await fetch('main.wasm');
+    if (!res.ok) throw new Error('main.wasm: ' + res.status);
+    const total = Number(res.headers.get('content-length')) || 0;
+    const chunks = [];
+    let got = 0;
+    const reader = res.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      got += value.length;
+      if (total) {
+        const p = Math.round(got / total * 100);
+        fill.style.width = p + '%';
+        pct.textContent = p + '%';
+      }
+    }
+    const bytes = new Uint8Array(got);
+    let at = 0;
+    for (const c of chunks) { bytes.set(c, at); at += c.length; }
+    fill.style.width = '100%'; pct.textContent = '100%';
+
+    const go = new Go();
+    const mod = await WebAssembly.instantiate(bytes, go.importObject);
+    stage.classList.add('ready');
+    go.run(mod.instance);
+  } catch (e) { fail(e); }
+})();
+
+// Keep working with the network off.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>

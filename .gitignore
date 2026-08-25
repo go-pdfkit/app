@@ -1,0 +1,4 @@
+coverage.out
+web/main.wasm
+app
+browsercheck/browsercheck
