@@ -64,6 +64,18 @@ GOOS=js GOARCH=wasm go build -o web/main.wasm .
 then serve `web/` over HTTP. `web/wasm_exec.js` comes from the Go
 distribution and must match the toolchain that built the binary.
 
+## The rest of the family
+
+[**reader**](https://github.com/go-pdfkit/reader) reads and writes the format ·
+[**ops**](https://github.com/go-pdfkit/ops) is the verbs and the `pdfops` command ·
+[**render**](https://github.com/go-pdfkit/render) turns a page into pixels ·
+[**pdffont**](https://github.com/go-pdfkit/pdffont) is what a document says about a font ·
+[**extract**](https://github.com/go-pdfkit/extract) reads a page back ·
+[**coedit**](https://github.com/go-pdfkit/coedit) is a PDF several people edit at once ·
+[**app**](https://github.com/go-pdfkit/app) is the browser workbench.
+
+Documentation for all of it: <https://go-pdfkit.github.io/docs/>
+
 ## Licence
 
 BSD-3-Clause.
