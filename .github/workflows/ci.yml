@@ -105,4 +105,9 @@ jobs:
 
       - name: Open a PDF in it and save one back out
         working-directory: browsercheck
+        # The runner has no user namespaces to sandbox the renderer in, and
+        # the only page this browser ever loads is the one the check serves
+        # itself.
+        env:
+          CHROME_NO_SANDBOX: "1"
         run: go run . ../web
