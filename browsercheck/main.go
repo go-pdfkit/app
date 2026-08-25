@@ -142,11 +142,17 @@ func noStore(h http.Handler) http.Handler {
 	})
 }
 
+// browserStartup is how long a browser is given to open its debugging port.
+// A cold build machine takes a good deal longer than a warm laptop — and the
+// browser prints a page of complaints about the things a machine with no
+// desktop on it has not got before it gets there.
+const browserStartup = 90 * time.Second
+
 // devtoolsURL reads the line Chrome prints when it opens its debugging port.
 func devtoolsURL(stderr io.Reader) (string, error) {
 	buf := make([]byte, 0, 4096)
 	tmp := make([]byte, 512)
-	deadline := time.Now().Add(20 * time.Second)
+	deadline := time.Now().Add(browserStartup)
 	for time.Now().Before(deadline) {
 		n, err := stderr.Read(tmp)
 		buf = append(buf, tmp[:n]...)
