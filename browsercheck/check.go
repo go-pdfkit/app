@@ -49,7 +49,13 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 	// The shell only shows the canvas once the program is running, so waiting
 	// for that class is waiting for the wasm to have started.
 	if err := until(ctx, 60*time.Second, func() (bool, error) {
-		v, err := eval(ctx, c, sid, `document.getElementById('stage').classList.contains('ready')`)
+		// The page may not be there yet: Page.navigate returns when the
+		// navigation begins, not when it has finished, so the first look is
+		// often at the blank page the browser started on. A missing element
+		// is "not ready yet", not a failure.
+		v, err := eval(ctx, c, sid,
+			`(() => { const s = document.getElementById('stage');
+			          return !!s && s.classList.contains('ready'); })()`)
 		return v == "true", err
 	}); err != nil {
 		return fmt.Errorf("the workbench never started: %w", err)
