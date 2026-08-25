@@ -97,12 +97,20 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(chrome,
+	args := []string{
 		"--headless=new", "--remote-debugging-port=0", "--no-first-run",
 		"--no-default-browser-check", "--disable-gpu",
-		"--user-data-dir="+profile,
+		"--user-data-dir=" + profile,
 		"--window-size=1060,1040",
-		"about:blank")
+	}
+	if os.Getenv("CHROME_NO_SANDBOX") != "" {
+		// A build runner has no user namespaces to put the renderer in, so
+		// Chrome refuses to start at all. Turning its sandbox off is safe
+		// only because the only page it will ever load is the one served
+		// three lines up, from this machine, by this program.
+		args = append(args, "--no-sandbox", "--disable-dev-shm-usage")
+	}
+	cmd := exec.Command(chrome, append(args, "about:blank")...)
 	stderr, _ := cmd.StderrPipe()
 	if err := cmd.Start(); err != nil {
 		return err
