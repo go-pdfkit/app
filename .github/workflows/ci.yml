@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  GOWORK: "off"
+  CGO_ENABLED: "0"
+
+jobs:
+  test:
+    name: Build + test + exact 100% coverage gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.4"
+          check-latest: true
+          cache: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Test with coverage
+        run: go test -covermode=set -coverprofile=coverage.out ./...
+
+      - name: The browser check builds and vets too
+        working-directory: browsercheck
+        run: |
+          go vet ./...
+          test -z "$(gofmt -l .)"
+
+      - name: Assert exact 100% statement coverage
+        run: |
+          go tool cover -func=coverage.out | tail -n +1 > /tmp/cov.txt
+          below=$(go tool cover -func=coverage.out | awk '$3 != "100.0%"')
+          if [ -n "$below" ]; then
+            echo "::error::coverage below 100%"
+            echo "$below"
+            exit 1
+          fi
+          echo "all statements covered (100.0%)"
+
+      - name: gofmt
+        run: |
+          out=$(gofmt -l .)
+          if [ -n "$out" ]; then echo "::error::not gofmt'd"; echo "$out"; exit 1; fi
+
+      - name: Build the browser program
+        run: |
+          GOOS=js GOARCH=wasm go build -o web/main.wasm .
+          ls -l web/main.wasm
+
+      - name: The offline shell is complete
+        run: |
+          # The service worker caches this list; if a file it names is not
+          # here the app installs and then fails to start with no network.
+          for f in index.html sw.js manifest.webmanifest wasm_exec.js main.wasm; do
+            test -s "web/$f" || { echo "::error::web/$f is missing or empty"; exit 1; }
+          done
+
+      - name: Type-check everywhere the fleet builds
+        run: |
+          # The program itself only has a main() under js/wasm, so the other
+          # targets are type-checked rather than linked.
+          for arch in amd64 arm64 riscv64 loong64 ppc64le s390x; do
+            echo "== linux/$arch =="
+            GOOS=linux GOARCH=$arch go vet ./...
+          done
+          GOOS=darwin  GOARCH=arm64 go vet ./...
+          GOOS=windows GOARCH=amd64 go vet ./...
+
+  browser:
+    name: Drive it in a real browser
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.4"
+          check-latest: true
+          cache: true
+
+      - name: Build the browser program
+        run: GOOS=js GOARCH=wasm go build -o web/main.wasm .
+
+      - name: Find a browser
+        run: |
+          for c in google-chrome-stable google-chrome chromium chromium-browser; do
+            if command -v $c >/dev/null; then echo "CHROME=$(command -v $c)" >> "$GITHUB_ENV"; fi
+          done
+          if [ -z "${CHROME:-}" ] && ! grep -q CHROME "$GITHUB_ENV"; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq chromium-browser
+            echo "CHROME=$(command -v chromium-browser)" >> "$GITHUB_ENV"
+          fi
+
+      - name: Open a PDF in it and save one back out
+        working-directory: browsercheck
+        run: go run . ../web
