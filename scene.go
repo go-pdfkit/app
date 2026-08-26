@@ -60,8 +60,15 @@ type state struct {
 	doc  *ops.Doc
 	src  *reader.Document
 	name string
-	at   int // the page being shown, counting from one
-	note string
+	// raw is the file as it arrived. A form is filled in on the file itself
+	// rather than on a document rebuilt around it, so the bytes are kept.
+	raw []byte
+	// form is what the document asks to be filled in, when it asks anything,
+	// and showingForm says the panel is up instead of the page.
+	form        *filling
+	showingForm bool
+	at          int // the page being shown, counting from one
+	note        string
 
 	// dirty says something has changed since the canvas last showed it. A
 	// file arrives from the browser long after the press that asked for it,
@@ -101,6 +108,7 @@ func (s *state) tools() *toolkit.HBox {
 	add("Two up", toolkit.ButtonDefault, s.twoUp)
 	add("Watermark", toolkit.ButtonDefault, s.watermark)
 	add("Sanitize", toolkit.ButtonDefault, s.sanitize)
+	add("Fill in", toolkit.ButtonDefault, s.showForm)
 	return box
 }
 
@@ -128,8 +136,14 @@ func (s *state) open() {
 			s.fail("cannot open " + name + ": " + err.Error())
 			return
 		}
-		s.doc, s.name, s.at = d, name, 1
+		s.doc, s.name, s.at, s.raw = d, name, 1, data
 		s.note = ""
+		s.showingForm = false
+		s.readForm(data)
+		if s.form != nil {
+			s.note = fmt.Sprintf("this document has a form: %d fields",
+				len(s.form.what.Form().Fields()))
+		}
 		s.refresh()
 	})
 }
@@ -140,7 +154,7 @@ func (s *state) save() {
 		s.fail("there is nothing to save")
 		return
 	}
-	out, msg := s.reopenBytes()
+	out, msg := s.saveBytes()
 	if msg != "" {
 		s.fail(msg)
 		return
@@ -256,12 +270,26 @@ func (s *state) statusLine() []string {
 		return []string{"no document", s.note, "nothing leaves this tab"}
 	}
 	where := fmt.Sprintf("page %d of %d", s.at, s.doc.PageCount())
+	if s.showingForm && s.form != nil {
+		where = fmt.Sprintf("%d fields", len(s.form.what.Form().Fields()))
+	}
 	return []string{s.name, where, s.note}
 }
 
 // reopenBytes is the document as it would be saved, or the reason it cannot
 // be written. It reports that reason rather than an error, because the only
 // thing to do with it is show it.
+// saveBytes is what a press of Save writes. A form that has been filled in is
+// saved as the file it came from with the answers appended, because that is
+// the only way of saving one that keeps it a form; anything else here rebuilds
+// the document, and the form does not survive that.
+func (s *state) saveBytes() ([]byte, string) {
+	if s.form != nil && s.form.changed > 0 {
+		return s.form.bytes()
+	}
+	return s.reopenBytes()
+}
+
 func (s *state) reopenBytes() ([]byte, string) {
 	out, err := docBytes(s.doc)
 	if err != nil {
@@ -300,6 +328,10 @@ func (s *state) renderPage() {
 	s.page = nil
 	if s.doc == nil {
 		s.view = toolkit.NewFrame(s.empty)
+		return
+	}
+	if s.showingForm && s.form != nil {
+		s.view = toolkit.NewFrame(s.form.panel(s))
 		return
 	}
 	src, msg := s.reopen()
