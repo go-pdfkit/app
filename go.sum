@@ -42,8 +42,8 @@ github.com/go-widgets/mvvm v0.5.0 h1:o5hh6HAxbApONcbZxmyV9q12pCAPGRd6L24aS3gaCbA
 github.com/go-widgets/mvvm v0.5.0/go.mod h1:Phdrd434RLxXW1D6dL1PPQH1tABwYLIN2X7jQVC4TbY=
 github.com/go-widgets/painter v0.11.0 h1:xsj4zTz8B43rOZnWrx7ZsaUBMgJyvgaE/Pq2FfcG2Sw=
 github.com/go-widgets/painter v0.11.0/go.mod h1:IPRLqdUJuJX8sfuHeYLZCzjoLvA0ApbOlyIAVmguJDQ=
-github.com/go-widgets/toolkit v0.250.0 h1:bBesSXvk59WhY3AgbZ8DgfTUbkoe09cYueBNyq1QQQY=
-github.com/go-widgets/toolkit v0.250.0/go.mod h1:eBfiAf9RI6uqmW6NoyFIBjNJgVmpjgVtVuJYS/8N5kI=
+github.com/go-widgets/toolkit v0.272.0 h1:TksXi4e3L8cuk37IfcdNgRzWFYqel+j0G7nZSLGJBTo=
+github.com/go-widgets/toolkit v0.272.0/go.mod h1:eBfiAf9RI6uqmW6NoyFIBjNJgVmpjgVtVuJYS/8N5kI=
 github.com/go-widgets/webcanvas v0.1.0 h1:fSGllghHlFZSC7CBb1oetj/PKR/S3ds/piDrpr0Kmg0=
 github.com/go-widgets/webcanvas v0.1.0/go.mod h1:UAoPu9dO6ZzcFFwQbVeW4Jm4X67XFKVJab9A6qWwsMM=
 github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=

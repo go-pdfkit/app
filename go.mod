@@ -9,7 +9,7 @@ require (
 	github.com/go-pdfkit/reader v0.6.0
 	github.com/go-pdfkit/render v0.11.0
 	github.com/go-widgets/painter v0.11.0
-	github.com/go-widgets/toolkit v0.250.0
+	github.com/go-widgets/toolkit v0.272.0
 	github.com/go-widgets/webcanvas v0.1.0
 )
 

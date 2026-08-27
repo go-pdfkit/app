@@ -52,9 +52,12 @@ type state struct {
 
 	toolbar *toolkit.HBox
 	status  *toolkit.Statusbar
-	view    *toolkit.Frame
-	page    *toolkit.Image
-	empty   *toolkit.Label
+	// view is the band under the strip: the page, or the form, with the tool
+	// panel beside it when a group of verbs is open — so it is a widget of
+	// whatever kind that arrangement needs rather than always a frame.
+	view  toolkit.Widget
+	page  *toolkit.Image
+	empty *toolkit.Label
 
 	// doc is what every operation acts on, and src is the same document
 	// parsed, which is what gets drawn. They are rebuilt together after every
@@ -69,8 +72,13 @@ type state struct {
 	// and showingForm says the panel is up instead of the page.
 	form        *filling
 	showingForm bool
-	at          int // the page being shown, counting from one
-	note        string
+	// tools is the panel of verbs beside the page, and typing every box on
+	// the screen that takes characters — which is what says whether an arrow
+	// key belongs to a word somebody is writing or to the pages.
+	tools  *tools
+	typing []*toolkit.Entry
+	at     int // the page being shown, counting from one
+	note   string
 
 	// dirty says something has changed since the canvas last showed it. A
 	// file arrives from the browser long after the press that asked for it,
@@ -80,26 +88,28 @@ type state struct {
 
 // newState builds the workbench.
 func newState(w, h int, h2 host) *state {
-	s := &state{w: w, h: h, theme: toolkit.DefaultLight(), host: h2, at: 1}
+	s := &state{w: w, h: h, theme: toolkit.DefaultLight(), host: h2, at: 1, tools: newTools()}
 	s.empty = toolkit.NewLabel("Open a PDF to begin — nothing leaves this tab.")
 	s.view = toolkit.NewFrame(s.empty)
 	s.status = toolkit.NewStatusbar([]string{"no document", "", ""})
-	s.toolbar = s.tools()
+	s.toolbar = s.strip()
 	s.refresh()
 	return s
 }
 
-// tools is every control on the strip, in the order they appear. They are
+// strip is every control at the top, in the order they appear. They are
 // buttons rather than a Toolbar because a Toolbar is a strip of square icon
 // cells that shows only a label's first letter, and these controls are named
-// by their words: "Two up" and "Sanitize" both begin with the letter the other
-// would be reduced to.
-func (s *state) tools() *toolkit.HBox {
+// by their words: "Pages" and "Sheet" would both be reduced to an S.
+//
+// What is on it is what needs no telling: opening, saving, turning to another
+// page, turning the one on the screen over, dropping it. Everything else has
+// to be told which pages, or how many, or what to write, and lives in the
+// panel that a group opens beside the page.
+func (s *state) strip() *toolkit.HBox {
 	box := toolkit.NewHBox()
 	add := func(label string, style toolkit.ButtonStyle, on func()) {
-		b := toolkit.NewButton(label, on)
-		b.Style = style
-		box.AddFixed(b, buttonWidth(label))
+		box.AddFixed(button(label, style, on), buttonWidth(label))
 	}
 	add("Open", toolkit.ButtonProminent, s.open)
 	add("Save", toolkit.ButtonProminent, s.save)
@@ -107,9 +117,12 @@ func (s *state) tools() *toolkit.HBox {
 	add(">", toolkit.ButtonDefault, func() { s.step(1) })
 	add("Rotate", toolkit.ButtonDefault, s.rotate)
 	add("Delete", toolkit.ButtonDanger, s.deletePage)
-	add("Two up", toolkit.ButtonDefault, s.twoUp)
-	add("Watermark", toolkit.ButtonDefault, s.watermark)
-	add("Sanitize", toolkit.ButtonDefault, s.sanitize)
+	// Then one control per group of verbs. What each one opens is a panel
+	// beside the page rather than another handful of buttons, because most of
+	// what is left needs to be told something first.
+	for _, name := range groupNames {
+		add(name, toolkit.ButtonDefault, func() { s.showGroup(name) })
+	}
 	add("Fill in", toolkit.ButtonDefault, s.showForm)
 	return box
 }
@@ -206,21 +219,16 @@ func (s *state) deletePage() {
 	s.change(func(d *ops.Doc) error { return d.Delete(pageSpec(at)) })
 }
 
-// twoUp lays the pages out two to a sheet.
-func (s *state) twoUp() {
-	s.change(func(d *ops.Doc) error { return d.NUp(2) })
-	s.at = 1
-	s.refresh()
-}
-
 // watermark writes across every page.
 func (s *state) watermark() {
-	s.change(func(d *ops.Doc) error { return d.Watermark("all", "DRAFT") })
+	text := s.tools.mark
+	s.changeSaying("wrote "+text+" across every page",
+		func(d *ops.Doc) error { return d.Watermark("all", text) })
 }
 
 // sanitize strips whatever in the file runs rather than shows.
 func (s *state) sanitize() {
-	s.change(func(d *ops.Doc) error {
+	s.changeSaying("stripped what runs rather than shows", func(d *ops.Doc) error {
 		d.Sanitize()
 		return nil
 	})
@@ -230,17 +238,24 @@ func (s *state) sanitize() {
 func pageSpec(at int) string { return fmt.Sprintf("%d", at) }
 
 // change applies an operation and shows the result, or says why it could not.
-func (s *state) change(apply func(*ops.Doc) error) {
+func (s *state) change(apply func(*ops.Doc) error) bool { return s.changeSaying("", apply) }
+
+// changeSaying is change with something to say for itself when it worked. The
+// note is set before the redraw rather than after it, because the redraw is
+// what builds the line it appears on — and because a page that ran out of time
+// being drawn has more to say than the verb that changed it did.
+func (s *state) changeSaying(said string, apply func(*ops.Doc) error) bool {
 	if s.doc == nil {
 		s.fail("open a document first")
-		return
+		return false
 	}
 	if err := apply(s.doc); err != nil {
 		s.fail(err.Error())
-		return
+		return false
 	}
-	s.note = ""
+	s.note = said
 	s.refresh()
+	return true
 }
 
 // fail puts a message on the status line.
@@ -329,16 +344,16 @@ var (
 func (s *state) renderPage() {
 	s.page = nil
 	if s.doc == nil {
-		s.view = toolkit.NewFrame(s.empty)
+		s.show(s.empty)
 		return
 	}
 	if s.showingForm && s.form != nil {
-		s.view = toolkit.NewFrame(s.form.panel(s))
+		s.show(s.form.panel(s))
 		return
 	}
 	src, msg := s.reopen()
 	if msg != "" {
-		s.view = toolkit.NewFrame(toolkit.NewLabel(msg))
+		s.show(toolkit.NewLabel(msg))
 		return
 	}
 	s.src = src
@@ -369,7 +384,49 @@ func (s *state) renderPage() {
 		s.note = fmt.Sprintf("this page was still being drawn after %s; this is as far as it got", pageBudget)
 	}
 	s.page = toolkit.NewImageFit(img.Pix, img.W, img.H)
-	s.view = toolkit.NewFrame(s.page)
+	s.show(s.page)
+}
+
+// show puts a widget in the view band, with the tool panel beside it when a
+// group is open.
+//
+// Beside, and not over it: every verb in the panel changes the document, and
+// the document is drawn from what would come out of Save — so setting a crop
+// box and watching the page come back cropped is the whole of what the control
+// is for, and a panel that covered the page would hide it.
+func (s *state) show(w toolkit.Widget) {
+	s.view = s.arrange(w)
+	// Laid out here rather than only when it is painted, because a press can
+	// arrive before the next frame does: the view is built afresh by every
+	// change, and a widget nobody has given bounds to is under no point at
+	// all, so the press after a change would land on nothing.
+	s.view.SetBounds(painter.Rect{X: margin, Y: viewTop, W: viewW, H: viewH})
+}
+
+// arrange is the view band's contents: the page, and the tool panel beside it
+// when a group is open.
+func (s *state) arrange(w toolkit.Widget) toolkit.Widget {
+	page := toolkit.NewFrame(w)
+	if s.tools.open == "" {
+		return page
+	}
+	// An HBox, which is what puts two things side by side; the page takes
+	// whatever the panel leaves.
+	row := toolkit.NewHBox()
+	row.Spacing = gap
+	row.AddFlex(page, 1)
+	row.AddFixed(toolkit.NewFrame(s.body()), panelW)
+	return row
+}
+
+// pageW is how much width the page has: the whole band, less the panel when
+// one is open. The page is scaled to fit what is left, so opening a group
+// shrinks the page rather than pushing it off the edge.
+func (s *state) pageW() int {
+	if s.tools.open == "" {
+		return viewW
+	}
+	return viewW - panelW - gap
 }
 
 // pageBudget is how long one page may be drawn for before what has been drawn
@@ -386,7 +443,7 @@ func (s *state) fitScale(src *reader.Document) float64 {
 	// falls back on a real paper size, so neither can go wrong here.
 	page, _ := src.Page(s.at)
 	w, h := pageSize(src, page)
-	byWidth := float64(viewW-2*margin) / w
+	byWidth := float64(s.pageW()-2*margin) / w
 	byHeight := float64(viewH-2*margin) / h
 	if byWidth < byHeight {
 		return byWidth
@@ -449,26 +506,97 @@ func (s *state) draw(buf []byte) {
 	s.status.Draw(p, s.theme)
 }
 
-// handleClick routes a press to whatever is under it.
-func (s *state) handleClick(x, y int) bool {
-	s.toolbar.OnEvent(toolkit.Event{Kind: toolkit.EventClick, X: x, Y: y})
+// pointer sends a press, a move or a release to the strip and to the view.
+//
+// Both, because the view is where every control that is not on the strip now
+// lives — a panel that got no events would be a picture of controls rather
+// than controls — and because a widget that is not under the point ignores
+// what it is handed anyway.
+func (s *state) pointer(kind toolkit.EventKind, x, y int) bool {
+	view := s.view // a control may put another view in its place
+	if kind == toolkit.EventClick {
+		// Nothing under the pointer takes the caret away from the box that
+		// has it. The toolkit moves focus on a click by walking the container
+		// for its focusable descendants, and that walk cannot see into a
+		// scroll view or through a form field — so a press on a second box
+		// leaves the first one focused too, and every letter typed after it
+		// goes into the first. Clearing them all first leaves exactly the one
+		// this press lands in.
+		s.settle()
+	}
+	hit(s.toolbar, kind, x, y)
+	hit(view, kind, x, y)
 	return true
 }
+
+// hit sends a pointer event to a widget in that widget's own coordinates.
+//
+// A container reads the point it is given as local to itself and adds its own
+// origin back on before hit-testing its children, so what has to arrive is the
+// press with that origin taken off. Handing over the surface point instead
+// moves every press down the screen by the widget's own top edge: on a strip
+// eight pixels from the top that is a near miss, and on a panel that starts
+// forty-six pixels down it is a press on the wrong row.
+func hit(w toolkit.Widget, kind toolkit.EventKind, x, y int) {
+	b := w.Bounds()
+	w.OnEvent(toolkit.Event{Kind: kind, X: x - b.X, Y: y - b.Y})
+}
+
+// handleClick routes a press to whatever is under it.
+func (s *state) handleClick(x, y int) bool { return s.pointer(toolkit.EventClick, x, y) }
 
 // handleMove routes a pointer move.
-func (s *state) handleMove(x, y int) bool {
-	s.toolbar.OnEvent(toolkit.Event{Kind: toolkit.EventMouseMove, X: x, Y: y})
-	return true
-}
+func (s *state) handleMove(x, y int) bool { return s.pointer(toolkit.EventMouseMove, x, y) }
 
 // handleRelease routes a release.
-func (s *state) handleRelease(x, y int) bool {
-	s.toolbar.OnEvent(toolkit.Event{Kind: toolkit.EventMouseUp, X: x, Y: y})
+func (s *state) handleRelease(x, y int) bool { return s.pointer(toolkit.EventMouseUp, x, y) }
+
+// handleChar puts a printable character into the box being typed into; with
+// nothing being typed into, the workbench has nowhere to put it.
+func (s *state) handleChar(text string) bool {
+	return s.toCaret(toolkit.Event{Kind: toolkit.EventChar, Code: text})
+}
+
+// toCaret hands a keystroke to the box that has the caret, and reports whether
+// there was one to hand it to.
+//
+// The box is addressed directly rather than through the toolkit's own focus
+// walk, because that walk cannot reach it: it descends through a widget only
+// when the widget can enumerate its focusable children, and neither ScrollView
+// nor FormField does — so a control inside a scrolling panel, which is where
+// every control here lives, is invisible to it. The workbench knows which
+// boxes it built and which one was last pressed, so it says so.
+func (s *state) toCaret(ev toolkit.Event) bool {
+	e := s.caret()
+	if e == nil {
+		return false
+	}
+	e.OnEvent(ev)
+	s.dirty = true
 	return true
 }
 
-// handleKeyDown moves between pages with the arrow keys.
+// caret is the box being typed into, or nil when nothing is. It is what
+// decides who an arrow key belongs to: a word somebody is in the middle of
+// writing, or the pages.
+func (s *state) caret() *toolkit.Entry {
+	for _, e := range s.typing {
+		if e.Focused() {
+			return e
+		}
+	}
+	return nil
+}
+
+// editing reports whether anything is being typed into.
+func (s *state) editing() bool { return s.caret() != nil }
+
+// handleKeyDown moves between pages with the arrow keys, unless something is
+// being typed into, in which case the key belongs to that.
 func (s *state) handleKeyDown(key string) bool {
+	if s.toCaret(toolkit.Event{Kind: toolkit.EventKeyDown, Code: key}) {
+		return true
+	}
 	switch key {
 	case "ArrowLeft", "PageUp":
 		s.step(-1)

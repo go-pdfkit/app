@@ -34,8 +34,8 @@ func (a workbench) Release(x, y int) bool { return a.s.handleRelease(x, y) }
 // one: nothing here has a second meaning.
 func (a workbench) Context(x, y int) bool { return a.s.handleClick(x, y) }
 
-// Char forwards a printable character; the workbench has nothing to type into.
-func (a workbench) Char(string) bool { return false }
+// Char forwards a printable character to whatever box is being typed into.
+func (a workbench) Char(text string) bool { return a.s.handleChar(text) }
 
 // KeyDown forwards a named key, which is how the pages are turned.
 func (a workbench) KeyDown(key string) bool { return a.s.handleKeyDown(key) }
