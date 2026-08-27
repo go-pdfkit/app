@@ -59,6 +59,11 @@ func (s *state) showForm() {
 		return
 	}
 	s.showingForm = !s.showingForm
+	// The form takes the whole view: a document with a hundred fields in it
+	// has no room to spare for a panel of verbs beside them, and every one of
+	// those verbs would destroy the form anyway.
+	s.tools.open = ""
+	s.settle()
 	s.refresh()
 }
 

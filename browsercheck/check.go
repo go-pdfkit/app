@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/go-pdfkit/reader"
 )
 
 // check is the protocol: boot, look, open a file the way a person does, look
@@ -137,7 +140,186 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 		return fmt.Errorf("nothing that looks like a PDF was downloaded: %w", err)
 	}
 	fmt.Printf("the tab handed back a %d byte PDF\n", len(out))
-	return os.WriteFile(shot+".pdf", out, 0o644)
+	if err := os.WriteFile(shot+".pdf", out, 0o644); err != nil {
+		return err
+	}
+
+	// The strip is no longer the whole workbench: most of the verbs now live
+	// in a panel that a group opens beside the page. That panel has to be
+	// driven here too, because a panel that is drawn and gets no events looks
+	// exactly like one that works — which is what it was until the toolkit
+	// underneath learned to hand a press to what is inside a scroll view.
+	marked, err := drivePanel(ctx, c, sid)
+	if err != nil {
+		say(c)
+		return err
+	}
+	fmt.Println("a verb pressed in the panel changed the page:", marked)
+
+	// And what the tab hands back now carries the mark, which is the whole
+	// claim: what is on the screen is what comes out of Save.
+	drain(c)
+	if err := click(ctx, c, sid, savedAt, 8+15); err != nil {
+		return err
+	}
+	again, err := waitForPDF(ctx, dl, out)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("the tab handed back a %d byte PDF after the panel was used\n", len(again))
+	doc, err := reader.Open(again)
+	if err != nil {
+		return fmt.Errorf("what the tab saved after the panel was used does not open: %w", err)
+	}
+	content, err := doc.PageContent(1)
+	if err != nil {
+		return fmt.Errorf("the first page of it cannot be read: %w", err)
+	}
+	if !bytes.Contains(content, []byte("(DRAFT) Tj")) {
+		return fmt.Errorf("the mark the panel wrote is not in the file the tab handed back")
+	}
+	fmt.Println("the mark written from the panel is in the saved file")
+	return nil
+}
+
+// Where the panel and the page are on the canvas, and how far apart the
+// presses that look for them are. The panel is three hundred of the canvas's
+// thousand pixels wide, at the right hand end.
+const (
+	pageBand  = 0.66
+	panelMid  = 840
+	panelTop  = 55
+	panelFoot = 690
+	stripY    = 8 + 15
+	// The leftmost control worth pressing from this end: everything to the
+	// left of it is Open, Save, the arrows and the two that change the
+	// document without being asked anything, and none of those opens a panel.
+	stripStop = 306
+)
+
+// drivePanel opens a group of verbs from the strip and presses the verbs in it
+// until one of them changes the page, which is what says the panel is wired to
+// the document rather than merely painted next to it.
+//
+// It works from the right hand end of the strip, so that the sweep never
+// presses the controls that drop a page.
+func drivePanel(ctx context.Context, c *conn, sid string) (string, error) {
+	quiet, err := lookIn(ctx, c, sid, pageBand, 1)
+	if err != nil {
+		return "", err
+	}
+	// A control is wider than the step, so the same group opens several times
+	// running. Its panel is told apart by what it looks like, and one that has
+	// already been pressed all the way down is not pressed again.
+	tried := map[int]bool{}
+	for x := 996; x > stripStop; x -= 8 {
+		if err := click(ctx, c, sid, x, stripY); err != nil {
+			return "", err
+		}
+		opened, err := changedIn(ctx, c, sid, pageBand, 1, quiet.Hash)
+		if err != nil {
+			return "", err
+		}
+		if !opened {
+			continue
+		}
+		panel, err := lookIn(ctx, c, sid, pageBand, 1)
+		if err != nil {
+			return "", err
+		}
+		if tried[panel.Hash] {
+			if err := click(ctx, c, sid, x, stripY); err != nil {
+				return "", err
+			}
+			if _, err := changedIn(ctx, c, sid, pageBand, 1, quiet.Hash); err != nil {
+				return "", err
+			}
+			continue
+		}
+		tried[panel.Hash] = true
+		fmt.Printf("a panel opened from x=%d\n", x)
+		hit, err := pressDownPanel(ctx, c, sid)
+		if err != nil {
+			return "", err
+		}
+		if hit != "" {
+			return hit, nil
+		}
+		// Nothing in this group changes what is drawn. Put it away and carry
+		// on along the strip.
+		if err := click(ctx, c, sid, x, stripY); err != nil {
+			return "", err
+		}
+		if _, err := changedIn(ctx, c, sid, pageBand, 1, quiet.Hash); err != nil {
+			return "", err
+		}
+	}
+	return "", fmt.Errorf("no group on the strip opened a panel with a verb in it")
+}
+
+// pressDownPanel presses down the open panel until the page beside it changes,
+// and says where that press was.
+func pressDownPanel(ctx context.Context, c *conn, sid string) (string, error) {
+	page, err := lookIn(ctx, c, sid, 0, pageBand)
+	if err != nil {
+		return "", err
+	}
+	for y := panelTop; y < panelFoot; y += 16 {
+		if err := click(ctx, c, sid, panelMid, y); err != nil {
+			return "", err
+		}
+		changed, err := changedIn(ctx, c, sid, 0, pageBand, page.Hash)
+		if err != nil {
+			return "", err
+		}
+		if changed {
+			return fmt.Sprintf("pressed at y=%d", y), nil
+		}
+	}
+	return "", nil
+}
+
+// changedIn waits a moment for the canvas to catch up and reports whether the
+// band changed.
+//
+// The wait is the point: the canvas is repainted on an animation frame rather
+// than on the press itself, so a look taken straight after a click is a look
+// at what was on the screen before it.
+func changedIn(ctx context.Context, c *conn, sid string, from, to float64, was int) (bool, error) {
+	deadline := time.Now().Add(250 * time.Millisecond)
+	for {
+		v, err := lookIn(ctx, c, sid, from, to)
+		if err != nil {
+			return false, err
+		}
+		if v.Hash != was {
+			return true, nil
+		}
+		if time.Now().After(deadline) {
+			return false, nil
+		}
+	}
+}
+
+// waitForPDF waits for a PDF to land in the download directory that is not the
+// one already seen.
+func waitForPDF(ctx context.Context, dl string, notThis []byte) ([]byte, error) {
+	var out []byte
+	err := until(ctx, 30*time.Second, func() (bool, error) {
+		files, _ := os.ReadDir(dl)
+		for _, f := range files {
+			b, err := os.ReadFile(filepath.Join(dl, f.Name()))
+			if err == nil && len(b) > 4 && string(b[:4]) == "%PDF" && !bytes.Equal(b, notThis) {
+				out = b
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("no second PDF was handed back: %w", err)
+	}
+	return out, nil
 }
 
 // say prints whatever the tab said for itself, which is where a program that
@@ -163,11 +345,25 @@ type canvas struct {
 	Hash int `json:"hash"`
 }
 
-// look reads the pixels out of the canvas in the tab.
+// look reads the pixels out of the whole canvas in the tab.
 func look(ctx context.Context, c *conn, sid string) (canvas, error) {
-	const js = `(() => {
+	return lookIn(ctx, c, sid, 0, 1)
+}
+
+// lookIn reads the pixels out of a band of the canvas, given as fractions of
+// its width. It is how the two halves of the workbench are told apart with
+// nothing eyeballed: opening a group of verbs lights up the right hand band,
+// and pressing one of them changes the left hand one, where the page is.
+func lookIn(ctx context.Context, c *conn, sid string, from, to float64) (canvas, error) {
+	// The band runs from under the strip to above the status line. Both of
+	// those change for reasons that are not what is being asked about — a
+	// control lights up under the pointer, a message is written at the bottom
+	// — and counting them would answer a different question.
+	js := fmt.Sprintf(`(() => {
 	  const c = document.getElementById('screen');
-	  const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+	  const x0 = Math.floor(c.width * %g), x1 = Math.ceil(c.width * %g);
+	  const y0 = Math.floor(c.height * 0.07), y1 = Math.floor(c.height * 0.95);
+	  const d = c.getContext('2d').getImageData(x0, y0, x1 - x0, y1 - y0).data;
 	  const r0 = d[0], g0 = d[1], b0 = d[2];
 	  let n = 0, dark = 0, hash = 0;
 	  for (let i = 0; i < d.length; i += 4) {
@@ -176,7 +372,7 @@ func look(ctx context.Context, c *conn, sid string) (canvas, error) {
 	    hash = (hash * 31 + d[i] + d[i+1] * 3 + d[i+2] * 7) | 0;
 	  }
 	  return JSON.stringify({n, dark, hash});
-	})()`
+	})()`, from, to)
 	var out canvas
 	s, err := eval(ctx, c, sid, js)
 	if err != nil {

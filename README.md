@@ -27,10 +27,30 @@ loaded, since nothing is fetched after start-up. A file is read through
 the browser's own picker and handed back as a download; the bytes never
 touch a server, and there is no server to touch.
 
-## What is on the strip
+## What is on the strip, and what is beside the page
 
-**Open** · **Save** · **&lt;** · **&gt;** · **Rotate** · **Delete** ·
-**Two up** · **Watermark** · **Sanitize**. The arrow keys turn pages too.
+**Open** · **Save** · **&lt;** · **&gt;** · **Rotate** · **Delete**, and then
+one control per group of verbs: **Pages** · **Sheet** · **Marks** · **File**,
+with **Fill in** at the end for a document that carries a form. The arrow keys
+turn pages too.
+
+A strip cannot hold the rest. The verbs the library offers mostly have to be
+told something first — which pages, how many to a sheet, what to write — and
+there is nowhere on a row of buttons to say it. So a group opens a panel
+**beside** the page rather than instead of it:
+
+- **Pages** — which pages to keep or drop, turn them a quarter, a half or
+  three quarters, reverse the order, move the one on the screen, crop to a
+  box, put a blank page in, split into files of *n* pages.
+- **Sheet** — *n* pages to a sheet, fold into a booklet, add another file
+  after this one, lay another file over it.
+- **Marks** — write a watermark across every page.
+- **File** — strip what runs rather than shows.
+
+Beside, because every one of those changes the document and the document is
+drawn from what would be saved: typing a crop box and watching the page come
+back cropped is the whole point of the control, and a panel over the page
+would hide the one thing worth looking at.
 
 Every change is applied to the document, written out, and read back before
 it is drawn — so what is on the screen is what would come out of Save,
@@ -53,7 +73,11 @@ Then in a real browser, over the DevTools protocol with nothing eyeballed:
 Chrome loads the shell, the wasm starts, the file picker is intercepted and
 handed a PDF, and the canvas pixels are read back to prove the page arrived
 — which is how it was found that a file arriving from the browser needs a
-frame of its own, having no event to be drawn on.
+frame of its own, having no event to be drawn on. The same check then presses
+along the strip until a panel opens beside the page, presses down that panel
+until one of its verbs changes what is drawn, saves, and parses what came back
+to find the mark in it: a panel that is painted and gets no events looks
+exactly like one that works.
 
 ## Building
 

@@ -123,7 +123,10 @@ func run() error {
 	}
 	fmt.Println("devtools at", wsURL)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	// Long enough for the panel to be driven as well as the strip: the sweep
+	// that finds a group and then a verb inside it is a few hundred presses,
+	// each of which waits for the canvas to catch up.
+	ctx, cancel := context.WithTimeout(context.Background(), 360*time.Second)
 	defer cancel()
 	c, err := dial(ctx, wsURL)
 	if err != nil {

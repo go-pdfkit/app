@@ -21,6 +21,9 @@ type fakeHost struct {
 	saved []byte
 	as    string
 	asked int
+	// savedAll counts everything handed back, which is what says a verb that
+	// produces several files produced them all.
+	savedAll int
 }
 
 func (h *fakeHost) Open(done func(string, []byte)) {
@@ -31,7 +34,10 @@ func (h *fakeHost) Open(done func(string, []byte)) {
 	done(h.name, h.file)
 }
 
-func (h *fakeHost) Save(name string, data []byte) { h.as, h.saved = name, data }
+func (h *fakeHost) Save(name string, data []byte) {
+	h.as, h.saved = name, data
+	h.savedAll++
+}
 
 // samplePDF builds a document of n pages, each carrying a black square and its
 // own number, so a rendered page can be told from a blank one.
@@ -231,7 +237,8 @@ func TestDeletingThePageOnTheScreen(t *testing.T) {
 
 func TestLayingPagesOutTwoUp(t *testing.T) {
 	s, _ := opened(t, 4)
-	s.twoUp()
+	s.tools.up = 2
+	s.nUp()
 	if s.doc.PageCount() != 2 {
 		t.Errorf("%d sheets", s.doc.PageCount())
 	}
@@ -243,12 +250,12 @@ func TestLayingPagesOutTwoUp(t *testing.T) {
 func TestWatermarkingAndSanitising(t *testing.T) {
 	s, _ := opened(t, 2)
 	s.watermark()
-	if s.note != "" {
+	if !strings.Contains(s.note, "DRAFT") {
 		t.Errorf("watermarking said %q", s.note)
 	}
 	s.sanitize()
-	if s.note != "" {
-		t.Errorf("sanitising said %q", s.note)
+	if s.note == "" {
+		t.Error("sanitising said nothing for itself")
 	}
 	out, err := s.doc.Bytes()
 	if err != nil {
@@ -352,7 +359,7 @@ func TestEveryControlIsReachableByClicking(t *testing.T) {
 
 func TestAControlWithNothingOpenSaysSo(t *testing.T) {
 	s := newState(surfaceW, surfaceH, &fakeHost{})
-	for _, act := range []func(){s.rotate, s.deletePage, s.twoUp, s.watermark, s.sanitize} {
+	for _, act := range []func(){s.rotate, s.deletePage, s.nUp, s.watermark, s.sanitize} {
 		s.note = ""
 		act()
 		if s.note == "" {
