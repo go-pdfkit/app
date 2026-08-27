@@ -30,27 +30,43 @@ touch a server, and there is no server to touch.
 ## What is on the strip, and what is beside the page
 
 **Open** · **Save** · **&lt;** · **&gt;** · **Rotate** · **Delete**, and then
-one control per group of verbs: **Pages** · **Sheet** · **Marks** · **File**,
-with **Fill in** at the end for a document that carries a form. The arrow keys
-turn pages too.
+one control per group of verbs: **Pages** · **Sheet** · **Marks** · **File** ·
+**Protect** · **Read**, with **Fill in** at the end for a document that carries
+a form. The arrow keys turn pages too.
 
 A strip cannot hold the rest. The verbs the library offers mostly have to be
-told something first — which pages, how many to a sheet, what to write — and
-there is nowhere on a row of buttons to say it. So a group opens a panel
-**beside** the page rather than instead of it:
+told something first — which pages, how many to a sheet, what to write, which
+password — and there is nowhere on a row of buttons to say it. So a group opens
+a panel **beside** the page rather than instead of it:
 
 - **Pages** — which pages to keep or drop, turn them a quarter, a half or
   three quarters, reverse the order, move the one on the screen, crop to a
   box, put a blank page in, split into files of *n* pages.
 - **Sheet** — *n* pages to a sheet, fold into a booklet, add another file
   after this one, lay another file over it.
-- **Marks** — write a watermark across every page.
-- **File** — strip what runs rather than shows.
+- **Marks** — a watermark, page numbers in a shape you choose, a Bates number
+  padded and started where you say, and a stamp in one of nine places.
+- **File** — sanitize, flatten the annotations in, drop the annotations, the
+  bookmarks or what the file says about itself, pack it smaller, give it a
+  title and an author.
+- **Protect** — open a file that has a password, put a user and an owner
+  password on this one and say what a reader may do with it, or take the
+  protection off.
+- **Read** — what the page says, and what it carries: every picture on it,
+  listed with its size and its shape, each one handed over under a name that
+  says what it holds.
 
-Beside, because every one of those changes the document and the document is
-drawn from what would be saved: typing a crop box and watching the page come
-back cropped is the whole point of the control, and a panel over the page
-would hide the one thing worth looking at.
+A protected document is still drawn, because the workbench reads its own
+output back with the password it was just given. It is not the same bytes
+twice — encryption needs randomness, by design — but it is the same document,
+protected the same way.
+
+Beside, because nearly every one of those changes the document and the document
+is drawn from what would be saved: typing a crop box and watching the page come
+back cropped is the whole point of the control, and a panel over the page would
+hide the one thing worth looking at. **Read** is the exception that keeps the
+rule — it changes nothing, and what it reads it reads out of the document
+written and read back, so what it lists is what would come out of Save.
 
 Every change is applied to the document, written out, and read back before
 it is drawn — so what is on the screen is what would come out of Save,

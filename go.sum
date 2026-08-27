@@ -24,6 +24,8 @@ github.com/go-opentype/opentype v0.10.0 h1:cZVMZ3RVkcijXmxlmpqyVkjlNc33aSB2ugKVW
 github.com/go-opentype/opentype v0.10.0/go.mod h1:AOixevJf7XQaH7+WG+OMIOZEbYPXfMqklVk26Y6YTUU=
 github.com/go-opentype/shape v0.5.0 h1:jHNaOMHNBdDj5EixOevlrrsi92svMxvVMKN7GYaPfxo=
 github.com/go-opentype/shape v0.5.0/go.mod h1:3ImRYNIj6zpwWQ/DV3BWhgMFfmzDITH6XpZw2auQHTo=
+github.com/go-pdfkit/extract v0.2.0 h1:ibx2C2mJTJjGzP9bRnrRnmvdeZjv9aTas6tSkeEiTeM=
+github.com/go-pdfkit/extract v0.2.0/go.mod h1:7KJGmgvxjk9qqbDdjpaAcEzd4G3vq3ciHuuufVdLiu4=
 github.com/go-pdfkit/forms v0.2.2 h1:tGnENs09LBUBppSrH0dGenV8KCQcbngsi+OatWID90Y=
 github.com/go-pdfkit/forms v0.2.2/go.mod h1:dQ4FzO6qF7RJh6oEa0dkgL0i8hKBmm/e7hj4XC56h5Q=
 github.com/go-pdfkit/ops v0.7.0 h1:W8sK//0nfs/OACvjzvw/GK5ywtd90eDoYcdv74GxW8M=

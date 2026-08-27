@@ -35,14 +35,16 @@ const (
 // it does to the file rather than by which library call it makes: somebody
 // looking for "two to a sheet" is thinking about the sheet, not about NUp.
 const (
-	groupPages = "Pages"
-	groupSheet = "Sheet"
-	groupMarks = "Marks"
-	groupFile  = "File"
+	groupPages   = "Pages"
+	groupSheet   = "Sheet"
+	groupMarks   = "Marks"
+	groupFile    = "File"
+	groupProtect = "Protect"
+	groupRead    = "Read"
 )
 
 // groupNames is the order they are offered in.
-var groupNames = []string{groupPages, groupSheet, groupMarks, groupFile}
+var groupNames = []string{groupPages, groupSheet, groupMarks, groupFile, groupProtect, groupRead}
 
 // tools is the tool panel: which group is open, the widgets of every group
 // that has been opened, and what those widgets currently say.
@@ -67,21 +69,59 @@ type tools struct {
 	// The Sheet group.
 	up int // how many pages to a sheet
 
-	// The Marks group.
-	mark string // what a watermark says
+	// The Marks group, which acts on a range of its own: the Pages group's
+	// box is that group's, and one box shared between two panels would show
+	// the wrong thing in whichever of them was not last used.
+	markSpec string
+	mark     string // what a watermark says
+	numbers  string // the shape of a page number
+	prefix   string // what comes before a Bates number
+	start    int    // the first Bates number
+	digits   int    // how many digits it is padded to
+	stamp    string // what a stamp says
+	at       int    // where on the page it goes
+	size     int    // how large, in points
+
+	// The File group.
+	title, author string
+
+	// The Protect group.
+	openPw, userPw, ownerPw string
+	allow                   map[string]bool
+
+	// The Read group: which reading of the document is on the screen instead
+	// of the picture of it, or empty for the picture.
+	reading string
 }
 
 // newTools builds the panel's state with the defaults each control starts at.
 func newTools() *tools {
 	return &tools{
-		built:  map[string]toolkit.Widget{},
-		turn:   90,
-		moveTo: 1,
-		before: 1,
-		every:  1,
-		up:     2,
-		mark:   "DRAFT",
+		built:   map[string]toolkit.Widget{},
+		turn:    90,
+		moveTo:  1,
+		before:  1,
+		every:   1,
+		up:      2,
+		mark:    "DRAFT",
+		numbers: "{page} / {pages}",
+		start:   1,
+		digits:  6,
+		stamp:   "COPY",
+		size:    12,
+		allow:   everythingAllowed(),
 	}
+}
+
+// everythingAllowed is what a protected file lets a reader do until somebody
+// says otherwise, which is everything: a password on a file is nearly always
+// meant to keep it shut rather than to stop whoever opened it printing it.
+func everythingAllowed() map[string]bool {
+	out := map[string]bool{}
+	for _, a := range allowed {
+		out[a.name] = true
+	}
+	return out
 }
 
 // showGroup opens a group of verbs beside the page, or closes it when it is
@@ -112,6 +152,10 @@ func (s *state) body() toolkit.Widget {
 		rows = s.sheetGroup()
 	case groupMarks:
 		rows = s.marksGroup()
+	case groupProtect:
+		rows = s.protectGroup()
+	case groupRead:
+		rows = s.readGroup()
 	default:
 		rows = s.fileGroup()
 	}
@@ -158,10 +202,15 @@ func (c *column) add(w toolkit.Widget, h int) {
 
 // scroller is the stack in a view that can be scrolled when it is taller than
 // the panel, told how tall it is.
-func (c *column) scroller() *toolkit.ScrollView {
-	c.box.SetBounds(toolkit.Rect{W: rowsW, H: c.h})
+func (c *column) scroller() *toolkit.ScrollView { return c.scrollerOf(rowsW) }
+
+// scrollerOf is the same at a width of the caller's choosing, which is what a
+// reading of the page needs: it is put where the page was rather than in the
+// panel, and the page is a good deal wider than the panel is.
+func (c *column) scrollerOf(w int) *toolkit.ScrollView {
+	c.box.SetBounds(toolkit.Rect{W: w, H: c.h})
 	sv := toolkit.NewScrollView(c.box)
-	sv.SetContentSize(rowsW, c.h)
+	sv.SetContentSize(w, c.h)
 	return sv
 }
 
@@ -211,22 +260,6 @@ func (s *state) sheetGroup() *column {
 	return box
 }
 
-// marksGroup is what gets written on top of what the pages already show.
-func (s *state) marksGroup() *column {
-	box := newColumn()
-	box.add(s.entryRow("Watermark", "what it says", s.tools.mark,
-		func(v string) { s.tools.mark = v }), labelledH)
-	box.add(button("Write it across every page", toolkit.ButtonDefault, s.watermark), bareH)
-	return box
-}
-
-// fileGroup is what happens to the file rather than to any page of it.
-func (s *state) fileGroup() *column {
-	box := newColumn()
-	box.add(button("Sanitize", toolkit.ButtonDefault, s.sanitize), bareH)
-	return box
-}
-
 // entryRow is a named box to type in, bound to where what is typed goes.
 func (s *state) entryRow(label, hint, initial string, to func(string)) toolkit.Widget {
 	e := toolkit.NewEntry(initial)
@@ -241,6 +274,22 @@ func (s *state) spinRow(label string, min, initial int, to func(int)) toolkit.Wi
 	sp := toolkit.NewSpinButton(min, pageCeiling, initial, 1)
 	sp.Value().Subscribe(to)
 	return toolkit.NewFormField(label, sp)
+}
+
+// chooseRow is a named list to choose from, bound to where the choice goes.
+// The list is drawn over whatever is under it by the popover host the view is
+// wrapped in, which is the one thing a drop-down cannot do for itself.
+func chooseRow(label string, options []string, chosen int, to func(int)) toolkit.Widget {
+	d := toolkit.NewDropDown(options, chosen)
+	d.Selected().Subscribe(to)
+	return toolkit.NewFormField(label, d)
+}
+
+// tickRow is a box to tick, which names itself.
+func tickRow(label string, on bool, to func(bool)) toolkit.Widget {
+	c := toolkit.NewCheckButton(label, on)
+	c.Checked().Subscribe(to)
+	return c
 }
 
 // pageCeiling is as high as any of these numbers is allowed to go. It is not a

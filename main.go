@@ -7,6 +7,7 @@
 package main
 
 import (
+	"strings"
 	"syscall/js"
 
 	"github.com/go-widgets/webcanvas"
@@ -60,18 +61,37 @@ func read(file js.Value, done func([]byte)) {
 	file.Call("arrayBuffer").Call("then", then)
 }
 
-// Save hands a document to the person as a download. The blob is made from a
-// copy of the bytes, since the Go side may write over its own buffer.
+// Save hands a file to the person as a download. The blob is made from a copy
+// of the bytes, since the Go side may write over its own buffer.
 func (browser) Save(name string, data []byte) {
 	buf := js.Global().Get("Uint8Array").New(len(data))
 	js.CopyBytesToJS(buf, data)
 	parts := js.Global().Get("Array").New(1)
 	parts.SetIndex(0, buf)
-	blob := js.Global().Get("Blob").New(parts, map[string]any{"type": "application/pdf"})
+	blob := js.Global().Get("Blob").New(parts, map[string]any{"type": mimeOf(name)})
 	url := js.Global().Get("URL").Call("createObjectURL", blob)
 	link := js.Global().Get("document").Call("createElement", "a")
 	link.Set("href", url)
 	link.Set("download", name)
 	link.Call("click")
 	js.Global().Get("URL").Call("revokeObjectURL", url)
+}
+
+// mimeOf is what a file handed back is, taken from what it is called.
+//
+// Not everything the workbench hands over is a document: a picture pulled off
+// a page is a picture, and a browser told it is a PDF opens it in a PDF viewer
+// that cannot read it.
+func mimeOf(name string) string {
+	switch {
+	case strings.HasSuffix(name, ".jpg"):
+		return "image/jpeg"
+	case strings.HasSuffix(name, ".jp2"):
+		return "image/jp2"
+	case strings.HasSuffix(name, ".jbig2"):
+		return "image/x-jbig2"
+	case strings.HasSuffix(name, ".samples"):
+		return "application/octet-stream"
+	}
+	return "application/pdf"
 }

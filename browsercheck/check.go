@@ -149,23 +149,29 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 	// driven here too, because a panel that is drawn and gets no events looks
 	// exactly like one that works — which is what it was until the toolkit
 	// underneath learned to hand a press to what is inside a scroll view.
-	marked, err := drivePanel(ctx, c, sid)
+	// What counts as a verb having run is that the file the tab hands back is
+	// a DIFFERENT file. Some of the panels change what is on the screen
+	// without changing the document at all — the Read group replaces the
+	// picture of the page with what the page says — and a check that stopped
+	// at the first press to redraw the canvas would call that a verb.
+	var again []byte
+	marked, err := drivePanel(ctx, c, sid, func() (bool, error) {
+		drain(c)
+		if err := click(ctx, c, sid, savedAt, stripY); err != nil {
+			return false, err
+		}
+		got, err := waitForPDF(ctx, dl, out, 6*time.Second)
+		if err != nil {
+			return false, nil // the same file back: nothing was changed
+		}
+		again = got
+		return true, nil
+	})
 	if err != nil {
 		say(c)
 		return err
 	}
-	fmt.Println("a verb pressed in the panel changed the page:", marked)
-
-	// And what the tab hands back now carries the mark, which is the whole
-	// claim: what is on the screen is what comes out of Save.
-	drain(c)
-	if err := click(ctx, c, sid, savedAt, 8+15); err != nil {
-		return err
-	}
-	again, err := waitForPDF(ctx, dl, out)
-	if err != nil {
-		return err
-	}
+	fmt.Println("a verb pressed in the panel changed the document:", marked)
 	fmt.Printf("the tab handed back a %d byte PDF after the panel was used\n", len(again))
 	doc, err := reader.Open(again)
 	if err != nil {
@@ -203,7 +209,7 @@ const (
 //
 // It works from the right hand end of the strip, so that the sweep never
 // presses the controls that drop a page.
-func drivePanel(ctx context.Context, c *conn, sid string) (string, error) {
+func drivePanel(ctx context.Context, c *conn, sid string, confirm func() (bool, error)) (string, error) {
 	quiet, err := lookIn(ctx, c, sid, pageBand, 1)
 	if err != nil {
 		return "", err
@@ -238,7 +244,7 @@ func drivePanel(ctx context.Context, c *conn, sid string) (string, error) {
 		}
 		tried[panel.Hash] = true
 		fmt.Printf("a panel opened from x=%d\n", x)
-		hit, err := pressDownPanel(ctx, c, sid)
+		hit, err := pressDownPanel(ctx, c, sid, confirm)
 		if err != nil {
 			return "", err
 		}
@@ -257,9 +263,9 @@ func drivePanel(ctx context.Context, c *conn, sid string) (string, error) {
 	return "", fmt.Errorf("no group on the strip opened a panel with a verb in it")
 }
 
-// pressDownPanel presses down the open panel until the page beside it changes,
-// and says where that press was.
-func pressDownPanel(ctx context.Context, c *conn, sid string) (string, error) {
+// pressDownPanel presses down the open panel until a press both changes the
+// page beside it and changes the document, and says where that press was.
+func pressDownPanel(ctx context.Context, c *conn, sid string, confirm func() (bool, error)) (string, error) {
 	page, err := lookIn(ctx, c, sid, 0, pageBand)
 	if err != nil {
 		return "", err
@@ -272,8 +278,21 @@ func pressDownPanel(ctx context.Context, c *conn, sid string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if changed {
+		if !changed {
+			continue
+		}
+		did, err := confirm()
+		if err != nil {
+			return "", err
+		}
+		if did {
 			return fmt.Sprintf("pressed at y=%d", y), nil
+		}
+		// It redrew and changed nothing that would be saved. Take the page as
+		// it now stands as the new baseline and carry on down the panel.
+		page, err = lookIn(ctx, c, sid, 0, pageBand)
+		if err != nil {
+			return "", err
 		}
 	}
 	return "", nil
@@ -303,9 +322,9 @@ func changedIn(ctx context.Context, c *conn, sid string, from, to float64, was i
 
 // waitForPDF waits for a PDF to land in the download directory that is not the
 // one already seen.
-func waitForPDF(ctx context.Context, dl string, notThis []byte) ([]byte, error) {
+func waitForPDF(ctx context.Context, dl string, notThis []byte, patience time.Duration) ([]byte, error) {
 	var out []byte
-	err := until(ctx, 30*time.Second, func() (bool, error) {
+	err := until(ctx, patience, func() (bool, error) {
 		files, _ := os.ReadDir(dl)
 		for _, f := range files {
 			b, err := os.ReadFile(filepath.Join(dl, f.Name()))
