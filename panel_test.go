@@ -346,6 +346,36 @@ func TestTheMarksAndFilePanels(t *testing.T) {
 	}
 }
 
+func TestOnlyTheBoxLastPressedTakesWhatIsTyped(t *testing.T) {
+	// Two boxes in one panel: the range and the crop box. A press on the
+	// second has to take the caret off the first, or every letter meant for
+	// the second goes into the first — which is what happened, because the
+	// toolkit's own focus walk cannot see into a scroll view.
+	s, _ := opened(t, 3)
+	openGroup(t, s, groupPages)
+	x, y := rowAt(t, s, pagesRows, 0, 1)
+	press(s, x, y)
+	for _, c := range []string{"1", "-", "2"} {
+		s.handleChar(c)
+	}
+	x, y = rowAt(t, s, pagesRows, 6, 1)
+	press(s, x, y)
+	for _, c := range []string{"0", ",", "0", ",", "9", ",", "9"} {
+		s.handleChar(c)
+	}
+	if s.tools.spec != "1-2" {
+		t.Errorf("the range box holds %q", s.tools.spec)
+	}
+	if s.tools.box != "0,0,9,9" {
+		t.Errorf("the crop box holds %q", s.tools.box)
+	}
+	// And a press that lands on neither leaves both of them alone.
+	press(s, margin+2, viewTop+viewH-2)
+	if s.editing() {
+		t.Error("a press on nothing left a box with the caret")
+	}
+}
+
 func TestAPanelPutAwayLetsGoOfTheKeys(t *testing.T) {
 	s, _ := opened(t, 3)
 	openGroup(t, s, groupPages)

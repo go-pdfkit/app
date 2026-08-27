@@ -514,6 +514,16 @@ func (s *state) draw(buf []byte) {
 // what it is handed anyway.
 func (s *state) pointer(kind toolkit.EventKind, x, y int) bool {
 	view := s.view // a control may put another view in its place
+	if kind == toolkit.EventClick {
+		// Nothing under the pointer takes the caret away from the box that
+		// has it. The toolkit moves focus on a click by walking the container
+		// for its focusable descendants, and that walk cannot see into a
+		// scroll view or through a form field — so a press on a second box
+		// leaves the first one focused too, and every letter typed after it
+		// goes into the first. Clearing them all first leaves exactly the one
+		// this press lands in.
+		s.settle()
+	}
 	hit(s.toolbar, kind, x, y)
 	hit(view, kind, x, y)
 	return true
