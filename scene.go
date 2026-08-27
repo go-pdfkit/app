@@ -6,7 +6,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/go-pdfkit/ops"
 	"github.com/go-pdfkit/reader"
@@ -346,14 +348,36 @@ func (s *state) renderPage() {
 	if s.at < 1 {
 		s.at = 1
 	}
-	img, err := drawPage(src, s.at, render.Options{Scale: s.fitScale(src)})
-	if err != nil {
+	img, err := drawPage(src, s.at, render.Options{
+		Scale:       s.fitScale(src),
+		MaxDuration: pageBudget,
+	})
+	// A page that ran out of time comes back as far as it got, which is worth
+	// showing: somebody scrolling would rather see most of a figure than a
+	// sentence saying there was one. Anything else, and there is no picture.
+	partial := errors.Is(err, render.ErrTimedOut) && img != nil
+	if err != nil && !partial {
 		s.view = toolkit.NewFrame(toolkit.NewLabel("this page cannot be drawn: " + err.Error()))
 		return
+	}
+	if partial {
+		// Showing half a page without saying so would be the one thing worse
+		// than showing nothing, so the status line says which it is. This is
+		// the only place renderPage writes the note, and it overwrites
+		// whatever was there, because what is on the screen right now matters
+		// more than what happened before it.
+		s.note = fmt.Sprintf("this page was still being drawn after %s; this is as far as it got", pageBudget)
 	}
 	s.page = toolkit.NewImageFit(img.Pix, img.W, img.H)
 	s.view = toolkit.NewFrame(s.page)
 }
+
+// pageBudget is how long one page may be drawn for before what has been drawn
+// so far is shown instead. A handful of pages take minutes — of the 59 432
+// pages the renderer was measured against, 1 131 were still going after twenty
+// seconds and one took two hundred and seventy-three — and a window that stops
+// answering for that long reads as broken rather than as busy.
+const pageBudget = 5 * time.Second
 
 // fitScale is how much to magnify the page so that it fills the view without
 // spilling out of it.
