@@ -4,9 +4,12 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/go-gfx/gfx/raster"
 	"github.com/go-pdfkit/ops"
 	"github.com/go-pdfkit/reader"
+	"github.com/go-pdfkit/render"
 	"github.com/go-widgets/toolkit"
 )
 
@@ -586,5 +589,61 @@ func TestAControlIsWideEnoughForItsName(t *testing.T) {
 	}
 	if total > surfaceW-2*margin {
 		t.Errorf("the strip is %d wide and the surface is %d", total, surfaceW-2*margin)
+	}
+}
+
+func TestAPageThatRanOutOfTimeIsShownAsFarAsItGot(t *testing.T) {
+	// The renderer is given a budget, and a page that overruns it comes back
+	// half drawn together with render.ErrTimedOut. Half a page is worth more
+	// to somebody scrolling than a sentence saying there was one, so the
+	// workbench shows it rather than the error.
+	s, _ := opened(t, 1)
+	was := drawPage
+	t.Cleanup(func() { drawPage = was })
+	var budget time.Duration
+	drawPage = func(_ *reader.Document, _ int, opt render.Options) (*raster.Image, error) {
+		budget = opt.MaxDuration
+		return raster.New(4, 4), render.ErrTimedOut
+	}
+
+	s.refresh()
+	if budget <= 0 {
+		t.Error("the renderer was given no budget at all")
+	}
+	if s.page == nil {
+		t.Fatal("the part of the page that was drawn was thrown away")
+	}
+	if !strings.Contains(s.note, "as far as it got") {
+		t.Errorf("half a page was shown without saying so; the status line said %q", s.note)
+	}
+	if got := s.statusLine(); !strings.Contains(strings.Join(got, "|"), "as far as it got") {
+		t.Errorf("the status line does not carry it: %q", got)
+	}
+	buf := buffer()
+	s.draw(buf)
+	if inked(buf, s.theme.Background) == 0 {
+		t.Error("nothing reached the screen")
+	}
+}
+
+func TestAPageThatRanOutOfTimeWithNothingDrawnSaysSo(t *testing.T) {
+	// Coming back timed out and empty is not something the renderer does,
+	// but if it did there is no picture to show, so the view has to fall
+	// back on saying why rather than dereferencing nothing.
+	s, _ := opened(t, 1)
+	was := drawPage
+	t.Cleanup(func() { drawPage = was })
+	drawPage = func(*reader.Document, int, render.Options) (*raster.Image, error) {
+		return nil, render.ErrTimedOut
+	}
+
+	s.refresh()
+	if s.page != nil {
+		t.Error("a page was drawn from nothing")
+	}
+	buf := buffer()
+	s.draw(buf)
+	if inked(buf, s.theme.Background) == 0 {
+		t.Error("the reason was not drawn")
 	}
 }
