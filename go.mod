@@ -3,20 +3,23 @@ module github.com/go-pdfkit/app
 go 1.26.4
 
 require (
-	github.com/go-gfx/gfx v0.10.0
+	github.com/go-gfx/gfx v0.13.0
 	github.com/go-pdfkit/extract v0.3.0
 	github.com/go-pdfkit/forms v0.2.2
 	github.com/go-pdfkit/ops v0.7.1
 	github.com/go-pdfkit/reader v0.6.0
-	github.com/go-pdfkit/render v0.11.0
+	github.com/go-pdfkit/render v0.14.0
 	github.com/go-widgets/painter v0.11.0
 	github.com/go-widgets/toolkit v0.277.0
 	github.com/go-widgets/webcanvas v0.1.0
 )
 
 require (
+	github.com/ajroetker/go-highway v0.0.4 // indirect
+	github.com/ajroetker/go-jpeg2000 v0.0.2 // indirect
 	github.com/andybalholm/brotli v1.2.2 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
+	github.com/dkrisman/gobig2 v0.0.0-20260513123937-51e39052fde6 // indirect
 	github.com/go-crdt/collab v0.25.0 // indirect
 	github.com/go-crdt/crdt v0.31.0 // indirect
 	github.com/go-iconoir/iconoir v0.2.0 // indirect
