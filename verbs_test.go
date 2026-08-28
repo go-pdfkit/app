@@ -12,6 +12,7 @@ import (
 	"github.com/go-pdfkit/extract"
 	"github.com/go-pdfkit/ops"
 	"github.com/go-pdfkit/reader"
+	"github.com/go-widgets/toolkit"
 )
 
 // The heights of the rows of the groups this file drives.
@@ -43,6 +44,12 @@ func content(t *testing.T, d *ops.Doc) []byte {
 }
 
 // typeInto puts the caret in the box on a row and types a word into it.
+//
+// The caret is sent to the end first. Since toolkit v0.273.0 a press puts the
+// caret WHERE IT LANDS rather than after the last letter — which is what a text
+// box should do — and these rows are pressed in the middle, which for a box
+// that already holds a default lands before the text. Somebody adding to what
+// is there goes to the end first, and so does this.
 func typeInto(t *testing.T, s *state, rows []int, n int, word string) {
 	t.Helper()
 	x, y := rowAt(t, s, rows, n, 1)
@@ -50,6 +57,7 @@ func typeInto(t *testing.T, s *state, rows []int, n int, word string) {
 	if !s.editing() {
 		t.Fatalf("pressing row %d did not put the caret in a box", n)
 	}
+	s.toCaret(toolkit.Event{Kind: toolkit.EventKeyDown, Code: "End"})
 	for _, c := range strings.Split(word, "") {
 		if !s.handleChar(c) {
 			t.Fatalf("row %d refused a character", n)
