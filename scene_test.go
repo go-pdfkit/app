@@ -502,7 +502,9 @@ func TestWhenTheDocumentJustWrittenCannotBeReadBack(t *testing.T) {
 	s, _ := opened(t, 2)
 	was := openBytes
 	t.Cleanup(func() { openBytes = was })
-	openBytes = func([]byte) (*reader.Document, error) { return nil, errors.New("not a PDF after all") }
+	openBytes = func([]byte, string) (*reader.Document, error) {
+		return nil, errors.New("not a PDF after all")
+	}
 
 	s.refresh()
 	if s.page != nil {

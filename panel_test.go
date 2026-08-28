@@ -17,8 +17,6 @@ var (
 	pagesRows = []int{labelledH, bareH, bareH, bareH, labelledH, bareH,
 		labelledH, bareH, labelledH, bareH, labelledH, bareH}
 	sheetRows = []int{labelledH, bareH, bareH, bareH, bareH}
-	marksRows = []int{labelledH, bareH}
-	fileRows  = []int{bareH}
 )
 
 // openGroup shows a group and lays it out, which is what gives its controls
@@ -306,43 +304,6 @@ func TestAddingAndOverlayingAnotherFile(t *testing.T) {
 	press(s, x, y)
 	if s.doc.PageCount() != 5 {
 		t.Errorf("changing one's mind about a second file gave %d pages", s.doc.PageCount())
-	}
-}
-
-func TestTheMarksAndFilePanels(t *testing.T) {
-	s, _ := opened(t, 2)
-	openGroup(t, s, groupMarks)
-	x, y := rowAt(t, s, marksRows, 0, 1)
-	press(s, x, y)
-	for _, c := range []string{"O", "K"} {
-		s.handleChar(c)
-	}
-	if s.tools.mark != "DRAFTOK" {
-		t.Fatalf("the box holds %q", s.tools.mark)
-	}
-	x, y = rowAt(t, s, marksRows, 1, 1)
-	press(s, x, y)
-	out, err := s.doc.Bytes()
-	if err != nil {
-		t.Fatal(err)
-	}
-	back, err := reader.Open(out)
-	if err != nil {
-		t.Fatal(err)
-	}
-	content, err := back.PageContent(1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !contains(content, "(DRAFTOK) Tj") {
-		t.Error("what was typed is not on the page")
-	}
-
-	openGroup(t, s, groupFile)
-	x, y = rowAt(t, s, fileRows, 0, 1)
-	press(s, x, y)
-	if s.note == "" {
-		t.Error("sanitising said nothing for itself")
 	}
 }
 

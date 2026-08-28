@@ -68,6 +68,11 @@ type state struct {
 	// raw is the file as it arrived. A form is filled in on the file itself
 	// rather than on a document rebuilt around it, so the bytes are kept.
 	raw []byte
+	// reopenPw is the password the document will need to be read back with,
+	// which is empty until somebody asks for it to be protected. Reading it
+	// back is how the workbench draws it, so protecting a file would
+	// otherwise put a message where the page was.
+	reopenPw string
 	// form is what the document asks to be filled in, when it asks anything,
 	// and showingForm says the panel is up instead of the page.
 	form        *filling
@@ -146,7 +151,7 @@ const (
 // open asks for a file and takes it as the document.
 func (s *state) open() {
 	s.host.Open(func(name string, data []byte) {
-		d, err := ops.Open(data)
+		d, err := ops.OpenWithPassword(data, s.tools.openPw)
 		if err != nil {
 			s.fail("cannot open " + name + ": " + err.Error())
 			return
@@ -154,6 +159,8 @@ func (s *state) open() {
 		s.doc, s.name, s.at, s.raw = d, name, 1, data
 		s.note = ""
 		s.showingForm = false
+		s.reopenPw = ""
+		s.tools.reading = ""
 		s.readForm(data)
 		if s.form != nil {
 			s.note = fmt.Sprintf("this document has a form: %d fields",
@@ -217,13 +224,6 @@ func (s *state) deletePage() {
 	// one place that has to be right whatever shrank the document.
 	at := s.at
 	s.change(func(d *ops.Doc) error { return d.Delete(pageSpec(at)) })
-}
-
-// watermark writes across every page.
-func (s *state) watermark() {
-	text := s.tools.mark
-	s.changeSaying("wrote "+text+" across every page",
-		func(d *ops.Doc) error { return d.Watermark("all", text) })
 }
 
 // sanitize strips whatever in the file runs rather than shows.
@@ -322,7 +322,7 @@ func (s *state) reopen() (*reader.Document, string) {
 	if msg != "" {
 		return nil, msg
 	}
-	src, err := openBytes(out)
+	src, err := openBytes(out, s.reopenPw)
 	if err != nil {
 		return nil, "this document cannot be read back: " + err.Error()
 	}
@@ -335,7 +335,7 @@ func (s *state) reopen() (*reader.Document, string) {
 // exactly why it is worth being able to see what happens when one does.
 var (
 	docBytes  = (*ops.Doc).Bytes
-	openBytes = reader.Open
+	openBytes = reader.OpenWithPassword
 	drawPage  = render.Page
 )
 
@@ -362,6 +362,12 @@ func (s *state) renderPage() {
 	}
 	if s.at < 1 {
 		s.at = 1
+	}
+	// A reading of the page is read out of the document written and read back,
+	// like the picture of it, so what is listed is what would come out of Save.
+	if s.tools.reading != "" {
+		s.show(s.readingView(src))
+		return
 	}
 	img, err := drawPage(src, s.at, render.Options{
 		Scale:       s.fitScale(src),
@@ -395,7 +401,11 @@ func (s *state) renderPage() {
 // box and watching the page come back cropped is the whole of what the control
 // is for, and a panel that covered the page would hide it.
 func (s *state) show(w toolkit.Widget) {
-	s.view = s.arrange(w)
+	// Wrapped in the toolkit's own popover host, which is what draws a list a
+	// drop-down has opened on top of everything and offers it the next press
+	// before anything under it sees one. Without it a list opens onto nothing:
+	// the chevron works and no option can be chosen.
+	s.view = toolkit.NewPopoverHost(s.arrange(w))
 	// Laid out here rather than only when it is painted, because a press can
 	// arrive before the next frame does: the view is built afresh by every
 	// change, and a widget nobody has given bounds to is under no point at
@@ -500,10 +510,12 @@ func (s *state) draw(buf []byte) {
 	p := painter.NewPixelPainter(buf, s.w, s.h)
 	s.toolbar.SetBounds(painter.Rect{X: margin, Y: margin, W: s.w - 2*margin, H: toolbarH})
 	s.toolbar.Draw(p, s.theme)
-	s.view.SetBounds(painter.Rect{X: margin, Y: viewTop, W: viewW, H: viewH})
-	s.view.Draw(p, s.theme)
 	s.status.SetBounds(painter.Rect{X: 0, Y: s.h - statusH, W: s.w, H: statusH})
 	s.status.Draw(p, s.theme)
+	// The view last, because a list opened near the foot of the panel is drawn
+	// over whatever is below it — and below it is the status line.
+	s.view.SetBounds(painter.Rect{X: margin, Y: viewTop, W: viewW, H: viewH})
+	s.view.Draw(p, s.theme)
 }
 
 // pointer sends a press, a move or a release to the strip and to the view.
