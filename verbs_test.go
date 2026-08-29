@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"archive/zip"
 	"github.com/go-gfx/gfx/codec"
 	"github.com/go-gfx/gfx/raster"
 	"github.com/go-pdfkit/extract"
@@ -696,6 +697,145 @@ func TestAPictureThatCannotBeWrittenOut(t *testing.T) {
 		t.Error("a document was kept that cannot be written")
 	}
 	if !strings.Contains(s.note, "cannot be made into a document") {
+		t.Errorf("it said %q", s.note)
+	}
+}
+
+func TestEveryPageZipped(t *testing.T) {
+	// A page at a time is no use for a document of two hundred, and a browser
+	// handed two hundred downloads at once asks about each of them.
+	s, h := opened(t, 1)
+	s.everyPageZipped()
+	if !strings.HasSuffix(h.as, "-pages.zip") {
+		t.Fatalf("it was handed over as %q", h.as)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(h.saved), int64(len(h.saved)))
+	if err != nil {
+		t.Fatalf("what was handed over is not a zip: %v", err)
+	}
+	if len(zr.File) != s.doc.PageCount() {
+		t.Fatalf("%d files for %d pages", len(zr.File), s.doc.PageCount())
+	}
+	// Every one of them is a picture, not an empty entry with a name.
+	for _, f := range zr.File {
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if codec.Sniff(data) != codec.PNG {
+			t.Errorf("%s is not a PNG", f.Name)
+		}
+	}
+}
+
+func TestWhatThePageSaysIsHandedOver(t *testing.T) {
+	// The reading beside it shows the words on the screen and had no way of
+	// taking them away.
+	h := &fakeHost{name: "words.pdf", file: wordyPDF(t)}
+	s := newState(surfaceW, surfaceH, h)
+	s.open()
+	if s.doc == nil {
+		t.Fatalf("the document did not open: %q", s.note)
+	}
+	s.textAsFile()
+	if h.as != "page001.txt" {
+		t.Fatalf("it was handed over as %q", h.as)
+	}
+	if len(h.saved) == 0 {
+		t.Error("a page with words on it handed over nothing")
+	}
+}
+
+func TestNothingOpenToHandOver(t *testing.T) {
+	for _, verb := range []struct {
+		name string
+		run  func(*state)
+	}{
+		{"every page zipped", (*state).everyPageZipped},
+		{"what the page says", (*state).textAsFile},
+	} {
+		t.Run(verb.name, func(t *testing.T) {
+			s := newState(surfaceW, surfaceH, &fakeHost{})
+			verb.run(s)
+			if !strings.Contains(s.note, "open a document first") {
+				t.Errorf("it said %q", s.note)
+			}
+		})
+	}
+}
+
+func TestAZipOfPagesThatWillNotDraw(t *testing.T) {
+	s, h := opened(t, 1)
+	was := drawPage
+	t.Cleanup(func() { drawPage = was })
+	drawPage = func(*reader.Document, int, render.Options) (*raster.Image, error) {
+		return nil, errors.New("no")
+	}
+	s.everyPageZipped()
+	if h.as != "" {
+		t.Errorf("a zip was handed over anyway: %q", h.as)
+	}
+	if !strings.Contains(s.note, "cannot be drawn") {
+		t.Errorf("it said %q", s.note)
+	}
+}
+
+func TestAZipOfPagesStillBeingDrawn(t *testing.T) {
+	s, _ := opened(t, 1)
+	was := drawPage
+	t.Cleanup(func() { drawPage = was })
+	drawPage = func(d *reader.Document, i int, o render.Options) (*raster.Image, error) {
+		img, _ := was(d, i, o)
+		return img, render.ErrTimedOut
+	}
+	s.everyPageZipped()
+	if !strings.Contains(s.note, "still being drawn") {
+		t.Errorf("it said %q", s.note)
+	}
+}
+
+func TestADocumentThatCannotBeReopenedForPictures(t *testing.T) {
+	for _, verb := range []struct {
+		name string
+		run  func(*state)
+	}{
+		{"page as a PNG", (*state).pageAsPNG},
+		{"every page zipped", (*state).everyPageZipped},
+		{"what the page says", (*state).textAsFile},
+	} {
+		t.Run(verb.name, func(t *testing.T) {
+			s, _ := opened(t, 1)
+			was := docBytes
+			t.Cleanup(func() { docBytes = was })
+			docBytes = func(*ops.Doc) ([]byte, error) { return nil, errors.New("the ink ran out") }
+			verb.run(s)
+			if !strings.Contains(s.note, "cannot be written") {
+				t.Errorf("it said %q", s.note)
+			}
+		})
+	}
+}
+
+func TestAPageWhoseWordsCannotBeRead(t *testing.T) {
+	// A page whose content stream will not decode has no words to hand over,
+	// and saying so beats handing over an empty file as though the page were
+	// blank.
+	s := newState(surfaceW, surfaceH, &fakeHost{name: "odd.pdf", file: unreadablePDF(t)})
+	s.open()
+	if s.doc == nil {
+		t.Fatal("the document did not open")
+	}
+	h, _ := s.host.(*fakeHost)
+	s.textAsFile()
+	if h.as != "" {
+		t.Errorf("something was handed over anyway: %q", h.as)
+	}
+	if !strings.Contains(s.note, "cannot be read") {
 		t.Errorf("it said %q", s.note)
 	}
 }
