@@ -9,8 +9,8 @@ require (
 	github.com/go-pdfkit/ops v0.8.0
 	github.com/go-pdfkit/reader v0.6.0
 	github.com/go-pdfkit/render v0.19.0
-	github.com/go-widgets/painter v0.11.0
-	github.com/go-widgets/toolkit v0.277.0
+	github.com/go-widgets/painter v0.12.0
+	github.com/go-widgets/toolkit v0.284.0
 	github.com/go-widgets/webcanvas v0.1.0
 )
 
@@ -22,6 +22,7 @@ require (
 	github.com/go-crdt/collab v0.25.0 // indirect
 	github.com/go-crdt/crdt v0.31.0 // indirect
 	github.com/go-iconoir/iconoir v0.2.0 // indirect
+	github.com/go-icons/iconoir v0.2.0 // indirect
 	github.com/go-images/images v0.0.0-20260811115337-bc5d586f8e38 // indirect
 	github.com/go-opentype/fonts v0.9.0 // indirect
 	github.com/go-opentype/opentype v0.12.0 // indirect
