@@ -12,8 +12,8 @@ github.com/go-crdt/collab v0.25.0 h1:xO/cZq41GvsCyPOw+sdldCu2r3lDbMK1N0GgN6D9+Ss
 github.com/go-crdt/collab v0.25.0/go.mod h1:eYhMwHjmRyN5zMk/IBwBsTe3ZxqHuSCvNx3TdVTpYHg=
 github.com/go-crdt/crdt v0.31.0 h1:CTi+lo0bjsJv3F09CR/AdILQtWEWmzbDQ+S/6HNBOMU=
 github.com/go-crdt/crdt v0.31.0/go.mod h1:vbfvns9B9FUaMi2sPKzMYttKmbxfgO7EK3Yu82SrlYw=
-github.com/go-gfx/gfx v0.15.0 h1:ol+4uqUTq8s23cGSjfbEHciTxkrZ7kTrpUuAPPz4XuY=
-github.com/go-gfx/gfx v0.15.0/go.mod h1:VAK6hgCgkhT3j3ek2K7G8zDfkCPD3RCF45UbcRlCV8Q=
+github.com/go-gfx/gfx v0.16.0 h1:HYlQrz2kHm+Vg1aBotnO6O9yfadNqWVrPK+b0uqxtKg=
+github.com/go-gfx/gfx v0.16.0/go.mod h1:VAK6hgCgkhT3j3ek2K7G8zDfkCPD3RCF45UbcRlCV8Q=
 github.com/go-iconoir/iconoir v0.2.0 h1:2ANqG6gkvHMoCtpNgNhSeOsuGMnlWQ+Sl43EndujIC0=
 github.com/go-iconoir/iconoir v0.2.0/go.mod h1:BrOQ68YO5BMsF7y+/nht4shbgjVfh9CxBoQF35eNosw=
 github.com/go-images/images v0.0.0-20260811115337-bc5d586f8e38 h1:p+DjIujiwUvBiyD0oS9SUatf3pMKo0GpcA4p/Kyv7d8=
