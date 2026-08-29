@@ -9,11 +9,17 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 
+	"github.com/go-gfx/gfx/codec"
+	"github.com/go-gfx/gfx/raster"
 	"github.com/go-pdfkit/extract"
 	"github.com/go-pdfkit/reader"
+	"github.com/go-pdfkit/render"
 	"github.com/go-widgets/toolkit"
 )
 
@@ -32,7 +38,9 @@ func (s *state) readGroup() *column {
 		func() { s.read(readingImages) }), bareH)
 	box.add(button("Show the page again", toolkit.ButtonDefault,
 		func() { s.read("") }), bareH)
-	box.add(toolkit.NewLabel("Neither of these changes the document."), bareH)
+	box.add(button("Hand over this page as a PNG", toolkit.ButtonDefault,
+		s.pageAsPNG), bareH)
+	box.add(toolkit.NewLabel("None of these changes the document."), bareH)
 	return box
 }
 
@@ -107,6 +115,59 @@ func (s *state) imagesView(src *reader.Document) toolkit.Widget {
 		col.add(row, 2*lineH+8)
 	}
 	return col.scrollerOf(s.pageW() - 2*margin)
+}
+
+// pageAsPNG draws the page and hands it over in a format anything opens.
+//
+// A picture already in the document comes out of "what this page carries" as
+// the bytes it is stored in, which is right: a JPEG handed over as a JPEG is
+// the file itself, losing nothing. But a page is not a picture in the document
+// — it is a drawing of everything on it — and a scanned page's own pictures
+// are stored as JPEG 2000 and JBIG2, which almost nothing opens. This draws
+// the page and writes a PNG.
+//
+// It is drawn at twice the size it is shown at, because what this is for is
+// taking away rather than looking at, and a page fitted to a window is smaller
+// than the page.
+func (s *state) pageAsPNG() {
+	if s.doc == nil {
+		s.fail("open a document first")
+		return
+	}
+	src, msg := s.reopen()
+	if msg != "" {
+		s.fail(msg)
+		return
+	}
+	img, err := drawPage(src, s.at, render.Options{
+		Scale:       2 * s.fitScale(src),
+		MaxDuration: pageBudget,
+	})
+	// A page that ran out of time comes back as far as it got. Handing that
+	// over silently would be handing over half a page as though it were the
+	// page, so this says which it is.
+	partial := errors.Is(err, render.ErrTimedOut) && img != nil
+	if err != nil && !partial {
+		s.fail("this page cannot be drawn: " + err.Error())
+		return
+	}
+	var buf bytes.Buffer
+	if err := encodePNG(&buf, img); err != nil {
+		s.fail("this page cannot be written as a PNG: " + err.Error())
+		return
+	}
+	s.handOver(fmt.Sprintf("page%03d.png", s.at), buf.Bytes())
+	if partial {
+		s.note += fmt.Sprintf("; this page was still being drawn after %s, so that is as far as it got", pageBudget)
+		s.refresh()
+	}
+}
+
+// encodePNG is a variable so a test can watch what happens when writing the
+// picture fails, which is the branch that decides whether a person is handed a
+// truncated file or told.
+var encodePNG = func(w io.Writer, img *raster.Image) error {
+	return codec.Encode(w, img, codec.PNG)
 }
 
 // holds says what the bytes of a picture are.

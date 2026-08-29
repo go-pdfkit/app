@@ -9,10 +9,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-gfx/gfx/codec"
+	"github.com/go-gfx/gfx/raster"
 	"github.com/go-pdfkit/extract"
 	"github.com/go-pdfkit/ops"
 	"github.com/go-pdfkit/reader"
+	"github.com/go-pdfkit/render"
 	"github.com/go-widgets/toolkit"
+	"io"
 )
 
 // The heights of the rows of the groups this file drives.
@@ -514,4 +518,104 @@ func lockedPDF(t *testing.T, password string) []byte {
 		t.Fatal(err)
 	}
 	return out
+}
+
+func TestAPageIsHandedOverAsAPNG(t *testing.T) {
+	// A picture already in the document is handed over as the bytes it is
+	// stored in, which loses nothing. A page is not a picture in the document
+	// — it is a drawing of everything on it — and a scanned page's own
+	// pictures are stored as JPEG 2000 and JBIG2, which almost nothing opens.
+	s, h := opened(t, 1)
+	s.pageAsPNG()
+	if h.as != "page001.png" {
+		t.Fatalf("it was handed over as %q", h.as)
+	}
+	if codec.Sniff(h.saved) != codec.PNG {
+		t.Fatalf("what was handed over sniffs as %s", codec.Sniff(h.saved))
+	}
+	img, err := codec.Decode(h.saved)
+	if err != nil {
+		t.Fatalf("what was handed over cannot be read back: %v", err)
+	}
+	// Twice the size it is shown at, because this is for taking away rather
+	// than for looking at.
+	if img.W < 2*surfaceW/3 {
+		t.Errorf("the page came out %dx%d, which is no bigger than the view", img.W, img.H)
+	}
+	// And it is a page, not a blank rectangle.
+	ink := 0
+	for i := 0; i < img.W*img.H; i++ {
+		if (uint32(img.Pix[i*4])*299+uint32(img.Pix[i*4+1])*587+uint32(img.Pix[i*4+2])*114)/1000 < 128 {
+			ink++
+		}
+	}
+	if ink == 0 {
+		t.Error("the page came out blank")
+	}
+}
+
+func TestAPageThatCannotBeHandedOverAsAPNG(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		setup func(t *testing.T) *state
+		want  string
+	}{
+		{"nothing open at all", func(t *testing.T) *state {
+			return newState(surfaceW, surfaceH, &fakeHost{})
+		}, "open a document first"},
+		{"a document that cannot be written back", func(t *testing.T) *state {
+			s, _ := opened(t, 1)
+			was := docBytes
+			t.Cleanup(func() { docBytes = was })
+			docBytes = func(*ops.Doc) ([]byte, error) { return nil, errors.New("the ink ran out") }
+			return s
+		}, "cannot be written"},
+		{"a page that cannot be drawn", func(t *testing.T) *state {
+			s, _ := opened(t, 1)
+			was := drawPage
+			t.Cleanup(func() { drawPage = was })
+			drawPage = func(*reader.Document, int, render.Options) (*raster.Image, error) {
+				return nil, errors.New("no")
+			}
+			return s
+		}, "cannot be drawn"},
+		{"a picture that cannot be written out", func(t *testing.T) *state {
+			s, _ := opened(t, 1)
+			was := encodePNG
+			t.Cleanup(func() { encodePNG = was })
+			encodePNG = func(io.Writer, *raster.Image) error { return errors.New("no") }
+			return s
+		}, "cannot be written as a PNG"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := tc.setup(t)
+			h, _ := s.host.(*fakeHost)
+			s.pageAsPNG()
+			if h != nil && h.as != "" {
+				t.Errorf("something was handed over anyway: %q", h.as)
+			}
+			if !strings.Contains(s.note, tc.want) {
+				t.Errorf("it said %q", s.note)
+			}
+		})
+	}
+}
+
+func TestHalfAPageSaysSo(t *testing.T) {
+	// Handing over half a page as though it were the page is the one thing
+	// worse than refusing.
+	s, h := opened(t, 1)
+	was := drawPage
+	t.Cleanup(func() { drawPage = was })
+	drawPage = func(d *reader.Document, i int, o render.Options) (*raster.Image, error) {
+		img, _ := was(d, i, o)
+		return img, render.ErrTimedOut
+	}
+	s.pageAsPNG()
+	if h.as != "page001.png" {
+		t.Fatalf("as far as it got was not handed over: %q", h.as)
+	}
+	if !strings.Contains(s.note, "as far as it got") {
+		t.Errorf("it said %q", s.note)
+	}
 }
