@@ -100,13 +100,21 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 		if err != nil {
 			return false, err
 		}
-		return v.Hash != empty.Hash && v.Dark > empty.Dark, nil
+		// The canvas changed, more of it is drawn on than before, and there is
+		// more ink than the empty workbench's own furniture.
+		//
+		// It used to ask for more NEARLY BLACK pixels, and a scanned page has
+		// almost none: its ink is grey once it has been scaled to fit, and it
+		// covers the strip and the borders that were the dark pixels being
+		// counted. A real scanned document therefore read as never having
+		// arrived, on a page that was drawn correctly.
+		return v.Hash != empty.Hash && v.N > empty.N && v.Ink > empty.Ink, nil
 	}); err != nil {
 		say(c)
 		return fmt.Errorf("the document never appeared on the canvas: %w", err)
 	}
 	withDoc, _ := look(ctx, c, sid)
-	fmt.Printf("document shown: %d pixels drawn, %d of them dark\n", withDoc.N, withDoc.Dark)
+	fmt.Printf("document shown: %d pixels drawn, %d of them ink\n", withDoc.N, withDoc.Ink)
 
 	if err := screenshot(ctx, c, sid, shot); err != nil {
 		return err
@@ -359,8 +367,14 @@ func say(c *conn) {
 
 // canvas is what the tab actually has on its canvas.
 type canvas struct {
-	N    int `json:"n"`
+	N int `json:"n"`
+	// Dark is how many pixels are nearly black. It tells a lit control from an
+	// unlit one, which is what it is for.
 	Dark int `json:"dark"`
+	// Ink is how many pixels are dark the way text is dark. A scanned page
+	// scaled to fit a window is grey, not black: the same page counts 1805
+	// pixels this way and 9 the other.
+	Ink  int `json:"ink"`
 	Hash int `json:"hash"`
 }
 
@@ -384,13 +398,18 @@ func lookIn(ctx context.Context, c *conn, sid string, from, to float64) (canvas,
 	  const y0 = Math.floor(c.height * 0.07), y1 = Math.floor(c.height * 0.95);
 	  const d = c.getContext('2d').getImageData(x0, y0, x1 - x0, y1 - y0).data;
 	  const r0 = d[0], g0 = d[1], b0 = d[2];
-	  let n = 0, dark = 0, hash = 0;
+	  let n = 0, dark = 0, ink = 0, hash = 0;
 	  for (let i = 0; i < d.length; i += 4) {
 	    if (d[i] !== r0 || d[i+1] !== g0 || d[i+2] !== b0) n++;
 	    if (d[i] + d[i+1] + d[i+2] < 240) dark++;
+	    // Ink, as opposed to nearly black. Scanned text that has been scaled
+	    // down to fit a window is grey: the same page counts 1805 pixels this
+	    // way and 9 the other, so which threshold is used decides whether a
+	    // scanned document is seen to arrive at all.
+	    if ((d[i] * 299 + d[i+1] * 587 + d[i+2] * 114) / 1000 < 128) ink++;
 	    hash = (hash * 31 + d[i] + d[i+1] * 3 + d[i+2] * 7) | 0;
 	  }
-	  return JSON.stringify({n, dark, hash});
+	  return JSON.stringify({n, dark, ink, hash});
 	})()`, from, to)
 	var out canvas
 	s, err := eval(ctx, c, sid, js)
