@@ -9,6 +9,7 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"errors"
 	"fmt"
@@ -40,6 +41,10 @@ func (s *state) readGroup() *column {
 		func() { s.read("") }), bareH)
 	box.add(button("Hand over this page as a PNG", toolkit.ButtonDefault,
 		s.pageAsPNG), bareH)
+	box.add(button("Hand over every page, zipped", toolkit.ButtonDefault,
+		s.everyPageZipped), bareH)
+	box.add(button("Hand over what this page says", toolkit.ButtonDefault,
+		s.textAsFile), bareH)
 	box.add(toolkit.NewLabel("None of these changes the document."), bareH)
 	return box
 }
@@ -139,28 +144,100 @@ func (s *state) pageAsPNG() {
 		s.fail(msg)
 		return
 	}
-	img, err := drawPage(src, s.at, render.Options{
+	png, partial, err := s.drawnPNG(src, s.at)
+	if err != nil {
+		s.fail(err.Error())
+		return
+	}
+	s.handOver(fmt.Sprintf("page%03d.png", s.at), png)
+	if partial {
+		s.note += fmt.Sprintf("; this page was still being drawn after %s, so that is as far as it got", pageBudget)
+		s.refresh()
+	}
+}
+
+// drawnPNG draws one page and writes it, saying whether what came back is all
+// of it.
+func (s *state) drawnPNG(src *reader.Document, at int) (data []byte, partial bool, err error) {
+	img, err := drawPage(src, at, render.Options{
 		Scale:       2 * s.fitScale(src),
 		MaxDuration: pageBudget,
 	})
 	// A page that ran out of time comes back as far as it got. Handing that
 	// over silently would be handing over half a page as though it were the
-	// page, so this says which it is.
-	partial := errors.Is(err, render.ErrTimedOut) && img != nil
+	// page, so the caller is told which it is.
+	partial = errors.Is(err, render.ErrTimedOut) && img != nil
 	if err != nil && !partial {
-		s.fail("this page cannot be drawn: " + err.Error())
-		return
+		return nil, false, fmt.Errorf("this page cannot be drawn: %w", err)
 	}
 	var buf bytes.Buffer
 	if err := encodePNG(&buf, img); err != nil {
-		s.fail("this page cannot be written as a PNG: " + err.Error())
+		return nil, false, fmt.Errorf("this page cannot be written as a PNG: %w", err)
+	}
+	return buf.Bytes(), partial, nil
+}
+
+// everyPageZipped hands over the whole document as pictures, in one file.
+//
+// A page at a time is no use for a document of two hundred, and a browser that
+// is handed two hundred downloads at once asks about each of them. A zip of
+// PNGs is also what a comic reader opens under the name CBZ, which is the same
+// file with another suffix.
+func (s *state) everyPageZipped() {
+	if s.doc == nil {
+		s.fail("open a document first")
 		return
 	}
-	s.handOver(fmt.Sprintf("page%03d.png", s.at), buf.Bytes())
-	if partial {
-		s.note += fmt.Sprintf("; this page was still being drawn after %s, so that is as far as it got", pageBudget)
+	src, msg := s.reopen()
+	if msg != "" {
+		s.fail(msg)
+		return
+	}
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	short := 0
+	for at := 1; at <= src.PageCount(); at++ {
+		png, partial, err := s.drawnPNG(src, at)
+		if err != nil {
+			s.fail(err.Error())
+			return
+		}
+		if partial {
+			short++
+		}
+		// The zip is built in memory: Create only refuses a name already
+		// used or a writer already closed, neither of which can happen with
+		// one entry per page number, and a bytes.Buffer never fails to take
+		// bytes. Close only flushes.
+		w, _ := zw.Create(fmt.Sprintf("page%03d.png", at))
+		w.Write(png)
+	}
+	zw.Close()
+	s.handOver(strings.TrimSuffix(s.name, ".pdf")+"-pages.zip", buf.Bytes())
+	if short > 0 {
+		s.note += fmt.Sprintf("; %d of them were still being drawn after %s", short, pageBudget)
 		s.refresh()
 	}
+}
+
+// textAsFile hands over what the page says, which the reading beside it shows
+// on the screen and had no way of taking away.
+func (s *state) textAsFile() {
+	if s.doc == nil {
+		s.fail("open a document first")
+		return
+	}
+	src, msg := s.reopen()
+	if msg != "" {
+		s.fail(msg)
+		return
+	}
+	text, err := extract.Text(src, s.at)
+	if err != nil {
+		s.fail("this page cannot be read: " + err.Error())
+		return
+	}
+	s.handOver(fmt.Sprintf("page%03d.txt", s.at), []byte(text))
 }
 
 // encodePNG is a variable so a test can watch what happens when writing the
