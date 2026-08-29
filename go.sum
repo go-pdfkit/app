@@ -32,8 +32,8 @@ github.com/go-pdfkit/extract v0.3.0 h1:w1ansrvMNqd+Hy1p5fo1orh6hM8meb+xCNKNap/7o
 github.com/go-pdfkit/extract v0.3.0/go.mod h1:EOWOcx3o0HDC3ryCMoE9pwNIb3mwVmnXBSpTRfO1VdY=
 github.com/go-pdfkit/forms v0.2.2 h1:tGnENs09LBUBppSrH0dGenV8KCQcbngsi+OatWID90Y=
 github.com/go-pdfkit/forms v0.2.2/go.mod h1:dQ4FzO6qF7RJh6oEa0dkgL0i8hKBmm/e7hj4XC56h5Q=
-github.com/go-pdfkit/ops v0.7.2 h1:E1vLf+BcmuQuE9tlZ1dYCaiCsRpDEw9otOCVTjp90bY=
-github.com/go-pdfkit/ops v0.7.2/go.mod h1:12bC9BoH7ru3OoOC52OjNMC+ti92M8Vrfd8NeRby2XE=
+github.com/go-pdfkit/ops v0.8.0 h1:gETeMRnHpXstvBWBVNuLiBX5+JI3VmJVj8MJjglZsZM=
+github.com/go-pdfkit/ops v0.8.0/go.mod h1:C/thyC63o458u7ZPFg206IoqEZMdDdHi64EHMdAOKeo=
 github.com/go-pdfkit/pdffont v0.3.1 h1:+K7opHGRERDZ5EMkA12s1GT48t8GpncArhnyzyc5bxU=
 github.com/go-pdfkit/pdffont v0.3.1/go.mod h1:eFJ/7t9AvcX76KY5qNJMMKetz8hUUUdVM1qSWLi3S1g=
 github.com/go-pdfkit/reader v0.6.0 h1:KAabNOYUcTlZlNBTbG9bEhWP1NiZhjuhzUdavdTdfes=

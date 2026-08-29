@@ -151,13 +151,35 @@ const (
 // open asks for a file and takes it as the document.
 func (s *state) open() {
 	s.host.Open(func(name string, data []byte) {
+		fromPicture := false
 		d, err := ops.OpenWithPassword(data, s.tools.openPw)
 		if err != nil {
-			s.fail("cannot open " + name + ": " + err.Error())
-			return
+			// Somebody who hands a picture to a PDF workbench wants a PDF of
+			// it. Telling them it is not a PDF is true and useless: they knew.
+			pic, made := s.pictureDocument(data)
+			if made {
+				d, data, name, fromPicture = pic, nil, name+".pdf", true
+			} else {
+				s.fail("cannot open " + name + ": " + err.Error())
+				return
+			}
+		}
+		if data == nil {
+			// A document begun from a picture has no file behind it yet, so it
+			// is written once here to be the file the rest of the workbench
+			// reads back.
+			out, msg := docBytes(d)
+			if msg != nil {
+				s.fail("this picture cannot be made into a document: " + msg.Error())
+				return
+			}
+			data = out
 		}
 		s.doc, s.name, s.at, s.raw = d, name, 1, data
 		s.note = ""
+		if fromPicture {
+			s.note = "this was a picture, and is now a page"
+		}
 		s.showingForm = false
 		s.reopenPw = ""
 		s.tools.reading = ""
@@ -168,6 +190,21 @@ func (s *state) open() {
 		}
 		s.refresh()
 	})
+}
+
+// pictureDocument makes a one-page document of an image, and says whether the
+// bytes were one.
+//
+// A picture at 72 pixels to the inch is a page the size of the picture, which
+// is what somebody scanning a receipt or photographing a page expects to get
+// back. It is also the only guess available: nothing in a PNG says how large
+// it is meant to be on paper.
+func (*state) pictureDocument(data []byte) (*ops.Doc, bool) {
+	d := ops.New()
+	if err := d.Picture(data, 0); err != nil {
+		return nil, false
+	}
+	return d, true
 }
 
 // save hands the document back, as it now stands.

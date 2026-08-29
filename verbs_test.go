@@ -619,3 +619,83 @@ func TestHalfAPageSaysSo(t *testing.T) {
 		t.Errorf("it said %q", s.note)
 	}
 }
+
+func TestAPictureOpensAsAPage(t *testing.T) {
+	// Somebody who hands a picture to a PDF workbench wants a PDF of it.
+	// Telling them it is not a PDF is true and useless: they knew.
+	var buf bytes.Buffer
+	img := raster.New(40, 20)
+	for i := 0; i < 40*20; i++ {
+		img.Pix[i*4], img.Pix[i*4+3] = 255, 255
+	}
+	if err := codec.Encode(&buf, img, codec.PNG); err != nil {
+		t.Fatal(err)
+	}
+	h := &fakeHost{name: "receipt.png", file: buf.Bytes()}
+	s := newState(surfaceW, surfaceH, h)
+	s.open()
+	if s.doc == nil {
+		t.Fatal("a picture did not open at all")
+	}
+	if s.doc.PageCount() != 1 {
+		t.Fatalf("it became %d pages", s.doc.PageCount())
+	}
+	if !strings.Contains(s.name, ".pdf") {
+		t.Errorf("it is still called %q", s.name)
+	}
+	if !strings.Contains(s.note, "now a page") {
+		t.Errorf("it said %q", s.note)
+	}
+	// And it is a document the rest of the workbench can work on: saving it
+	// hands back a PDF.
+	s.save()
+	if !bytes.HasPrefix(h.saved, []byte("%PDF")) {
+		t.Errorf("what was saved begins %q", h.saved[:min(8, len(h.saved))])
+	}
+	// The page is the size of the picture.
+	src, msg := s.reopen()
+	if msg != "" {
+		t.Fatal(msg)
+	}
+	page, err := src.Page(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, hgt := pageSize(src, page)
+	if w != 40 || hgt != 20 {
+		t.Errorf("the page is %g by %g points", w, hgt)
+	}
+}
+
+func TestWhatIsNeitherADocumentNorAPicture(t *testing.T) {
+	h := &fakeHost{name: "notes.txt", file: []byte("just some words")}
+	s := newState(surfaceW, surfaceH, h)
+	s.open()
+	if s.doc != nil {
+		t.Fatal("words opened as a document")
+	}
+	if !strings.Contains(s.note, "cannot open notes.txt") {
+		t.Errorf("it said %q", s.note)
+	}
+}
+
+func TestAPictureThatCannotBeWrittenOut(t *testing.T) {
+	// The document begun from a picture is written once so the rest of the
+	// workbench has a file to read back. When that cannot be done there is no
+	// document, and saying so beats holding one nothing else can use.
+	var buf bytes.Buffer
+	if err := codec.Encode(&buf, raster.New(8, 8), codec.PNG); err != nil {
+		t.Fatal(err)
+	}
+	was := docBytes
+	t.Cleanup(func() { docBytes = was })
+	docBytes = func(*ops.Doc) ([]byte, error) { return nil, errors.New("the ink ran out") }
+	s := newState(surfaceW, surfaceH, &fakeHost{name: "p.png", file: buf.Bytes()})
+	s.open()
+	if s.doc != nil {
+		t.Error("a document was kept that cannot be written")
+	}
+	if !strings.Contains(s.note, "cannot be made into a document") {
+		t.Errorf("it said %q", s.note)
+	}
+}
