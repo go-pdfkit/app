@@ -90,8 +90,10 @@ type tools struct {
 	allow                   map[string]bool
 
 	// The Read group: which reading of the document is on the screen instead
-	// of the picture of it, or empty for the picture.
+	// of the picture of it, or empty for the picture, and which of the
+	// writable picture formats a page is handed over in.
 	reading string
+	picture int
 }
 
 // newTools builds the panel's state with the defaults each control starts at.

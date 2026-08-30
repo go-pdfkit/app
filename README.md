@@ -54,7 +54,12 @@ a panel **beside** the page rather than instead of it:
   protection off.
 - **Read** — what the page says, and what it carries: every picture on it,
   listed with its size and its shape, each one handed over under a name that
-  says what it holds.
+  says what it holds. And the page itself the other way round — drawn at twice
+  the size it is shown at and handed over as a **PNG, JPEG, GIF, TIFF or BMP**,
+  one page or every page zipped, with the words on their own as a text file.
+  The formats offered are the ones `gfx` can write, asked of it rather than
+  listed here; a page that ran out of time is still handed over, and the status
+  line says how far it got.
 
 A protected document is still drawn, because the workbench reads its own
 output back with the password it was just given. It is not the same bytes
