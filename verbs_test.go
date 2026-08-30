@@ -27,7 +27,10 @@ var (
 	fileRows    = []int{bareH, bareH, bareH, bareH, bareH, bareH, labelledH, labelledH, bareH}
 	protectRows = []int{labelledH, bareH, labelledH, labelledH,
 		bareH, bareH, bareH, bareH, bareH, bareH, bareH, bareH}
-	readRows = []int{bareH, bareH, bareH, bareH}
+	// The Read group: three readings, then the chooser and the verb it
+	// governs sharing a row, then the zip, the words, and the note at the
+	// bottom.
+	readRows = []int{bareH, bareH, bareH, bareH, bareH, bareH, bareH}
 )
 
 // content is the first page of a document as it would be saved.
@@ -521,41 +524,158 @@ func lockedPDF(t *testing.T, password string) []byte {
 	return out
 }
 
-func TestAPageIsHandedOverAsAPNG(t *testing.T) {
+func TestAPageIsHandedOverInEveryFormatTheChooserOffers(t *testing.T) {
 	// A picture already in the document is handed over as the bytes it is
 	// stored in, which loses nothing. A page is not a picture in the document
 	// — it is a drawing of everything on it — and a scanned page's own
 	// pictures are stored as JPEG 2000 and JBIG2, which almost nothing opens.
+	//
+	// The chooser is pressed rather than the field set, and what came back is
+	// SNIFFED rather than trusted: a name is what a person sees, and a name
+	// that does not match the bytes under it is a file nothing opens.
 	s, h := opened(t, 1)
-	s.pageAsPNG()
-	if h.as != "page001.png" {
-		t.Fatalf("it was handed over as %q", h.as)
+	openGroup(t, s, groupRead)
+	cx, cy := rowAt(t, s, readRows, 3, 0) // the chooser
+	bx, by := rowAt(t, s, readRows, 3, 1) // the verb beside it
+	if len(pictureFormats) < 5 {
+		t.Fatalf("only %d formats are offered", len(pictureFormats))
 	}
-	if codec.Sniff(h.saved) != codec.PNG {
-		t.Fatalf("what was handed over sniffs as %s", codec.Sniff(h.saved))
-	}
-	img, err := codec.Decode(h.saved)
-	if err != nil {
-		t.Fatalf("what was handed over cannot be read back: %v", err)
-	}
-	// Twice the size it is shown at, because this is for taking away rather
-	// than for looking at.
-	if img.W < 2*surfaceW/3 {
-		t.Errorf("the page came out %dx%d, which is no bigger than the view", img.W, img.H)
-	}
-	// And it is a page, not a blank rectangle.
-	ink := 0
-	for i := 0; i < img.W*img.H; i++ {
-		if (uint32(img.Pix[i*4])*299+uint32(img.Pix[i*4+1])*587+uint32(img.Pix[i*4+2])*114)/1000 < 128 {
-			ink++
+	for i, pic := range pictureFormats {
+		if s.tools.picture != i {
+			t.Fatalf("the chooser is on %d and the list on %d", s.tools.picture, i)
 		}
+		h.as, h.saved = "", nil
+		press(s, bx, by)
+		if h.as != "page001"+pic.suffix {
+			t.Fatalf("%s was handed over as %q", pic.format, h.as)
+		}
+		if got := codec.Sniff(h.saved); got != pic.format {
+			t.Fatalf("what was handed over as %q sniffs as %s", h.as, got)
+		}
+		img, err := codec.Decode(h.saved)
+		if err != nil {
+			t.Fatalf("%s cannot be read back: %v", pic.format, err)
+		}
+		// Twice the size it is shown at, because this is for taking away
+		// rather than for looking at.
+		if img.W < 2*surfaceW/3 {
+			t.Errorf("%s came out %dx%d, which is no bigger than the view",
+				pic.format, img.W, img.H)
+		}
+		// And it is a page, not a blank rectangle.
+		if ink := darkPixels(img); ink == 0 {
+			t.Errorf("%s came out blank", pic.format)
+		}
+		press(s, cx, cy) // on to the next format, wrapping to the first
 	}
-	if ink == 0 {
-		t.Error("the page came out blank")
+	if s.tools.picture != 0 {
+		t.Errorf("the chooser did not wrap round to the first format, it is on %d",
+			s.tools.picture)
 	}
 }
 
-func TestAPageThatCannotBeHandedOverAsAPNG(t *testing.T) {
+// darkPixels counts how much ink is on a picture of a page.
+func darkPixels(img *raster.Image) int {
+	n := 0
+	for i := 0; i < img.W*img.H; i++ {
+		if (uint32(img.Pix[i*4])*299+uint32(img.Pix[i*4+1])*587+uint32(img.Pix[i*4+2])*114)/1000 < 128 {
+			n++
+		}
+	}
+	return n
+}
+
+func TestTheFormatsOfferedAreTheOnesThatCanBeWritten(t *testing.T) {
+	// The list is filtered through the library's own answer rather than
+	// written out here, so what is offered cannot drift from what can be
+	// written. Both directions are checked: nothing unwritable is offered,
+	// and nothing writable is left out.
+	//
+	// The suffixes are checked against a list written out here rather than
+	// against the one under test, because a table that is its own oracle
+	// proves nothing: swapping JPEG's suffix for ".png" left every other
+	// check in this file green, since the name and the bytes were both taken
+	// from the same row.
+	suffixes := map[codec.Format]string{
+		codec.PNG:  ".png",
+		codec.JPEG: ".jpg",
+		codec.GIF:  ".gif",
+		codec.TIFF: ".tif",
+		codec.BMP:  ".bmp",
+	}
+	offered := map[codec.Format]bool{}
+	for _, p := range pictureFormats {
+		if !codec.CanEncode(p.format) {
+			t.Errorf("%s is offered and cannot be written", p.format)
+		}
+		want, known := suffixes[p.format]
+		if !known {
+			t.Errorf("%s is offered and this test does not know what it is called", p.format)
+		} else if p.suffix != want {
+			t.Errorf("%s is handed over as %q, want %q", p.format, p.suffix, want)
+		}
+		offered[p.format] = true
+	}
+	for _, p := range everyKnownFormat {
+		if codec.CanEncode(p.format) && !offered[p.format] {
+			t.Errorf("%s can be written and is not offered", p.format)
+		}
+	}
+	if names := formatNames(); len(names) != len(pictureFormats) {
+		t.Fatalf("%d names for %d formats", len(names), len(pictureFormats))
+	}
+	// A choice that is not one of them falls back on the first rather than
+	// reaching past the end of the list.
+	s, _ := opened(t, 1)
+	for _, bad := range []int{-1, len(pictureFormats)} {
+		s.tools.picture = bad
+		if got := s.chosenFormat(); got != pictureFormats[0] {
+			t.Errorf("choice %d gave %s", bad, got.format)
+		}
+	}
+}
+
+func TestAPageWithNoAlphaComesOutOnWhiteRatherThanBlack(t *testing.T) {
+	// JPEG, GIF and BMP carry no alpha, and gfx composites onto white for
+	// them rather than letting the encoder drop the channel — which would put
+	// what was UNDER the transparency on the page, and that is black. This
+	// does not redo that; it measures that what arrives is opaque and light,
+	// whichever way round the page was drawn.
+	s, h := opened(t, 1)
+	for _, pic := range pictureFormats {
+		s.tools.picture = 0
+		for i, p := range pictureFormats {
+			if p.format == pic.format {
+				s.tools.picture = i
+			}
+		}
+		s.pageAsPicture()
+		img, err := codec.Decode(h.saved)
+		if err != nil {
+			t.Fatalf("%s cannot be read back: %v", pic.format, err)
+		}
+		clear, light := 0, 0
+		for i := 0; i < img.W*img.H; i++ {
+			if img.Pix[i*4+3] != 255 {
+				clear++
+			}
+			if img.Pix[i*4] > 200 && img.Pix[i*4+1] > 200 && img.Pix[i*4+2] > 200 {
+				light++
+			}
+		}
+		if clear != 0 {
+			t.Errorf("%s came back with %d pixels that are not opaque", pic.format, clear)
+		}
+		// Most of a page is paper. Were the alpha dropped rather than
+		// composited, the paper would be black.
+		if light < img.W*img.H/2 {
+			t.Errorf("%s came back with %d of %d pixels light; the paper is not white",
+				pic.format, light, img.W*img.H)
+		}
+	}
+}
+
+func TestAPageThatCannotBeHandedOverAsAPicture(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		setup func(t *testing.T) *state
@@ -582,16 +702,18 @@ func TestAPageThatCannotBeHandedOverAsAPNG(t *testing.T) {
 		}, "cannot be drawn"},
 		{"a picture that cannot be written out", func(t *testing.T) *state {
 			s, _ := opened(t, 1)
-			was := encodePNG
-			t.Cleanup(func() { encodePNG = was })
-			encodePNG = func(io.Writer, *raster.Image) error { return errors.New("no") }
+			was := encodeImage
+			t.Cleanup(func() { encodeImage = was })
+			encodeImage = func(io.Writer, *raster.Image, codec.Format) error {
+				return errors.New("no")
+			}
 			return s
 		}, "cannot be written as a PNG"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := tc.setup(t)
 			h, _ := s.host.(*fakeHost)
-			s.pageAsPNG()
+			s.pageAsPicture()
 			if h != nil && h.as != "" {
 				t.Errorf("something was handed over anyway: %q", h.as)
 			}
@@ -612,7 +734,7 @@ func TestHalfAPageSaysSo(t *testing.T) {
 		img, _ := was(d, i, o)
 		return img, render.ErrTimedOut
 	}
-	s.pageAsPNG()
+	s.pageAsPicture()
 	if h.as != "page001.png" {
 		t.Fatalf("as far as it got was not handed over: %q", h.as)
 	}
@@ -733,6 +855,44 @@ func TestEveryPageZipped(t *testing.T) {
 	}
 }
 
+func TestTheZipFollowsTheFormatChosenForOnePage(t *testing.T) {
+	// One chooser governs both hand-overs, so a zip asked for as JPEGs holds
+	// JPEGs under .jpg names, not PNGs under them.
+	jpeg := 0
+	for i, p := range pictureFormats {
+		if p.format == codec.JPEG {
+			jpeg = i
+		}
+	}
+	s, h := opened(t, 2)
+	s.tools.picture = jpeg
+	s.everyPageZipped()
+	zr, err := zip.NewReader(bytes.NewReader(h.saved), int64(len(h.saved)))
+	if err != nil {
+		t.Fatalf("what was handed over is not a zip: %v", err)
+	}
+	if len(zr.File) != 2 {
+		t.Fatalf("%d entries for 2 pages", len(zr.File))
+	}
+	for _, f := range zr.File {
+		if !strings.HasSuffix(f.Name, ".jpg") {
+			t.Errorf("the zip holds %q", f.Name)
+		}
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := codec.Sniff(data); got != codec.JPEG {
+			t.Errorf("%s is a %s", f.Name, got)
+		}
+	}
+}
+
 func TestWhatThePageSaysIsHandedOver(t *testing.T) {
 	// The reading beside it shows the words on the screen and had no way of
 	// taking them away.
@@ -804,7 +964,7 @@ func TestADocumentThatCannotBeReopenedForPictures(t *testing.T) {
 		name string
 		run  func(*state)
 	}{
-		{"page as a PNG", (*state).pageAsPNG},
+		{"page as a picture", (*state).pageAsPicture},
 		{"every page zipped", (*state).everyPageZipped},
 		{"what the page says", (*state).textAsFile},
 	} {

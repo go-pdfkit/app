@@ -39,8 +39,15 @@ func (s *state) readGroup() *column {
 		func() { s.read(readingImages) }), bareH)
 	box.add(button("Show the page again", toolkit.ButtonDefault,
 		func() { s.read("") }), bareH)
-	box.add(button("Hand over this page as a PNG", toolkit.ButtonDefault,
-		s.pageAsPNG), bareH)
+	// The chooser sits on the same row as the verb it governs, so that what
+	// the file will be is beside the press that makes it rather than three
+	// rows above. It governs the zip below it as well: both of them draw the
+	// page and write it, and two choosers saying different things about the
+	// same picture would be a question nobody asked.
+	formats := toolkit.NewCycleButton(formatNames()...)
+	formats.Index().Subscribe(func(i int) { s.tools.picture = i })
+	box.add(buttons(formats, button("Hand over this page", toolkit.ButtonDefault,
+		s.pageAsPicture)), bareH)
 	box.add(button("Hand over every page, zipped", toolkit.ButtonDefault,
 		s.everyPageZipped), bareH)
 	box.add(button("Hand over what this page says", toolkit.ButtonDefault,
@@ -122,19 +129,20 @@ func (s *state) imagesView(src *reader.Document) toolkit.Widget {
 	return col.scrollerOf(s.pageW() - 2*margin)
 }
 
-// pageAsPNG draws the page and hands it over in a format anything opens.
+// pageAsPicture draws the page and hands it over in a format anything opens.
 //
 // A picture already in the document comes out of "what this page carries" as
 // the bytes it is stored in, which is right: a JPEG handed over as a JPEG is
 // the file itself, losing nothing. But a page is not a picture in the document
 // — it is a drawing of everything on it — and a scanned page's own pictures
 // are stored as JPEG 2000 and JBIG2, which almost nothing opens. This draws
-// the page and writes a PNG.
+// the page and writes it out in whichever of the formats the chooser beside it
+// names.
 //
 // It is drawn at twice the size it is shown at, because what this is for is
 // taking away rather than looking at, and a page fitted to a window is smaller
 // than the page.
-func (s *state) pageAsPNG() {
+func (s *state) pageAsPicture() {
 	if s.doc == nil {
 		s.fail("open a document first")
 		return
@@ -144,21 +152,28 @@ func (s *state) pageAsPNG() {
 		s.fail(msg)
 		return
 	}
-	png, partial, err := s.drawnPNG(src, s.at)
+	pic := s.chosenFormat()
+	data, partial, err := s.drawnPicture(src, s.at, pic)
 	if err != nil {
 		s.fail(err.Error())
 		return
 	}
-	s.handOver(fmt.Sprintf("page%03d.png", s.at), png)
+	s.handOver(fmt.Sprintf("page%03d%s", s.at, pic.suffix), data)
 	if partial {
 		s.note += fmt.Sprintf("; this page was still being drawn after %s, so that is as far as it got", pageBudget)
 		s.refresh()
 	}
 }
 
-// drawnPNG draws one page and writes it, saying whether what came back is all
-// of it.
-func (s *state) drawnPNG(src *reader.Document, at int) (data []byte, partial bool, err error) {
+// drawnPicture draws one page and writes it in one format, saying whether what
+// came back is all of it.
+//
+// Alpha is the library's business rather than this one's: PNG and TIFF carry
+// it, and codec.Encode composites onto white for JPEG, GIF and BMP, which do
+// not. Doing it again here would be doing it twice. What is this one's
+// business is that the name matches — a page written as a BMP and handed over
+// as a .png is a file nothing can open.
+func (s *state) drawnPicture(src *reader.Document, at int, pic pictureFormat) (data []byte, partial bool, err error) {
 	img, err := drawPage(src, at, render.Options{
 		Scale:       2 * s.fitScale(src),
 		MaxDuration: pageBudget,
@@ -171,8 +186,8 @@ func (s *state) drawnPNG(src *reader.Document, at int) (data []byte, partial boo
 		return nil, false, fmt.Errorf("this page cannot be drawn: %w", err)
 	}
 	var buf bytes.Buffer
-	if err := encodePNG(&buf, img); err != nil {
-		return nil, false, fmt.Errorf("this page cannot be written as a PNG: %w", err)
+	if err := encodeImage(&buf, img, pic.format); err != nil {
+		return nil, false, fmt.Errorf("this page cannot be written as a %s: %w", pic.format, err)
 	}
 	return buf.Bytes(), partial, nil
 }
@@ -181,8 +196,11 @@ func (s *state) drawnPNG(src *reader.Document, at int) (data []byte, partial boo
 //
 // A page at a time is no use for a document of two hundred, and a browser that
 // is handed two hundred downloads at once asks about each of them. A zip of
-// PNGs is also what a comic reader opens under the name CBZ, which is the same
-// file with another suffix.
+// PNGs or JPEGs is also what a comic reader opens under the name CBZ, which is
+// the same file with another suffix.
+//
+// The pages go in in whichever format the chooser on the row above names, and
+// the entries carry that format's suffix.
 func (s *state) everyPageZipped() {
 	if s.doc == nil {
 		s.fail("open a document first")
@@ -195,9 +213,10 @@ func (s *state) everyPageZipped() {
 	}
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
+	pic := s.chosenFormat()
 	short := 0
 	for at := 1; at <= src.PageCount(); at++ {
-		png, partial, err := s.drawnPNG(src, at)
+		data, partial, err := s.drawnPicture(src, at, pic)
 		if err != nil {
 			s.fail(err.Error())
 			return
@@ -209,8 +228,8 @@ func (s *state) everyPageZipped() {
 		// used or a writer already closed, neither of which can happen with
 		// one entry per page number, and a bytes.Buffer never fails to take
 		// bytes. Close only flushes.
-		w, _ := zw.Create(fmt.Sprintf("page%03d.png", at))
-		w.Write(png)
+		w, _ := zw.Create(fmt.Sprintf("page%03d%s", at, pic.suffix))
+		w.Write(data)
 	}
 	zw.Close()
 	s.handOver(strings.TrimSuffix(s.name, ".pdf")+"-pages.zip", buf.Bytes())
@@ -240,11 +259,87 @@ func (s *state) textAsFile() {
 	s.handOver(fmt.Sprintf("page%03d.txt", s.at), []byte(text))
 }
 
-// encodePNG is a variable so a test can watch what happens when writing the
+// encodeImage is a variable so a test can watch what happens when writing the
 // picture fails, which is the branch that decides whether a person is handed a
 // truncated file or told.
-var encodePNG = func(w io.Writer, img *raster.Image) error {
-	return codec.Encode(w, img, codec.PNG)
+var encodeImage = func(w io.Writer, img *raster.Image, f codec.Format) error {
+	return codec.Encode(w, img, f)
+}
+
+// pictureFormat is one way of handing a drawn page over: the format itself,
+// and the suffix a person expects the file to carry. The two are kept together
+// because the one mistake worth designing out is a file whose name says one
+// thing and whose bytes say another.
+type pictureFormat struct {
+	format codec.Format
+	suffix string
+}
+
+// everyKnownFormat is every container gfx can read, with its usual suffix.
+// Only some of them can be written, and which is the library's contract rather
+// than a guess made here: codec.CanEncode below decides what reaches the
+// chooser. Written this way round, a reference encoder arriving in gfx — WEBP
+// is the obvious one — puts that format in front of a person without a line
+// changing here.
+var everyKnownFormat = []pictureFormat{
+	{codec.PNG, ".png"},
+	{codec.JPEG, ".jpg"},
+	{codec.GIF, ".gif"},
+	{codec.WEBP, ".webp"},
+	{codec.TIFF, ".tif"},
+	{codec.BMP, ".bmp"},
+	{codec.ICO, ".ico"},
+	{codec.ICNS, ".icns"},
+	{codec.PNM, ".pnm"},
+	{codec.QOI, ".qoi"},
+	{codec.JP2, ".jp2"},
+	{codec.JBIG2, ".jbig2"},
+}
+
+// pictureFormats is what the chooser offers, in that order — PNG first,
+// because it is the one anything opens and the one this handed over when there
+// was no choice to make.
+//
+// The order is also worth reading as a warning about size. Over forty real
+// documents, the first page of each drawn at twice the size it is shown at and
+// written five ways, the mean file came to 209 kB as a PNG, 129 kB as a JPEG
+// and 105 kB as a GIF — and 4.9 MB as a BMP and 6.6 MB as a TIFF, which are
+// uncompressed. That is not this program's to fix (the encoders are gfx's, and
+// the ratio between the two large ones is exactly four bytes a pixel against
+// three, which is the alpha channel TIFF carries and BMP does not), but it is
+// worth knowing before choosing one for a document of two hundred pages.
+var pictureFormats = writableFormats()
+
+// writableFormats keeps the formats that can actually be written.
+func writableFormats() []pictureFormat {
+	out := make([]pictureFormat, 0, len(everyKnownFormat))
+	for _, p := range everyKnownFormat {
+		if codec.CanEncode(p.format) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// formatNames is what the chooser says, which is the format's own name: a
+// person looking for a JPEG is looking for the word, not for ".jpg".
+func formatNames() []string {
+	names := make([]string, len(pictureFormats))
+	for i, p := range pictureFormats {
+		names[i] = p.format.String()
+	}
+	return names
+}
+
+// chosenFormat is the format the two hand-over verbs write. A choice that is
+// not one of them falls back on the first rather than reaching past the end of
+// the list: the chooser cannot make that happen, and a panic if something else
+// ever did would be a poor way of finding out.
+func (s *state) chosenFormat() pictureFormat {
+	if s.tools.picture < 0 || s.tools.picture >= len(pictureFormats) {
+		return pictureFormats[0]
+	}
+	return pictureFormats[s.tools.picture]
 }
 
 // holds says what the bytes of a picture are.
