@@ -245,6 +245,10 @@ func (s *state) pagesGroup() *column {
 	box.add(s.spinRow("Split into files of", 1, s.tools.every,
 		func(v int) { s.tools.every = v }), labelledH)
 	box.add(button("Split and hand them over", toolkit.ButtonProminent, s.split), bareH)
+
+	// Last, and not among the things that take a range: this one asks the
+	// document which pages it means rather than being told.
+	box.add(blankButton(s), bareH)
 	return box
 }
 
