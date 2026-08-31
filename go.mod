@@ -3,14 +3,14 @@ module github.com/go-pdfkit/app
 go 1.26.4
 
 require (
-	github.com/go-gfx/gfx v0.18.0
+	github.com/go-gfx/gfx v0.19.0
 	github.com/go-pdfkit/extract v0.3.0
-	github.com/go-pdfkit/forms v0.2.2
-	github.com/go-pdfkit/ops v0.8.0
+	github.com/go-pdfkit/forms v0.3.0
+	github.com/go-pdfkit/ops v0.11.0
 	github.com/go-pdfkit/reader v0.6.0
-	github.com/go-pdfkit/render v0.19.0
+	github.com/go-pdfkit/render v0.20.0
 	github.com/go-widgets/painter v0.12.0
-	github.com/go-widgets/toolkit v0.293.0
+	github.com/go-widgets/toolkit v0.297.0
 	github.com/go-widgets/webcanvas v0.1.0
 )
 
