@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/coder/websocket"
@@ -186,10 +187,17 @@ func indexOf(s, sub string) int {
 // A conn is one DevTools session: requests numbered, replies matched by number,
 // events kept in a list so a test can wait for one.
 type conn struct {
-	ws      *websocket.Conn
+	ws *websocket.Conn
+
+	// pump runs in its own goroutine and matches replies by number, so both
+	// the counter and the map are touched from two goroutines at once. Without
+	// this the process does not race quietly, it dies: "fatal error: concurrent
+	// map writes", mid-check, with the browser still open.
+	mu      sync.Mutex
 	id      int
 	replies map[int]chan json.RawMessage
-	events  chan event
+
+	events chan event
 }
 
 type event struct {
@@ -246,10 +254,20 @@ func (c *conn) pump(ctx context.Context) {
 
 // call sends one command and waits for its reply.
 func (c *conn) call(ctx context.Context, method string, params map[string]any, sessionID string) (json.RawMessage, error) {
+	ch := make(chan json.RawMessage, 1)
+	c.mu.Lock()
 	c.id++
 	id := c.id
-	ch := make(chan json.RawMessage, 1)
 	c.replies[id] = ch
+	c.mu.Unlock()
+	// Whatever happens next, this entry must not outlive the call: a write
+	// that fails or a context that ends would otherwise leave pump holding a
+	// channel nobody will ever read.
+	defer func() {
+		c.mu.Lock()
+		delete(c.replies, id)
+		c.mu.Unlock()
+	}()
 	req := map[string]any{"id": id, "method": method}
 	if params != nil {
 		req["params"] = params
