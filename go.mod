@@ -9,8 +9,8 @@ require (
 	github.com/go-pdfkit/ops v0.11.0
 	github.com/go-pdfkit/reader v0.6.0
 	github.com/go-pdfkit/render v0.21.0
-	github.com/go-widgets/painter v0.12.0
-	github.com/go-widgets/toolkit v0.301.0
+	github.com/go-widgets/painter v0.13.0
+	github.com/go-widgets/toolkit v0.307.0
 	github.com/go-widgets/webcanvas v0.1.0
 )
 
@@ -19,8 +19,8 @@ require (
 	github.com/ajroetker/go-jpeg2000 v0.0.2 // indirect
 	github.com/andybalholm/brotli v1.2.3 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
-	github.com/go-crdt/collab v0.37.0 // indirect
-	github.com/go-crdt/crdt v0.39.0 // indirect
+	github.com/go-crdt/collab v0.40.0 // indirect
+	github.com/go-crdt/crdt v0.42.0 // indirect
 	github.com/go-icons/iconoir v0.2.0 // indirect
 	github.com/go-images/images v0.0.0-20260831115433-23d959d868e3 // indirect
 	github.com/go-opentype/fonts v0.9.0 // indirect
