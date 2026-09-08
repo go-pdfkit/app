@@ -6,11 +6,11 @@ require (
 	github.com/go-gfx/gfx v0.19.0
 	github.com/go-pdfkit/extract v0.3.0
 	github.com/go-pdfkit/forms v0.3.0
-	github.com/go-pdfkit/ops v0.11.0
+	github.com/go-pdfkit/ops v0.12.0
 	github.com/go-pdfkit/reader v0.6.0
-	github.com/go-pdfkit/render v0.21.0
+	github.com/go-pdfkit/render v0.22.0
 	github.com/go-widgets/painter v0.13.0
-	github.com/go-widgets/toolkit v0.313.0
+	github.com/go-widgets/toolkit v0.316.0
 	github.com/go-widgets/webcanvas v0.1.0
 )
 
@@ -27,6 +27,7 @@ require (
 	github.com/go-opentype/opentype v0.12.0 // indirect
 	github.com/go-opentype/shape v0.5.0 // indirect
 	github.com/go-pdfkit/pdffont v0.3.1 // indirect
+	github.com/go-pdfkit/xfa v0.21.0 // indirect
 	github.com/go-richdoc/richdoc v0.3.0 // indirect
 	github.com/go-typeset/bidi v0.3.0 // indirect
 	github.com/go-widgets/mvvm v0.9.0 // indirect
