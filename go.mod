@@ -3,12 +3,12 @@ module github.com/go-pdfkit/app
 go 1.26.4
 
 require (
-	github.com/go-gfx/gfx v0.20.0
+	github.com/go-gfx/gfx v0.24.0
 	github.com/go-pdfkit/extract v0.3.0
 	github.com/go-pdfkit/forms v0.3.0
 	github.com/go-pdfkit/ops v0.12.0
 	github.com/go-pdfkit/reader v0.6.0
-	github.com/go-pdfkit/render v0.25.0
+	github.com/go-pdfkit/render v0.28.0
 	github.com/go-widgets/painter v0.13.0
 	github.com/go-widgets/toolkit v0.316.0
 	github.com/go-widgets/webcanvas v0.1.0
@@ -34,10 +34,10 @@ require (
 	github.com/sergeymakinen/go-bmp v1.0.0 // indirect
 	github.com/sergeymakinen/go-ico v1.0.0 // indirect
 	github.com/tannevaled/gobig2 v0.1.0 // indirect
-	golang.org/x/image v0.45.0 // indirect
+	golang.org/x/image v0.46.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
