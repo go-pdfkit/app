@@ -194,15 +194,19 @@ func (s *state) drawThumbs(src *reader.Document, n int) bool {
 			more = true
 			continue
 		}
-		page, err := src.Page(i)
-		if err != nil {
-			continue
-		}
+		// The error is ignored, as fitScale ignores it for the page on the
+		// screen: pageSize falls back on a real paper size for a page it
+		// cannot read, and a page this document cannot resolve is one the
+		// renderer will not draw either -- so it ends as a numbered frame,
+		// which is what a tile with no picture is for. A page that says its
+		// size is nothing is the one case worth stepping over, because a scale
+		// derived from it would not be a number.
+		page, _ := src.Page(i)
 		w, _ := pageSize(src, page)
 		if w <= 0 {
 			continue
 		}
-		img, err := drawPage(src, i, render.Options{
+		img, _ := drawPage(src, i, render.Options{
 			Scale:       float64(thumbPicW) / w,
 			MaxDuration: thumbPage,
 		})

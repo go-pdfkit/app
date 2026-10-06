@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -393,4 +394,99 @@ func TestAMinipageIsDrawnSmallRatherThanShrunkAfterwards(t *testing.T) {
 			t.Errorf("the picture of page %d is %d bytes, and the largest tile is %d", i, got, want)
 		}
 	}
+}
+
+func TestTheRailHasAMinipageForEverySheetTheDocumentWillProduce(t *testing.T) {
+	// ⛔ This is the reason drawThumbs ignores the error from Page(i), rather
+	// than a decoration on it. A malformed document is the normal case, so the
+	// obvious worry is a page the catalogue counts and cannot produce -- which
+	// would leave a gap, and a gap would make the numbers lie about where you
+	// are. The reader does not allow it: a kid that cannot be resolved is not
+	// counted, so the rail's numbers and the document's pages agree by
+	// construction and the rail never has to decide what to do about one.
+	w := reader.NewWriter("1.7")
+	pagesRef := w.Reserve()
+	content := w.Add(&reader.Stream{Dict: reader.Dict{}, Raw: []byte("0 g 1 1 2 2 re f")})
+	ok := w.Add(reader.Dict{"Type": reader.Name("Page"), "Parent": pagesRef, "Contents": content,
+		"MediaBox": reader.Array{reader.Integer(0), reader.Integer(0), reader.Integer(300), reader.Integer(400)}})
+	// Count says two and the second kid is a reference to an object that was
+	// never written.
+	w.Put(pagesRef, reader.Dict{"Type": reader.Name("Pages"),
+		"Kids":  reader.Array{ok, reader.Ref{Num: 9999}},
+		"Count": reader.Integer(2)})
+	root := w.Add(reader.Dict{"Type": reader.Name("Catalog"), "Pages": pagesRef})
+	raw, err := w.Finish(reader.Dict{"Root": root})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := newState(surfaceW, surfaceH, &fakeHost{name: "dangling.pdf", file: raw})
+	s.open()
+	if s.doc == nil {
+		t.Fatalf("a document with one good page and one dangling kid did not open: %q", s.note)
+	}
+	n := s.doc.PageCount()
+	got := tiles(t, s)
+	if len(got) != n && !(n < 2 && len(got) == 0) {
+		t.Fatalf("the document has %d pages and the rail has %d minipages", n, len(got))
+	}
+	for i := 1; i <= n; i++ {
+		if _, err := s.src.Page(i); err != nil {
+			t.Errorf("page %d is counted and cannot be produced: %v -- the rail would have a gap", i, err)
+		}
+	}
+}
+
+func TestTheRailNeverAsksForAScaleThatIsNotANumber(t *testing.T) {
+	// ⛔ A page may say its size is nothing, and thumbPicW divided by nothing
+	// is +Inf. The renderer survives being handed that today, which is why
+	// removing the guard breaks no other test in this file -- and is no reason
+	// to hand it one: a scale is multiplied into a width and a height before
+	// anything is allocated, and +Inf is how a rasteriser is asked for an
+	// image the size of the machine.
+	//
+	// Asserted on the ASKING rather than on the answer, because the answer is
+	// the same either way and it is the asking that is wrong.
+	was := drawPage
+	var asked []float64
+	drawPage = func(d *reader.Document, i int, opt render.Options) (*raster.Image, error) {
+		asked = append(asked, opt.Scale)
+		return was(d, i, opt)
+	}
+	t.Cleanup(func() { drawPage = was })
+
+	h := &fakeHost{name: "shapes.pdf", file: shapedPDF(t,
+		[2]int{300, 400},
+		[2]int{0, 0}, // a page that says nothing about its size
+		[2]int{0, 900},
+		[2]int{400, 0},
+	)}
+	s := newState(surfaceW, surfaceH, h)
+	s.open()
+	if s.doc == nil {
+		t.Fatalf("the document did not open: %q", s.note)
+	}
+	s.draw(buffer())
+	if len(asked) == 0 {
+		t.Fatal("nothing was asked of the renderer, so nothing can be said about what was asked")
+	}
+	for i, sc := range asked {
+		if math.IsInf(sc, 0) || math.IsNaN(sc) || sc <= 0 {
+			t.Errorf("the %d%s page drawn was asked for at a scale of %v", i+1, ordinal(i+1), sc)
+		}
+	}
+}
+
+func ordinal(n int) string {
+	switch {
+	case n%100 >= 11 && n%100 <= 13:
+		return "th"
+	case n%10 == 1:
+		return "st"
+	case n%10 == 2:
+		return "nd"
+	case n%10 == 3:
+		return "rd"
+	}
+	return "th"
 }
