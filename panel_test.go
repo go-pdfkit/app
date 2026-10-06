@@ -7,17 +7,29 @@ import (
 
 	"github.com/go-pdfkit/ops"
 	"github.com/go-pdfkit/reader"
+	"github.com/go-widgets/toolkit"
 )
 
 // The heights of the rows of each group, in the order they are built, so that
 // a test can press a control where it was drawn rather than call its handler.
 // Pressing is the whole point: it is what says the thing on the screen is
 // wired to the thing it claims to be.
-var (
-	pagesRows = []int{labelledH, bareH, bareH, bareH, labelledH, bareH,
-		labelledH, bareH, labelledH, bareH, labelledH, bareH}
-	sheetRows = []int{labelledH, bareH, bareH, bareH, bareH}
-)
+//
+// ⛔ FUNCTIONS, not vars. A row's height follows the installed face, and
+// package-level vars are initialised BEFORE any init() runs -- so a table
+// written as a var captured the bitmap heights, the panel was then laid out
+// with the vector face installed by init(), and every press after the second
+// row landed in the gap between two controls. Eleven tests failed on an
+// off-by-a-font.
+
+func pagesRows() []int {
+	return []int{labelledH(), bareH(), bareH(), bareH(), labelledH(), bareH(),
+		labelledH(), bareH(), labelledH(), bareH(), labelledH(), bareH()}
+}
+
+func sheetRows() []int {
+	return []int{labelledH(), bareH(), bareH(), bareH(), bareH()}
+}
 
 // openGroup shows a group and lays it out, which is what gives its controls
 // the bounds a press is tested against.
@@ -49,30 +61,113 @@ func rowAt(t *testing.T, s *state, rows []int, n int, across int) (int, int) {
 	return x, y + rows[n]/2
 }
 
-// plusAt is the + of the spin button in the nth row, which is at the right
-// hand end of the control, under the row's name.
-//
-// ⛔ Derived from the panel's own right edge, not from the row's middle plus a
-// number. It used to be `x + 120`, which is where the + happened to sit when
-// every label was drawn in the built-in 5x7 bitmap; the moment the workbench
-// asked for a real typeface the controls changed width and the press landed
-// beside the button instead of on it. Three tests failed, and all three were
-// spin buttons.
-func plusAt(t *testing.T, s *state, rows []int, n int) (int, int) {
-	t.Helper()
-	b := s.tools.built[s.tools.open].Bounds()
-	_, y := rowAt(t, s, rows, n, 1)
-	return b.X + b.W - plusInset, y - plusRise
+// kids is the toolkit's container convention: anything that holds widgets
+// reports them, which is how the accessibility walk reads a tree it did not
+// build. A test can use the same door.
+type kids interface{ Children() []toolkit.Widget }
+
+// spinsIn collects the spin buttons under a widget, in the order they are laid
+// out.
+func spinsIn(w toolkit.Widget) []*toolkit.SpinButton {
+	var out []*toolkit.SpinButton
+	var walk func(toolkit.Widget)
+	walk = func(w toolkit.Widget) {
+		if w == nil {
+			return
+		}
+		if sp, ok := w.(*toolkit.SpinButton); ok {
+			out = append(out, sp)
+		}
+		if c, ok := w.(kids); ok {
+			for _, k := range c.Children() {
+				walk(k)
+			}
+		}
+	}
+	walk(w)
+	return out
 }
 
-// plusInset and plusRise are where the + sits relative to the panel's right
-// edge and the row's middle. MEASURED rather than guessed: a sweep of the row
-// found the button answering from right-26 to right-36 at y-8, so 30 is the
-// middle of that band.
-const (
-	plusInset = 30
-	plusRise  = 8
-)
+// dropsIn collects the drop-down lists under a widget.
+func dropsIn(w toolkit.Widget) []*toolkit.DropDown {
+	var out []*toolkit.DropDown
+	var walk func(toolkit.Widget)
+	walk = func(w toolkit.Widget) {
+		if w == nil {
+			return
+		}
+		if d, ok := w.(*toolkit.DropDown); ok {
+			out = append(out, d)
+		}
+		if c, ok := w.(kids); ok {
+			for _, k := range c.Children() {
+				walk(k)
+			}
+		}
+	}
+	walk(w)
+	return out
+}
+
+// chooseAt opens the list in the nth row and picks its which-th option, by
+// pressing both -- which is the point: a chooser nobody can press is a chooser
+// that does not work, however well its handler is wired.
+//
+// ⛔ The second press is placed from the list's OWN PopoverBounds and the
+// toolkit's row height, not from the control plus 40 pixels. 40 was one and a
+// half rows of bitmap text, and with a real face it fell through the list.
+func chooseAt(t *testing.T, s *state, rows []int, n, which int) {
+	t.Helper()
+	x, y := rowAt(t, s, rows, n, 0)
+	press(s, x, y)
+	for _, d := range dropsIn(s.tools.built[s.tools.open]) {
+		if !d.PopoverOpen() {
+			continue
+		}
+		pb := d.PopoverBounds()
+		press(s, pb.X+pb.W/2, pb.Y+which*toolkit.PopoverRowH+toolkit.PopoverRowH/2)
+		return
+	}
+	t.Fatalf("pressing row %d of the %s panel opened no list", n, s.tools.open)
+}
+
+// plusAt is the point that makes the spin button in the nth row count up.
+//
+// ⛔ It ASKS THE WIDGET where it is. It used to be `x + 120`, and then
+// `right - 30`, both measured against the toolkit's built-in 5x7 bitmap; the
+// moment the workbench asked for a real typeface the controls changed width
+// and the press landed beside the button instead of on it. A literal offset in
+// a test is a second, undeclared copy of the layout, and it goes stale without
+// saying so -- whereas Bounds() is the layout itself.
+//
+// The + is the top half of the stepper column at the right hand end of the
+// control, which is what SpinButton.OnEvent tests: x past r.W less the stepper
+// width, y above the half.
+func plusAt(t *testing.T, s *state, rows []int, n int) (int, int) {
+	t.Helper()
+	return plusAtNth(t, s, rows, n, 0)
+}
+
+// plusAtNth is the same for a row that holds more than one, counting from the
+// left: the Bates row carries the padding beside the first number.
+func plusAtNth(t *testing.T, s *state, rows []int, n, which int) (int, int) {
+	t.Helper()
+	_, mid := rowAt(t, s, rows, n, 1)
+	half := rows[n] / 2
+	var on []*toolkit.SpinButton
+	for _, sp := range spinsIn(s.tools.built[s.tools.open]) {
+		r := sp.Bounds()
+		if r.Y < mid+half && r.Y+r.H > mid-half {
+			on = append(on, sp)
+		}
+	}
+	if which >= len(on) {
+		t.Fatalf("row %d of the %s panel holds %d spin buttons, so there is no %s",
+			n, s.tools.open, len(on), []string{"first", "second", "third"}[min(which, 2)])
+	}
+	r := on[which].Bounds()
+	return r.X + r.W - 2, r.Y + r.H/4
+}
 
 // press puts a press on the panel and redraws, the way a frame follows an
 // event in the browser.
@@ -89,7 +184,7 @@ func TestTheStripOpensAndClosesEachGroup(t *testing.T) {
 	for _, name := range groupNames {
 		var at int
 		for x := margin; x < surfaceW-margin; x += 2 {
-			s.handleClick(x, margin+toolbarH/2)
+			s.handleClick(x, margin+toolbarH()/2)
 			if s.tools.open == name {
 				at = x
 				break
@@ -102,7 +197,7 @@ func TestTheStripOpensAndClosesEachGroup(t *testing.T) {
 		if s.pageW() >= s.viewW() {
 			t.Error("the page kept the whole width with a panel beside it")
 		}
-		s.handleClick(at, margin+toolbarH/2)
+		s.handleClick(at, margin+toolbarH()/2)
 		if s.tools.open != "" {
 			t.Errorf("pressing %q again left it open", name)
 		}
@@ -115,7 +210,7 @@ func TestEveryControlInThePagesPanelIsWiredToItsVerb(t *testing.T) {
 
 	// The box takes what is typed into it, one character at a time, and an
 	// arrow key then belongs to the box rather than to the pages.
-	x, y := rowAt(t, s, pagesRows, 0, 1)
+	x, y := rowAt(t, s, pagesRows(), 0, 1)
 	press(s, x, y)
 	if !s.editing() {
 		t.Fatal("pressing the box did not put the caret in it")
@@ -139,12 +234,12 @@ func TestEveryControlInThePagesPanelIsWiredToItsVerb(t *testing.T) {
 
 	// Turning: the left half of that row cycles how far, the right half does
 	// it. One press of the cycle takes a quarter turn to a half.
-	x, y = rowAt(t, s, pagesRows, 2, 0)
+	x, y = rowAt(t, s, pagesRows(), 2, 0)
 	press(s, x, y)
 	if s.tools.turn != 180 {
 		t.Fatalf("the turn is %d degrees", s.tools.turn)
 	}
-	x, y = rowAt(t, s, pagesRows, 2, 1)
+	x, y = rowAt(t, s, pagesRows(), 2, 1)
 	press(s, x, y)
 	if got, _ := s.doc.Rotation(2); got != 180 {
 		t.Errorf("page two is turned %d degrees", got)
@@ -154,14 +249,14 @@ func TestEveryControlInThePagesPanelIsWiredToItsVerb(t *testing.T) {
 	}
 
 	// Reversing, which needs no telling.
-	x, y = rowAt(t, s, pagesRows, 3, 1)
+	x, y = rowAt(t, s, pagesRows(), 3, 1)
 	press(s, x, y)
 	if got, _ := s.doc.Rotation(5); got != 180 {
 		t.Error("the order was not reversed: the turned page did not move")
 	}
 
 	// Keeping only the pages the box names.
-	x, y = rowAt(t, s, pagesRows, 1, 0)
+	x, y = rowAt(t, s, pagesRows(), 1, 0)
 	press(s, x, y)
 	if s.doc.PageCount() != 2 {
 		t.Errorf("keeping 2-3 left %d pages", s.doc.PageCount())
@@ -172,7 +267,7 @@ func TestEveryControlInThePagesPanelIsWiredToItsVerb(t *testing.T) {
 
 	// And dropping them.
 	s.tools.spec = "1"
-	x, y = rowAt(t, s, pagesRows, 1, 1)
+	x, y = rowAt(t, s, pagesRows(), 1, 1)
 	press(s, x, y)
 	if s.doc.PageCount() != 1 {
 		t.Errorf("deleting page one left %d pages", s.doc.PageCount())
@@ -184,13 +279,13 @@ func TestMovingCroppingBlankingAndSplittingFromThePanel(t *testing.T) {
 	openGroup(t, s, groupPages)
 
 	// A number is pressed up before the verb beside it is pressed.
-	x, y := plusAt(t, s, pagesRows, 4)
+	x, y := plusAt(t, s, pagesRows(), 4)
 	press(s, x, y)
 	if s.tools.moveTo != 2 {
 		t.Fatalf("the spin button says %d", s.tools.moveTo)
 	}
 	s.at = 1
-	x, y = rowAt(t, s, pagesRows, 5, 1)
+	x, y = rowAt(t, s, pagesRows(), 5, 1)
 	press(s, x, y)
 	if s.at != 2 {
 		t.Errorf("the view did not follow the page it moved, and shows %d", s.at)
@@ -201,7 +296,7 @@ func TestMovingCroppingBlankingAndSplittingFromThePanel(t *testing.T) {
 
 	// Cropping: what is typed is a box, and what is drawn afterwards is the
 	// page as it would be saved.
-	x, y = rowAt(t, s, pagesRows, 6, 1)
+	x, y = rowAt(t, s, pagesRows(), 6, 1)
 	press(s, x, y)
 	for _, c := range strings.Split("0,0,150,200", "") {
 		if !s.handleChar(c) {
@@ -212,7 +307,7 @@ func TestMovingCroppingBlankingAndSplittingFromThePanel(t *testing.T) {
 		t.Fatalf("the crop box holds %q", s.tools.box)
 	}
 	before := s.fitScale(s.src)
-	x, y = rowAt(t, s, pagesRows, 7, 1)
+	x, y = rowAt(t, s, pagesRows(), 7, 1)
 	press(s, x, y)
 	if s.fitScale(s.src) <= before {
 		t.Error("cropping the page did not change how it is drawn")
@@ -220,12 +315,12 @@ func TestMovingCroppingBlankingAndSplittingFromThePanel(t *testing.T) {
 
 	// A blank page goes in where the number says.
 	was := s.doc.PageCount()
-	x, y = plusAt(t, s, pagesRows, 8)
+	x, y = plusAt(t, s, pagesRows(), 8)
 	press(s, x, y)
 	if s.tools.before != 2 {
 		t.Fatalf("the blank page is to go before %d", s.tools.before)
 	}
-	x, y = rowAt(t, s, pagesRows, 9, 1)
+	x, y = rowAt(t, s, pagesRows(), 9, 1)
 	press(s, x, y)
 	if s.doc.PageCount() != was+1 {
 		t.Errorf("%d pages after inserting a blank one", s.doc.PageCount())
@@ -234,12 +329,12 @@ func TestMovingCroppingBlankingAndSplittingFromThePanel(t *testing.T) {
 	// Splitting hands over one file per piece and changes nothing. Two pages
 	// to a piece, pressed up from one.
 	pages := s.doc.PageCount()
-	x, y = plusAt(t, s, pagesRows, 10)
+	x, y = plusAt(t, s, pagesRows(), 10)
 	press(s, x, y)
 	if s.tools.every != 2 {
 		t.Fatalf("a piece is to hold %d pages", s.tools.every)
 	}
-	x, y = rowAt(t, s, pagesRows, 11, 1)
+	x, y = rowAt(t, s, pagesRows(), 11, 1)
 	press(s, x, y)
 	if s.doc.PageCount() != pages {
 		t.Error("splitting changed the document it was asked about")
@@ -265,13 +360,13 @@ func TestTheSheetPanel(t *testing.T) {
 
 	// Two to a sheet is what the number starts at; pressed up it is three,
 	// which puts four pages on two sheets.
-	x, y := plusAt(t, s, sheetRows, 0)
+	x, y := plusAt(t, s, sheetRows(), 0)
 	press(s, x, y)
 	if s.tools.up != 3 {
 		t.Fatalf("the number says %d to a sheet", s.tools.up)
 	}
 	s.tools.up = 2
-	x, y = rowAt(t, s, sheetRows, 1, 1)
+	x, y = rowAt(t, s, sheetRows(), 1, 1)
 	press(s, x, y)
 	if s.doc.PageCount() != 2 || s.at != 1 {
 		t.Errorf("%d sheets, showing %d", s.doc.PageCount(), s.at)
@@ -280,7 +375,7 @@ func TestTheSheetPanel(t *testing.T) {
 	// A booklet reorders the sheets rather than adding any.
 	s2, _ := opened(t, 4)
 	openGroup(t, s2, groupSheet)
-	x, y = rowAt(t, s2, sheetRows, 2, 1)
+	x, y = rowAt(t, s2, sheetRows(), 2, 1)
 	press(s2, x, y)
 	if s2.doc.PageCount() != 2 {
 		t.Errorf("a booklet of four pages came to %d sheets", s2.doc.PageCount())
@@ -292,7 +387,7 @@ func TestAddingAndOverlayingAnotherFile(t *testing.T) {
 	openGroup(t, s, groupSheet)
 	h.file = samplePDF(t, 3)
 
-	x, y := rowAt(t, s, sheetRows, 3, 1)
+	x, y := rowAt(t, s, sheetRows(), 3, 1)
 	press(s, x, y)
 	if s.doc.PageCount() != 5 {
 		t.Errorf("adding a three page file to a two page one gave %d", s.doc.PageCount())
@@ -301,7 +396,7 @@ func TestAddingAndOverlayingAnotherFile(t *testing.T) {
 		t.Errorf("the status line says %q", s.note)
 	}
 
-	x, y = rowAt(t, s, sheetRows, 4, 1)
+	x, y = rowAt(t, s, sheetRows(), 4, 1)
 	press(s, x, y)
 	if s.doc.PageCount() != 5 {
 		t.Errorf("laying a file over this one changed the page count to %d", s.doc.PageCount())
@@ -331,12 +426,12 @@ func TestOnlyTheBoxLastPressedTakesWhatIsTyped(t *testing.T) {
 	// toolkit's own focus walk cannot see into a scroll view.
 	s, _ := opened(t, 3)
 	openGroup(t, s, groupPages)
-	x, y := rowAt(t, s, pagesRows, 0, 1)
+	x, y := rowAt(t, s, pagesRows(), 0, 1)
 	press(s, x, y)
 	for _, c := range []string{"1", "-", "2"} {
 		s.handleChar(c)
 	}
-	x, y = rowAt(t, s, pagesRows, 6, 1)
+	x, y = rowAt(t, s, pagesRows(), 6, 1)
 	press(s, x, y)
 	for _, c := range []string{"0", ",", "0", ",", "9", ",", "9"} {
 		s.handleChar(c)
@@ -348,7 +443,7 @@ func TestOnlyTheBoxLastPressedTakesWhatIsTyped(t *testing.T) {
 		t.Errorf("the crop box holds %q", s.tools.box)
 	}
 	// And a press that lands on neither leaves both of them alone.
-	press(s, margin+2, viewTop+s.viewH()-2)
+	press(s, margin+2, viewTop()+s.viewH()-2)
 	if s.editing() {
 		t.Error("a press on nothing left a box with the caret")
 	}
@@ -357,7 +452,7 @@ func TestOnlyTheBoxLastPressedTakesWhatIsTyped(t *testing.T) {
 func TestAPanelPutAwayLetsGoOfTheKeys(t *testing.T) {
 	s, _ := opened(t, 3)
 	openGroup(t, s, groupPages)
-	x, y := rowAt(t, s, pagesRows, 0, 1)
+	x, y := rowAt(t, s, pagesRows(), 0, 1)
 	press(s, x, y)
 	if !s.editing() {
 		t.Fatal("the caret is not in the box")

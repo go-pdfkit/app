@@ -37,20 +37,45 @@ const (
 	// would be zero or negative, so a resize to it is refused and the last
 	// good layout stands.
 	minSurfaceW = 2*margin + 1
-	minSurfaceH = viewTop + statusH + margin + 1
 )
 
+// minSurfaceH is the smallest height the three bands still fit in. It follows
+// the installed face, because two of those bands are sized by their text.
+func minSurfaceH() int { return viewTop() + statusH() + margin + 1 }
+
 // Geometry of the three bands: a toolbar, the page, a status line.
+//
+// ⛔ The band heights are FUNCTIONS, not constants, and that is the point of
+// this block. Every band holds text, so every band's height is the text it
+// holds plus the chrome around it. When these were written there was only one
+// face -- the toolkit's compiled-in 5x7 bitmap -- so the text contributed 7
+// pixels to each of them and nobody had to say which 7. Installing a vector
+// face made the glyph taller and the bands did not follow: labels clipped, and
+// the tests that press at literal offsets pressed past their target.
+//
+// The chrome figures are the padding a line of type wants around it, not the
+// padding a 5x7 bitmap happened to be given: the old numbers were 23 and 15
+// around a 7-pixel glyph, which with a 16-pixel one made every band taller
+// than the room it had. TestNoPanelOverflowsTheRoomItIsGiven is the control --
+// it measures the laid-out panels against their own box, so it fails for any
+// face that does not fit rather than for a number that changed.
 const (
-	margin   = 8
-	toolbarH = 30
-	statusH  = 22
-	viewTop  = margin + toolbarH + margin
+	margin = 8
+
+	toolbarChrome = 16 // padding around a toolbar button's label
+	statusChrome  = 10 // padding around the status line's text
 	// ⛔ viewW and viewH are NOT constants any more: they were
 	// surfaceW/surfaceH minus the bands, computed once at compile time, which
 	// is what kept the workbench at its design size however big the window
 	// was. They are methods on state now, over s.w and s.h.
 )
+
+// textH is the height of one line of text in the face currently installed.
+func textH() int { return toolkit.CurrentFont().Height() }
+
+func toolbarH() int { return textH() + toolbarChrome }
+func statusH() int  { return textH() + statusChrome }
+func viewTop() int  { return margin + toolbarH() + margin }
 
 // A state is the whole workbench.
 type state struct {
@@ -455,7 +480,7 @@ func (s *state) show(w toolkit.Widget) {
 	// arrive before the next frame does: the view is built afresh by every
 	// change, and a widget nobody has given bounds to is under no point at
 	// all, so the press after a change would land on nothing.
-	s.view.SetBounds(painter.Rect{X: margin, Y: viewTop, W: s.viewW(), H: s.viewH()})
+	s.view.SetBounds(painter.Rect{X: margin, Y: viewTop(), W: s.viewW(), H: s.viewH()})
 }
 
 // arrange is the view band's contents: the page, and the tool panel beside it
@@ -480,7 +505,7 @@ func (s *state) arrange(w toolkit.Widget) toolkit.Widget {
 // viewW and viewH are the band under the strip, in the surface's own pixels.
 // They follow s.w and s.h so the workbench fills whatever it is given.
 func (s *state) viewW() int { return s.w - 2*margin }
-func (s *state) viewH() int { return s.h - viewTop - statusH - margin }
+func (s *state) viewH() int { return s.h - viewTop() - statusH() - margin }
 
 // resize lays the workbench out on a new surface. The size arrives in DEVICE
 // pixels -- the caller has already multiplied by the screen's pixel ratio --
@@ -492,7 +517,7 @@ func (s *state) viewH() int { return s.h - viewTop - statusH - margin }
 // negative: a window dragged to nothing should leave the last good layout
 // standing, not a frame of arithmetic errors.
 func (s *state) resize(w, h int) bool {
-	if w < minSurfaceW || h < minSurfaceH {
+	if w < minSurfaceW || h < minSurfaceH() {
 		return false
 	}
 	if w == s.w && h == s.h {
@@ -579,13 +604,13 @@ func mustResolve(src *reader.Document, o reader.Object) reader.Object {
 func (s *state) draw(buf []byte) {
 	fillBG(buf, s.theme.Background)
 	p := painter.NewPixelPainter(buf, s.w, s.h)
-	s.toolbar.SetBounds(painter.Rect{X: margin, Y: margin, W: s.w - 2*margin, H: toolbarH})
+	s.toolbar.SetBounds(painter.Rect{X: margin, Y: margin, W: s.w - 2*margin, H: toolbarH()})
 	s.toolbar.Draw(p, s.theme)
-	s.status.SetBounds(painter.Rect{X: 0, Y: s.h - statusH, W: s.w, H: statusH})
+	s.status.SetBounds(painter.Rect{X: 0, Y: s.h - statusH(), W: s.w, H: statusH()})
 	s.status.Draw(p, s.theme)
 	// The view last, because a list opened near the foot of the panel is drawn
 	// over whatever is below it — and below it is the status line.
-	s.view.SetBounds(painter.Rect{X: margin, Y: viewTop, W: s.viewW(), H: s.viewH()})
+	s.view.SetBounds(painter.Rect{X: margin, Y: viewTop(), W: s.viewW(), H: s.viewH()})
 	s.view.Draw(p, s.theme)
 }
 

@@ -31,6 +31,16 @@ const maxRatio = 3
 // others.
 const uiFontPx = 13
 
+// init installs the face before anything is laid out.
+//
+// ⛔ toolkit.SetFont is PROCESS-WIDE. Called from a constructor, as it was
+// first, it leaks into every test that runs after the first one to build a
+// workbench -- so the suite's result depended on its order, and a package that
+// ships vector text was partly tested against a bitmap. One call, before main
+// and before any test, is the only placement that makes the measured layout
+// the shipped layout.
+func init() { useVectorText() }
+
 // useVectorText installs an anti-aliased, shaped face for every widget.
 //
 // ⛔ The toolkit's compiled-in default is a 5x7 BITMAP font, and anti-aliased
@@ -59,7 +69,6 @@ func useVectorText() {
 // newWorkbench builds the scene and wraps it. ratio is the screen's device
 // pixels per CSS pixel; a native caller passes 1.
 func newWorkbench(h host, ratio float64) workbench {
-	useVectorText()
 	return workbench{s: newState(surfaceW, surfaceH, h), ratio: clampRatio(ratio)}
 }
 

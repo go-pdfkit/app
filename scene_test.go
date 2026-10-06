@@ -341,7 +341,7 @@ func TestEveryControlIsReachableByClicking(t *testing.T) {
 	for x := margin; x < surfaceW-margin; x += 4 {
 		before := s.doc.PageCount()
 		at := s.at
-		s.handleClick(x, margin+toolbarH/2)
+		s.handleClick(x, margin+toolbarH()/2)
 		if s.doc.PageCount() != before || s.at != at || s.note != "" {
 			reached++
 		}

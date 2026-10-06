@@ -74,7 +74,7 @@ func TestResizeDrawsAtTheScreensOwnPixels(t *testing.T) {
 	if got := a.s.viewW(); got != 1200-2*margin {
 		t.Errorf("viewW = %d, want the new width less the margins", got)
 	}
-	if got := a.s.viewH(); got != 1000-viewTop-statusH-margin {
+	if got := a.s.viewH(); got != 1000-viewTop()-statusH()-margin {
 		t.Errorf("viewH = %d, want the new height less the bands", got)
 	}
 }

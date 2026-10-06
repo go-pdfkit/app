@@ -180,11 +180,20 @@ type column struct {
 // Room around and between the rows, and the width they are laid out at: the
 // panel less its frame and the scrollbar down its edge.
 const (
-	rowGap    = 6
-	rowsW     = panelW - 34
-	labelledH = 52
-	bareH     = 30
+	rowGap = 6
+	rowsW  = panelW - 34
+
+	// What a row costs besides its text. See the band geometry in scene.go.
+	bareChrome = 16 // around a control's own text
+	labelGap   = 10 // between a caption and the control it names
 )
+
+// bareH is a row holding one control and no caption.
+func bareH() int { return textH() + bareChrome }
+
+// labelledH is a row holding a caption above its control, so it is two lines
+// of text, not one.
+func labelledH() int { return textH() + labelGap + bareH() }
 
 // newColumn starts an empty stack.
 func newColumn() *column {
@@ -221,36 +230,36 @@ func (c *column) scrollerOf(w int) *toolkit.ScrollView {
 func (s *state) pagesGroup() *column {
 	box := newColumn()
 	box.add(s.entryRow("Which pages", "1-3,7 — empty means this one", "",
-		func(v string) { s.tools.spec = v }), labelledH)
+		func(v string) { s.tools.spec = v }), labelledH())
 	box.add(buttons(
 		button("Keep only these", toolkit.ButtonDefault, s.selectPages),
 		button("Delete these", toolkit.ButtonDanger, s.deleteRange),
-	), bareH)
+	), bareH())
 
 	turns := toolkit.NewCycleButton("a quarter", "a half", "three quarters")
 	turns.Index().Subscribe(func(i int) { s.tools.turn = 90 * (i + 1) })
-	box.add(buttons(turns, button("Turn them", toolkit.ButtonDefault, s.turnRange)), bareH)
-	box.add(button("Reverse the order", toolkit.ButtonDefault, s.reverse), bareH)
+	box.add(buttons(turns, button("Turn them", toolkit.ButtonDefault, s.turnRange)), bareH())
+	box.add(button("Reverse the order", toolkit.ButtonDefault, s.reverse), bareH())
 
 	box.add(s.spinRow("Move this page to", 1, s.tools.moveTo,
-		func(v int) { s.tools.moveTo = v }), labelledH)
-	box.add(button("Move it there", toolkit.ButtonDefault, s.movePage), bareH)
+		func(v int) { s.tools.moveTo = v }), labelledH())
+	box.add(button("Move it there", toolkit.ButtonDefault, s.movePage), bareH())
 
 	box.add(s.entryRow("Crop to, in points", "x0,y0,x1,y1", "",
-		func(v string) { s.tools.box = v }), labelledH)
-	box.add(button("Crop them", toolkit.ButtonDefault, s.crop), bareH)
+		func(v string) { s.tools.box = v }), labelledH())
+	box.add(button("Crop them", toolkit.ButtonDefault, s.crop), bareH())
 
 	box.add(s.spinRow("Put a blank page before", 1, s.tools.before,
-		func(v int) { s.tools.before = v }), labelledH)
-	box.add(button("Insert it", toolkit.ButtonDefault, s.insertBlank), bareH)
+		func(v int) { s.tools.before = v }), labelledH())
+	box.add(button("Insert it", toolkit.ButtonDefault, s.insertBlank), bareH())
 
 	box.add(s.spinRow("Split into files of", 1, s.tools.every,
-		func(v int) { s.tools.every = v }), labelledH)
-	box.add(button("Split and hand them over", toolkit.ButtonProminent, s.split), bareH)
+		func(v int) { s.tools.every = v }), labelledH())
+	box.add(button("Split and hand them over", toolkit.ButtonProminent, s.split), bareH())
 
 	// Last, and not among the things that take a range: this one asks the
 	// document which pages it means rather than being told.
-	box.add(blankButton(s), bareH)
+	box.add(blankButton(s), bareH())
 	return box
 }
 
@@ -258,11 +267,11 @@ func (s *state) pagesGroup() *column {
 // more than one file into this one.
 func (s *state) sheetGroup() *column {
 	box := newColumn()
-	box.add(s.spinRow("Pages to a sheet", 1, s.tools.up, func(v int) { s.tools.up = v }), labelledH)
-	box.add(button("Lay them out", toolkit.ButtonDefault, s.nUp), bareH)
-	box.add(button("Fold it into a booklet", toolkit.ButtonDefault, s.booklet), bareH)
-	box.add(button("Add a file after this one", toolkit.ButtonDefault, s.merge), bareH)
-	box.add(button("Lay a file over this one", toolkit.ButtonDefault, s.overlay), bareH)
+	box.add(s.spinRow("Pages to a sheet", 1, s.tools.up, func(v int) { s.tools.up = v }), labelledH())
+	box.add(button("Lay them out", toolkit.ButtonDefault, s.nUp), bareH())
+	box.add(button("Fold it into a booklet", toolkit.ButtonDefault, s.booklet), bareH())
+	box.add(button("Add a file after this one", toolkit.ButtonDefault, s.merge), bareH())
+	box.add(button("Lay a file over this one", toolkit.ButtonDefault, s.overlay), bareH())
 	return box
 }
 

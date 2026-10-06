@@ -45,31 +45,31 @@ func placeNames() []string {
 func (s *state) marksGroup() *column {
 	box := newColumn()
 	box.add(s.entryRow("Which pages", "1-3,7 — empty means all of them", "",
-		func(v string) { s.tools.markSpec = v }), labelledH)
+		func(v string) { s.tools.markSpec = v }), labelledH())
 
 	box.add(s.entryRow("Watermark", "what it says", s.tools.mark,
-		func(v string) { s.tools.mark = v }), labelledH)
-	box.add(button("Write it across them", toolkit.ButtonDefault, s.watermark), bareH)
+		func(v string) { s.tools.mark = v }), labelledH())
+	box.add(button("Write it across them", toolkit.ButtonDefault, s.watermark), bareH())
 
 	box.add(s.entryRow("Page numbers", "{page} and {pages} are filled in", s.tools.numbers,
-		func(v string) { s.tools.numbers = v }), labelledH)
-	box.add(button("Number them", toolkit.ButtonDefault, s.number), bareH)
+		func(v string) { s.tools.numbers = v }), labelledH())
+	box.add(button("Number them", toolkit.ButtonDefault, s.number), bareH())
 
 	box.add(s.entryRow("Bates prefix", "what comes before the number", "",
-		func(v string) { s.tools.prefix = v }), labelledH)
+		func(v string) { s.tools.prefix = v }), labelledH())
 	box.add(buttons(
 		s.spinRow("Starting at", 1, s.tools.start, func(v int) { s.tools.start = v }),
 		s.spinRow("Padded to", 1, s.tools.digits, func(v int) { s.tools.digits = v }),
-	), labelledH)
-	box.add(button("Stamp the numbers on", toolkit.ButtonDefault, s.bates), bareH)
+	), labelledH())
+	box.add(button("Stamp the numbers on", toolkit.ButtonDefault, s.bates), bareH())
 
 	box.add(s.entryRow("Stamp", "what it says", s.tools.stamp,
-		func(v string) { s.tools.stamp = v }), labelledH)
+		func(v string) { s.tools.stamp = v }), labelledH())
 	box.add(buttons(
 		chooseRow("Where it goes", placeNames(), s.tools.at, func(i int) { s.tools.at = i }),
 		s.spinRow("Points", 4, s.tools.size, func(v int) { s.tools.size = v }),
-	), labelledH)
-	box.add(button("Stamp them", toolkit.ButtonDefault, s.stamp), bareH)
+	), labelledH())
+	box.add(button("Stamp them", toolkit.ButtonDefault, s.stamp), bareH())
 	return box
 }
 

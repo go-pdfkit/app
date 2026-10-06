@@ -20,18 +20,18 @@ import (
 // fileGroup is the panel.
 func (s *state) fileGroup() *column {
 	box := newColumn()
-	box.add(button("Sanitize — drop what runs", toolkit.ButtonDefault, s.sanitize), bareH)
-	box.add(button("Flatten the annotations in", toolkit.ButtonDefault, s.flatten), bareH)
-	box.add(button("Drop every annotation", toolkit.ButtonDanger, s.dropAnnots), bareH)
-	box.add(button("Drop the bookmarks", toolkit.ButtonDanger, s.dropOutlines), bareH)
-	box.add(button("Drop what it says about itself", toolkit.ButtonDanger, s.clearInfo), bareH)
-	box.add(button("Pack it smaller", toolkit.ButtonDefault, s.compress), bareH)
+	box.add(button("Sanitize — drop what runs", toolkit.ButtonDefault, s.sanitize), bareH())
+	box.add(button("Flatten the annotations in", toolkit.ButtonDefault, s.flatten), bareH())
+	box.add(button("Drop every annotation", toolkit.ButtonDanger, s.dropAnnots), bareH())
+	box.add(button("Drop the bookmarks", toolkit.ButtonDanger, s.dropOutlines), bareH())
+	box.add(button("Drop what it says about itself", toolkit.ButtonDanger, s.clearInfo), bareH())
+	box.add(button("Pack it smaller", toolkit.ButtonDefault, s.compress), bareH())
 
 	box.add(s.entryRow("Title", "what the document is called", "",
-		func(v string) { s.tools.title = v }), labelledH)
+		func(v string) { s.tools.title = v }), labelledH())
 	box.add(s.entryRow("Author", "who wrote it", "",
-		func(v string) { s.tools.author = v }), labelledH)
-	box.add(button("Say so in the file", toolkit.ButtonDefault, s.setInfo), bareH)
+		func(v string) { s.tools.author = v }), labelledH())
+	box.add(button("Say so in the file", toolkit.ButtonDefault, s.setInfo), bareH())
 	return box
 }
 
@@ -131,19 +131,19 @@ var allowed = []struct {
 // password to put on the file that will be written.
 func (s *state) protectGroup() *column {
 	box := newColumn()
-	box.add(s.secretRow("Password to open a file with", func(v string) { s.tools.openPw = v }), labelledH)
-	box.add(toolkit.NewLabel("Type it before pressing Open."), bareH)
+	box.add(s.secretRow("Password to open a file with", func(v string) { s.tools.openPw = v }), labelledH())
+	box.add(toolkit.NewLabel("Type it before pressing Open."), bareH())
 
-	box.add(s.secretRow("User password", func(v string) { s.tools.userPw = v }), labelledH)
-	box.add(s.secretRow("Owner password", func(v string) { s.tools.ownerPw = v }), labelledH)
+	box.add(s.secretRow("User password", func(v string) { s.tools.userPw = v }), labelledH())
+	box.add(s.secretRow("Owner password", func(v string) { s.tools.ownerPw = v }), labelledH())
 	for _, a := range allowed {
 		name := a.name
 		box.add(tickRow("May "+name, s.tools.allow[name],
-			func(on bool) { s.tools.allow[name] = on }), bareH)
+			func(on bool) { s.tools.allow[name] = on }), bareH())
 	}
-	box.add(button("Protect it", toolkit.ButtonProminent, s.encrypt), bareH)
-	box.add(button("Take the protection off", toolkit.ButtonDanger, s.decrypt), bareH)
-	box.add(button("What is it protected with?", toolkit.ButtonDefault, s.protection), bareH)
+	box.add(button("Protect it", toolkit.ButtonProminent, s.encrypt), bareH())
+	box.add(button("Take the protection off", toolkit.ButtonDanger, s.decrypt), bareH())
+	box.add(button("What is it protected with?", toolkit.ButtonDefault, s.protection), bareH())
 	return box
 }
 
