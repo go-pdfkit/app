@@ -37,20 +37,45 @@ const (
 	// would be zero or negative, so a resize to it is refused and the last
 	// good layout stands.
 	minSurfaceW = 2*margin + 1
-	minSurfaceH = viewTop + statusH + margin + 1
 )
 
+// minSurfaceH is the smallest height the three bands still fit in. It follows
+// the installed face, because two of those bands are sized by their text.
+func minSurfaceH() int { return viewTop() + statusH() + margin + 1 }
+
 // Geometry of the three bands: a toolbar, the page, a status line.
+//
+// ⛔ The band heights are FUNCTIONS, not constants, and that is the point of
+// this block. Every band holds text, so every band's height is the text it
+// holds plus the chrome around it. When these were written there was only one
+// face -- the toolkit's compiled-in 5x7 bitmap -- so the text contributed 7
+// pixels to each of them and nobody had to say which 7. Installing a vector
+// face made the glyph taller and the bands did not follow: labels clipped, and
+// the tests that press at literal offsets pressed past their target.
+//
+// The chrome figures are the padding a line of type wants around it, not the
+// padding a 5x7 bitmap happened to be given: the old numbers were 23 and 15
+// around a 7-pixel glyph, which with a 16-pixel one made every band taller
+// than the room it had. TestNoPanelOverflowsTheRoomItIsGiven is the control --
+// it measures the laid-out panels against their own box, so it fails for any
+// face that does not fit rather than for a number that changed.
 const (
-	margin   = 8
-	toolbarH = 30
-	statusH  = 22
-	viewTop  = margin + toolbarH + margin
+	margin = 8
+
+	toolbarChrome = 16 // padding around a toolbar button's label
+	statusChrome  = 10 // padding around the status line's text
 	// ⛔ viewW and viewH are NOT constants any more: they were
 	// surfaceW/surfaceH minus the bands, computed once at compile time, which
 	// is what kept the workbench at its design size however big the window
 	// was. They are methods on state now, over s.w and s.h.
 )
+
+// textH is the height of one line of text in the face currently installed.
+func textH() int { return toolkit.CurrentFont().Height() }
+
+func toolbarH() int { return textH() + toolbarChrome }
+func statusH() int  { return textH() + statusChrome }
+func viewTop() int  { return margin + toolbarH() + margin }
 
 // A state is the whole workbench.
 type state struct {
@@ -88,7 +113,17 @@ type state struct {
 	// tools is the panel of verbs beside the page, and typing every box on
 	// the screen that takes characters — which is what says whether an arrow
 	// key belongs to a word somebody is writing or to the pages.
-	tools  *tools
+	tools *tools
+	// thumbs is the rail of minipages: what has been drawn of the document
+	// now open, and of which bytes. railView is the rail as a widget, nil when
+	// there is no reason for one, and railMore says some of it is still being
+	// drawn.
+	thumbs   *thumbs
+	railView toolkit.Widget
+	railMore bool
+	// shown is what the view band is holding: the page, a form, a reading, or
+	// a sentence saying why there is none of those.
+	shown  toolkit.Widget
 	typing []*toolkit.Entry
 	at     int // the page being shown, counting from one
 	note   string
@@ -363,15 +398,23 @@ func (s *state) reopenBytes() ([]byte, string) {
 // reopen writes the document and reads it back, which is how what is on the
 // screen is kept the same as what would come out of Save.
 func (s *state) reopen() (*reader.Document, string) {
+	src, _, msg := s.reopenWithBytes()
+	return src, msg
+}
+
+// reopenWithBytes is the same and hands back what it was read from, which the
+// rail keys its minipages on: the bytes are the one thing that says whether
+// the document is still the document those pictures were drawn from.
+func (s *state) reopenWithBytes() (*reader.Document, []byte, string) {
 	out, msg := s.reopenBytes()
 	if msg != "" {
-		return nil, msg
+		return nil, nil, msg
 	}
 	src, err := openBytes(out, s.reopenPw)
 	if err != nil {
-		return nil, "this document cannot be read back: " + err.Error()
+		return nil, nil, "this document cannot be read back: " + err.Error()
 	}
-	return src, ""
+	return src, out, ""
 }
 
 // These three are variables so a test can watch what the workbench does when
@@ -388,6 +431,7 @@ var (
 // there when there is nothing to draw.
 func (s *state) renderPage() {
 	s.page = nil
+	s.railView, s.railMore = nil, false
 	if s.doc == nil {
 		s.show(s.empty)
 		return
@@ -396,7 +440,7 @@ func (s *state) renderPage() {
 		s.show(s.form.panel(s))
 		return
 	}
-	src, msg := s.reopen()
+	src, raw, msg := s.reopenWithBytes()
 	if msg != "" {
 		s.show(toolkit.NewLabel(msg))
 		return
@@ -414,6 +458,9 @@ func (s *state) renderPage() {
 		s.show(s.readingView(src))
 		return
 	}
+	// The rail is settled BEFORE the page is scaled, because the page is
+	// scaled to the room the rail leaves it.
+	s.railView, s.railMore = s.rail(src, stampOf(raw))
 	img, err := drawPage(src, s.at, render.Options{
 		Scale:       s.fitScale(src),
 		MaxDuration: pageBudget,
@@ -423,7 +470,10 @@ func (s *state) renderPage() {
 	// sentence saying there was one. Anything else, and there is no picture.
 	partial := errors.Is(err, render.ErrTimedOut) && img != nil
 	if err != nil && !partial {
-		s.view = toolkit.NewFrame(toolkit.NewLabel("this page cannot be drawn: " + err.Error()))
+		// Through show, like every other thing the view band can hold: a page
+		// that cannot be drawn is the moment somebody most needs the rail and
+		// the panel, because what they want next is another page.
+		s.show(toolkit.NewLabel("this page cannot be drawn: " + err.Error()))
 		return
 	}
 	if partial {
@@ -446,6 +496,9 @@ func (s *state) renderPage() {
 // box and watching the page come back cropped is the whole of what the control
 // is for, and a panel that covered the page would hide it.
 func (s *state) show(w toolkit.Widget) {
+	// Kept, because the rail fills in over several frames and each of those
+	// frames has to put the band back together around whatever it is holding.
+	s.shown = w
 	// Wrapped in the toolkit's own popover host, which is what draws a list a
 	// drop-down has opened on top of everything and offers it the next press
 	// before anything under it sees one. Without it a list opens onto nothing:
@@ -455,22 +508,28 @@ func (s *state) show(w toolkit.Widget) {
 	// arrive before the next frame does: the view is built afresh by every
 	// change, and a widget nobody has given bounds to is under no point at
 	// all, so the press after a change would land on nothing.
-	s.view.SetBounds(painter.Rect{X: margin, Y: viewTop, W: s.viewW(), H: s.viewH()})
+	s.view.SetBounds(painter.Rect{X: margin, Y: viewTop(), W: s.viewW(), H: s.viewH()})
 }
 
 // arrange is the view band's contents: the page, and the tool panel beside it
 // when a group is open.
 func (s *state) arrange(w toolkit.Widget) toolkit.Widget {
 	page := toolkit.NewFrame(w)
-	if s.tools.open == "" {
+	if s.railView == nil && s.tools.open == "" {
 		return page
 	}
-	// An HBox, which is what puts two things side by side; the page takes
-	// whatever the panel leaves.
+	// An HBox, which is what puts things side by side; the page takes whatever
+	// the rail and the panel leave. The rail goes on the left, where a reader
+	// looks first and where every document viewer has put it.
 	row := toolkit.NewHBox()
 	row.Spacing = gap
+	if s.railView != nil {
+		row.AddFixed(toolkit.NewFrame(s.railView), railW)
+	}
 	row.AddFlex(page, 1)
-	row.AddFixed(toolkit.NewFrame(s.body()), panelW)
+	if s.tools.open != "" {
+		row.AddFixed(toolkit.NewFrame(s.body()), panelW)
+	}
 	return row
 }
 
@@ -480,7 +539,7 @@ func (s *state) arrange(w toolkit.Widget) toolkit.Widget {
 // viewW and viewH are the band under the strip, in the surface's own pixels.
 // They follow s.w and s.h so the workbench fills whatever it is given.
 func (s *state) viewW() int { return s.w - 2*margin }
-func (s *state) viewH() int { return s.h - viewTop - statusH - margin }
+func (s *state) viewH() int { return s.h - viewTop() - statusH() - margin }
 
 // resize lays the workbench out on a new surface. The size arrives in DEVICE
 // pixels -- the caller has already multiplied by the screen's pixel ratio --
@@ -492,7 +551,7 @@ func (s *state) viewH() int { return s.h - viewTop - statusH - margin }
 // negative: a window dragged to nothing should leave the last good layout
 // standing, not a frame of arithmetic errors.
 func (s *state) resize(w, h int) bool {
-	if w < minSurfaceW || h < minSurfaceH {
+	if w < minSurfaceW || h < minSurfaceH() {
 		return false
 	}
 	if w == s.w && h == s.h {
@@ -504,10 +563,14 @@ func (s *state) resize(w, h int) bool {
 }
 
 func (s *state) pageW() int {
-	if s.tools.open == "" {
-		return s.viewW()
+	w := s.viewW()
+	if s.railView != nil {
+		w -= railW + gap
 	}
-	return s.viewW() - panelW - gap
+	if s.tools.open != "" {
+		w -= panelW + gap
+	}
+	return w
 }
 
 // pageBudget is how long one page may be drawn for before what has been drawn
@@ -579,13 +642,13 @@ func mustResolve(src *reader.Document, o reader.Object) reader.Object {
 func (s *state) draw(buf []byte) {
 	fillBG(buf, s.theme.Background)
 	p := painter.NewPixelPainter(buf, s.w, s.h)
-	s.toolbar.SetBounds(painter.Rect{X: margin, Y: margin, W: s.w - 2*margin, H: toolbarH})
+	s.toolbar.SetBounds(painter.Rect{X: margin, Y: margin, W: s.w - 2*margin, H: toolbarH()})
 	s.toolbar.Draw(p, s.theme)
-	s.status.SetBounds(painter.Rect{X: 0, Y: s.h - statusH, W: s.w, H: statusH})
+	s.status.SetBounds(painter.Rect{X: 0, Y: s.h - statusH(), W: s.w, H: statusH()})
 	s.status.Draw(p, s.theme)
 	// The view last, because a list opened near the foot of the panel is drawn
 	// over whatever is below it — and below it is the status line.
-	s.view.SetBounds(painter.Rect{X: margin, Y: viewTop, W: s.viewW(), H: s.viewH()})
+	s.view.SetBounds(painter.Rect{X: margin, Y: viewTop(), W: s.viewW(), H: s.viewH()})
 	s.view.Draw(p, s.theme)
 }
 

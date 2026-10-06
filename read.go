@@ -34,11 +34,11 @@ const (
 func (s *state) readGroup() *column {
 	box := newColumn()
 	box.add(button("What this page says", toolkit.ButtonDefault,
-		func() { s.read(readingText) }), bareH)
+		func() { s.read(readingText) }), bareH())
 	box.add(button("What this page carries", toolkit.ButtonDefault,
-		func() { s.read(readingImages) }), bareH)
+		func() { s.read(readingImages) }), bareH())
 	box.add(button("Show the page again", toolkit.ButtonDefault,
-		func() { s.read("") }), bareH)
+		func() { s.read("") }), bareH())
 	// The chooser sits on the same row as the verb it governs, so that what
 	// the file will be is beside the press that makes it rather than three
 	// rows above. It governs the zip below it as well: both of them draw the
@@ -47,12 +47,12 @@ func (s *state) readGroup() *column {
 	formats := toolkit.NewCycleButton(formatNames()...)
 	formats.Index().Subscribe(func(i int) { s.tools.picture = i })
 	box.add(buttons(formats, button("Hand over this page", toolkit.ButtonDefault,
-		s.pageAsPicture)), bareH)
+		s.pageAsPicture)), bareH())
 	box.add(button("Hand over every page, zipped", toolkit.ButtonDefault,
-		s.everyPageZipped), bareH)
+		s.everyPageZipped), bareH())
 	box.add(button("Hand over what this page says", toolkit.ButtonDefault,
-		s.textAsFile), bareH)
-	box.add(toolkit.NewLabel("None of these changes the document."), bareH)
+		s.textAsFile), bareH())
+	box.add(toolkit.NewLabel("None of these changes the document."), bareH())
 	return box
 }
 

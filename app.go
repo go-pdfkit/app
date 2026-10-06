@@ -3,7 +3,11 @@
 
 package main
 
-import "github.com/go-widgets/webcanvas"
+import (
+	"github.com/go-opentype/fonts/inter"
+	"github.com/go-widgets/toolkit"
+	"github.com/go-widgets/webcanvas"
+)
 
 // workbench adapts the scene to the harness that owns the canvas and the
 // events. Each method forwards to one handler: the mapping is a rename, not a
@@ -21,6 +25,50 @@ type workbench struct {
 // has; a page can set it to anything through zoom, and 4 bytes a pixel over a
 // large window adds up.
 const maxRatio = 3
+
+// uiFontPx is the size the workbench sets its text at. Large enough to read on
+// a dense toolbar, small enough that a button label still fits beside four
+// others.
+const uiFontPx = 13
+
+// init installs the face before anything is laid out.
+//
+// ⛔ toolkit.SetFont is PROCESS-WIDE. Called from a constructor, as it was
+// first, it leaks into every test that runs after the first one to build a
+// workbench -- so the suite's result depended on its order, and a package that
+// ships vector text was partly tested against a bitmap. One call, before main
+// and before any test, is the only placement that makes the measured layout
+// the shipped layout.
+func init() { useVectorText() }
+
+// useVectorText installs an anti-aliased, shaped face for every widget.
+//
+// ⛔ The toolkit's compiled-in default is a 5x7 BITMAP font, and anti-aliased
+// text is an explicit opt-in -- which this app had never made. So every label
+// here was drawn from a bitmap: no antialiasing to be had at any pixel ratio,
+// and no amount of drawing it at the screen's own resolution could make it
+// look like type. Sharpening the canvas made the bitmap sharper, which is not
+// the same thing.
+//
+// Inter rather than the toolkit's bundled Atkinson Hyperlegible: Atkinson is
+// designed by the Braille Institute for maximum character distinction, which
+// is the right default for a toolkit that cannot know its app, and reads as
+// deliberately unusual in a dense tool. Inter is drawn for user interfaces,
+// and is the face this fleet already sets its own marks in.
+//
+// A parse failure leaves the bitmap in place rather than failing to start: a
+// workbench that opens with plain text beats one that does not open.
+func useVectorText() {
+	f, err := toolkit.NewTrueTypeFont(uiFace, uiFontPx)
+	if err != nil {
+		return
+	}
+	toolkit.SetFont(f)
+}
+
+// uiFace is the typeface itself, a variable so a test can hand it something
+// that is not one and watch the workbench carry on.
+var uiFace = inter.TTF
 
 // newWorkbench builds the scene and wraps it. ratio is the screen's device
 // pixels per CSS pixel; a native caller passes 1.
@@ -88,7 +136,7 @@ func (a workbench) KeyDown(key string) bool { return a.s.handleKeyDown(key) }
 // Nothing on this canvas moves by itself, so most frames change nothing and ask
 // for nothing; what this is for is the file the browser hands over long after
 // the press that asked for it, which no event follows.
-func (a workbench) AnimationStep(float64) bool { return a.s.takeDirty() }
+func (a workbench) AnimationStep(float64) bool { return a.s.tick() }
 
 // the workbench satisfies the harness contract, and asks for a clock so that a
 // document that arrives on its own is shown.

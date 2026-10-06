@@ -77,6 +77,27 @@ Every change is applied to the document, written out, and read back before
 it is drawn — so what is on the screen is what would come out of Save,
 rather than a picture of what was meant to happen.
 
+## Where you are in it
+
+A document of more than one sheet gets a rail of minipages down the left:
+one numbered tile per page, the one you are looking at marked, and a press
+goes there. Each tile is the shape of its own page, so a landscape table in
+the middle of a portrait report is findable before any word in it is
+legible.
+
+The rail is bounded on purpose. Pages are drawn small — at the rail's width,
+not at full size and shrunk afterwards — and only within a window either
+side of the page you are on; further out a tile is its frame and its number,
+which is most of what the rail is for. Pages are drawn nearest-first within a
+budget per frame, so a long document fills its rail in rather than holding up
+the page it belongs to.
+
+Text is set in [Inter](https://github.com/go-opentype/fonts) through the
+toolkit's TrueType path. The band and row heights follow the installed face
+rather than being constants, which is what lets the workbench have a
+typeface at all: the numbers it used to be laid out with were the padding a
+5×7 bitmap had been given.
+
 ## How it is checked
 
 The workbench is a plain Go type with no build tag, so a native test drives
