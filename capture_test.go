@@ -111,6 +111,21 @@ func TestCaptureTheWorkbench(t *testing.T) {
 	}
 	dir := captureDir(t)
 	s, _ := opened(t, 5)
+	// A real document rather than the fixture when one is named: the fixture
+	// is five identical black squares, which says nothing about whether a rail
+	// of minipages helps anybody find their place.
+	if at := os.Getenv("PDFKIT_CAPTURE_PDF"); at != "" {
+		raw, err := os.ReadFile(at)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s = newState(surfaceW, surfaceH, &fakeHost{name: filepath.Base(at), file: raw})
+		s.open()
+		if s.doc == nil {
+			t.Fatalf("%s did not open: %q", at, s.note)
+		}
+		t.Logf("%s, %d pages", filepath.Base(at), s.doc.PageCount())
+	}
 	for _, name := range append([]string{""}, groupNames...) {
 		if name != "" {
 			openGroup(t, s, name)

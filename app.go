@@ -59,12 +59,16 @@ func init() { useVectorText() }
 // A parse failure leaves the bitmap in place rather than failing to start: a
 // workbench that opens with plain text beats one that does not open.
 func useVectorText() {
-	f, err := toolkit.NewTrueTypeFont(inter.TTF, uiFontPx)
+	f, err := toolkit.NewTrueTypeFont(uiFace, uiFontPx)
 	if err != nil {
 		return
 	}
 	toolkit.SetFont(f)
 }
+
+// uiFace is the typeface itself, a variable so a test can hand it something
+// that is not one and watch the workbench carry on.
+var uiFace = inter.TTF
 
 // newWorkbench builds the scene and wraps it. ratio is the screen's device
 // pixels per CSS pixel; a native caller passes 1.
@@ -132,7 +136,7 @@ func (a workbench) KeyDown(key string) bool { return a.s.handleKeyDown(key) }
 // Nothing on this canvas moves by itself, so most frames change nothing and ask
 // for nothing; what this is for is the file the browser hands over long after
 // the press that asked for it, which no event follows.
-func (a workbench) AnimationStep(float64) bool { return a.s.takeDirty() }
+func (a workbench) AnimationStep(float64) bool { return a.s.tick() }
 
 // the workbench satisfies the harness contract, and asks for a clock so that a
 // document that arrives on its own is shown.

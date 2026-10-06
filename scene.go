@@ -113,7 +113,17 @@ type state struct {
 	// tools is the panel of verbs beside the page, and typing every box on
 	// the screen that takes characters — which is what says whether an arrow
 	// key belongs to a word somebody is writing or to the pages.
-	tools  *tools
+	tools *tools
+	// thumbs is the rail of minipages: what has been drawn of the document
+	// now open, and of which bytes. railView is the rail as a widget, nil when
+	// there is no reason for one, and railMore says some of it is still being
+	// drawn.
+	thumbs   *thumbs
+	railView toolkit.Widget
+	railMore bool
+	// shown is what the view band is holding: the page, a form, a reading, or
+	// a sentence saying why there is none of those.
+	shown  toolkit.Widget
 	typing []*toolkit.Entry
 	at     int // the page being shown, counting from one
 	note   string
@@ -388,15 +398,23 @@ func (s *state) reopenBytes() ([]byte, string) {
 // reopen writes the document and reads it back, which is how what is on the
 // screen is kept the same as what would come out of Save.
 func (s *state) reopen() (*reader.Document, string) {
+	src, _, msg := s.reopenWithBytes()
+	return src, msg
+}
+
+// reopenWithBytes is the same and hands back what it was read from, which the
+// rail keys its minipages on: the bytes are the one thing that says whether
+// the document is still the document those pictures were drawn from.
+func (s *state) reopenWithBytes() (*reader.Document, []byte, string) {
 	out, msg := s.reopenBytes()
 	if msg != "" {
-		return nil, msg
+		return nil, nil, msg
 	}
 	src, err := openBytes(out, s.reopenPw)
 	if err != nil {
-		return nil, "this document cannot be read back: " + err.Error()
+		return nil, nil, "this document cannot be read back: " + err.Error()
 	}
-	return src, ""
+	return src, out, ""
 }
 
 // These three are variables so a test can watch what the workbench does when
@@ -413,6 +431,7 @@ var (
 // there when there is nothing to draw.
 func (s *state) renderPage() {
 	s.page = nil
+	s.railView, s.railMore = nil, false
 	if s.doc == nil {
 		s.show(s.empty)
 		return
@@ -421,7 +440,7 @@ func (s *state) renderPage() {
 		s.show(s.form.panel(s))
 		return
 	}
-	src, msg := s.reopen()
+	src, raw, msg := s.reopenWithBytes()
 	if msg != "" {
 		s.show(toolkit.NewLabel(msg))
 		return
@@ -439,6 +458,9 @@ func (s *state) renderPage() {
 		s.show(s.readingView(src))
 		return
 	}
+	// The rail is settled BEFORE the page is scaled, because the page is
+	// scaled to the room the rail leaves it.
+	s.railView, s.railMore = s.rail(src, stampOf(raw))
 	img, err := drawPage(src, s.at, render.Options{
 		Scale:       s.fitScale(src),
 		MaxDuration: pageBudget,
@@ -448,7 +470,10 @@ func (s *state) renderPage() {
 	// sentence saying there was one. Anything else, and there is no picture.
 	partial := errors.Is(err, render.ErrTimedOut) && img != nil
 	if err != nil && !partial {
-		s.view = toolkit.NewFrame(toolkit.NewLabel("this page cannot be drawn: " + err.Error()))
+		// Through show, like every other thing the view band can hold: a page
+		// that cannot be drawn is the moment somebody most needs the rail and
+		// the panel, because what they want next is another page.
+		s.show(toolkit.NewLabel("this page cannot be drawn: " + err.Error()))
 		return
 	}
 	if partial {
@@ -471,6 +496,9 @@ func (s *state) renderPage() {
 // box and watching the page come back cropped is the whole of what the control
 // is for, and a panel that covered the page would hide it.
 func (s *state) show(w toolkit.Widget) {
+	// Kept, because the rail fills in over several frames and each of those
+	// frames has to put the band back together around whatever it is holding.
+	s.shown = w
 	// Wrapped in the toolkit's own popover host, which is what draws a list a
 	// drop-down has opened on top of everything and offers it the next press
 	// before anything under it sees one. Without it a list opens onto nothing:
@@ -487,15 +515,21 @@ func (s *state) show(w toolkit.Widget) {
 // when a group is open.
 func (s *state) arrange(w toolkit.Widget) toolkit.Widget {
 	page := toolkit.NewFrame(w)
-	if s.tools.open == "" {
+	if s.railView == nil && s.tools.open == "" {
 		return page
 	}
-	// An HBox, which is what puts two things side by side; the page takes
-	// whatever the panel leaves.
+	// An HBox, which is what puts things side by side; the page takes whatever
+	// the rail and the panel leave. The rail goes on the left, where a reader
+	// looks first and where every document viewer has put it.
 	row := toolkit.NewHBox()
 	row.Spacing = gap
+	if s.railView != nil {
+		row.AddFixed(toolkit.NewFrame(s.railView), railW)
+	}
 	row.AddFlex(page, 1)
-	row.AddFixed(toolkit.NewFrame(s.body()), panelW)
+	if s.tools.open != "" {
+		row.AddFixed(toolkit.NewFrame(s.body()), panelW)
+	}
 	return row
 }
 
@@ -529,10 +563,14 @@ func (s *state) resize(w, h int) bool {
 }
 
 func (s *state) pageW() int {
-	if s.tools.open == "" {
-		return s.viewW()
+	w := s.viewW()
+	if s.railView != nil {
+		w -= railW + gap
 	}
-	return s.viewW() - panelW - gap
+	if s.tools.open != "" {
+		w -= panelW + gap
+	}
+	return w
 }
 
 // pageBudget is how long one page may be drawn for before what has been drawn
