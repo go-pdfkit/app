@@ -32,6 +32,12 @@ type host interface {
 const (
 	surfaceW = 1000
 	surfaceH = 720
+
+	// The smallest surface the bands still fit on. Below this the page band
+	// would be zero or negative, so a resize to it is refused and the last
+	// good layout stands.
+	minSurfaceW = 2*margin + 1
+	minSurfaceH = viewTop + statusH + margin + 1
 )
 
 // Geometry of the three bands: a toolbar, the page, a status line.
@@ -40,8 +46,10 @@ const (
 	toolbarH = 30
 	statusH  = 22
 	viewTop  = margin + toolbarH + margin
-	viewH    = surfaceH - viewTop - statusH - margin
-	viewW    = surfaceW - 2*margin
+	// ⛔ viewW and viewH are NOT constants any more: they were
+	// surfaceW/surfaceH minus the bands, computed once at compile time, which
+	// is what kept the workbench at its design size however big the window
+	// was. They are methods on state now, over s.w and s.h.
 )
 
 // A state is the whole workbench.
@@ -447,7 +455,7 @@ func (s *state) show(w toolkit.Widget) {
 	// arrive before the next frame does: the view is built afresh by every
 	// change, and a widget nobody has given bounds to is under no point at
 	// all, so the press after a change would land on nothing.
-	s.view.SetBounds(painter.Rect{X: margin, Y: viewTop, W: viewW, H: viewH})
+	s.view.SetBounds(painter.Rect{X: margin, Y: viewTop, W: s.viewW(), H: s.viewH()})
 }
 
 // arrange is the view band's contents: the page, and the tool panel beside it
@@ -469,11 +477,37 @@ func (s *state) arrange(w toolkit.Widget) toolkit.Widget {
 // pageW is how much width the page has: the whole band, less the panel when
 // one is open. The page is scaled to fit what is left, so opening a group
 // shrinks the page rather than pushing it off the edge.
+// viewW and viewH are the band under the strip, in the surface's own pixels.
+// They follow s.w and s.h so the workbench fills whatever it is given.
+func (s *state) viewW() int { return s.w - 2*margin }
+func (s *state) viewH() int { return s.h - viewTop - statusH - margin }
+
+// resize lays the workbench out on a new surface. The size arrives in DEVICE
+// pixels -- the caller has already multiplied by the screen's pixel ratio --
+// because everything here is drawn by us into a framebuffer, and a framebuffer
+// smaller than the screen is a framebuffer the browser has to stretch. That
+// stretch is what made the text look soft.
+//
+// A surface too small to hold the bands is refused rather than laid out
+// negative: a window dragged to nothing should leave the last good layout
+// standing, not a frame of arithmetic errors.
+func (s *state) resize(w, h int) bool {
+	if w < minSurfaceW || h < minSurfaceH {
+		return false
+	}
+	if w == s.w && h == s.h {
+		return false
+	}
+	s.w, s.h = w, h
+	s.refresh()
+	return true
+}
+
 func (s *state) pageW() int {
 	if s.tools.open == "" {
-		return viewW
+		return s.viewW()
 	}
-	return viewW - panelW - gap
+	return s.viewW() - panelW - gap
 }
 
 // pageBudget is how long one page may be drawn for before what has been drawn
@@ -491,7 +525,7 @@ func (s *state) fitScale(src *reader.Document) float64 {
 	page, _ := src.Page(s.at)
 	w, h := pageSize(src, page)
 	byWidth := float64(s.pageW()-2*margin) / w
-	byHeight := float64(viewH-2*margin) / h
+	byHeight := float64(s.viewH()-2*margin) / h
 	if byWidth < byHeight {
 		return byWidth
 	}
@@ -551,7 +585,7 @@ func (s *state) draw(buf []byte) {
 	s.status.Draw(p, s.theme)
 	// The view last, because a list opened near the foot of the panel is drawn
 	// over whatever is below it — and below it is the status line.
-	s.view.SetBounds(painter.Rect{X: margin, Y: viewTop, W: viewW, H: viewH})
+	s.view.SetBounds(painter.Rect{X: margin, Y: viewTop, W: s.viewW(), H: s.viewH()})
 	s.view.Draw(p, s.theme)
 }
 

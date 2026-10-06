@@ -82,7 +82,7 @@ func TestTheStripOpensAndClosesEachGroup(t *testing.T) {
 			t.Fatalf("no press on the strip opened %q", name)
 		}
 		s.draw(buffer())
-		if s.pageW() >= viewW {
+		if s.pageW() >= s.viewW() {
 			t.Error("the page kept the whole width with a panel beside it")
 		}
 		s.handleClick(at, margin+toolbarH/2)
@@ -331,7 +331,7 @@ func TestOnlyTheBoxLastPressedTakesWhatIsTyped(t *testing.T) {
 		t.Errorf("the crop box holds %q", s.tools.box)
 	}
 	// And a press that lands on neither leaves both of them alone.
-	press(s, margin+2, viewTop+viewH-2)
+	press(s, margin+2, viewTop+s.viewH()-2)
 	if s.editing() {
 		t.Error("a press on nothing left a box with the caret")
 	}

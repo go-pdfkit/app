@@ -13,7 +13,17 @@ import (
 	"github.com/go-widgets/webcanvas"
 )
 
-func main() { webcanvas.Run("screen", newWorkbench(browser{})) }
+func main() { webcanvas.Run("screen", newWorkbench(browser{}, pixelRatio())) }
+
+// pixelRatio is how many device pixels the screen puts in a CSS pixel. A
+// browser that does not say is taken as one.
+func pixelRatio() float64 {
+	v := js.Global().Get("devicePixelRatio")
+	if v.IsUndefined() || v.IsNull() {
+		return 1
+	}
+	return v.Float()
+}
 
 // browser is the page this runs in: it opens the file picker and hands a
 // finished document back through a download.
