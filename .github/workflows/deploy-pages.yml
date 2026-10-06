@@ -1,0 +1,93 @@
+# Publish the workbench, so that "it runs in a browser tab" is something a
+# person can try rather than something a README says.
+name: deploy-pages
+
+on:
+  push:
+    branches: [main]
+  # On a pull request too: the build job runs and the deploy job does not, so a
+  # change that breaks the wasm build is caught before it lands rather than
+  # after the published app stops working.
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+
+# Deploys serialise under one group; a pull request gets its own, so it neither
+# waits behind a deploy nor holds one up.
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          # Pinned, not `stable`. wasm_exec.js is copied out of the toolchain
+          # below and MUST match the compiler that built the binary beside it;
+          # an unpinned toolchain changes both with no commit to point at.
+          go-version: '1.27.1'
+
+      - name: Build the wasm binary
+        env:
+          GOOS: js
+          GOARCH: wasm
+          CGO_ENABLED: "0"
+        run: go build -trimpath -ldflags=-s -o web/main.wasm .
+
+      - name: Take wasm_exec.js from the same toolchain
+        # ⛔ Not vendored. The file is the runtime shim for the compiler that
+        # produced main.wasm, and a copy committed months ago silently stops
+        # matching. Go moved it from misc/wasm to lib/wasm, so both are tried
+        # and a miss is an error rather than an empty file.
+        run: |
+          root=$(go env GOROOT)
+          for p in "$root/lib/wasm/wasm_exec.js" "$root/misc/wasm/wasm_exec.js"; do
+            if [ -f "$p" ]; then cp "$p" web/wasm_exec.js; echo "took $p"; exit 0; fi
+          done
+          echo "::error::no wasm_exec.js in $root"; exit 1
+
+      - name: Say how big it came out
+        # The number a visitor pays on first load, in the log, so a change that
+        # doubles it is visible in the pull request that made it.
+        run: |
+          raw=$(wc -c < web/main.wasm)
+          gz=$(gzip -9 -c web/main.wasm | wc -c)
+          printf 'main.wasm %.1f MB raw, %.1f MB gzipped\n' \
+            "$(echo "$raw/1048576" | bc -l)" "$(echo "$gz/1048576" | bc -l)"
+
+      - uses: actions/configure-pages@v6
+        with:
+          # Turn Pages on if it is off, so the workflow is the whole of the
+          # setup rather than half of it beside a step somebody has to
+          # remember. Needs `pages: write`, which the deploy job has; on a
+          # pull request this is a no-op because nothing is published.
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: web
+
+  deploy:
+    # Only main publishes. A pull request stops after the build: it has proved
+    # the app still compiles to wasm, which is the point of the gate, and it
+    # has no business replacing what is served.
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
