@@ -13,7 +13,7 @@ on:
 
 permissions:
   contents: read
-  pages: write
+  pages: read
 
 # Deploys serialise under one group; a pull request gets its own, so it neither
 # waits behind a deploy nor holds one up.
@@ -62,13 +62,13 @@ jobs:
           printf 'main.wasm %.1f MB raw, %.1f MB gzipped\n' \
             "$(echo "$raw/1048576" | bc -l)" "$(echo "$gz/1048576" | bc -l)"
 
+      # ⛔ NOT `enablement: true`. It fails on a pull request with
+      # "Create Pages site failed: Resource not accessible by integration":
+      # creating the site is a repository-administration call, and the token a
+      # workflow gets cannot make it. Pages is turned on once, out of band
+      # (`gh api -X POST repos/go-pdfkit/app/pages -f build_type=workflow`),
+      # which is what the landing repository already does.
       - uses: actions/configure-pages@v6
-        with:
-          # Turn Pages on if it is off, so the workflow is the whole of the
-          # setup rather than half of it beside a step somebody has to
-          # remember. Needs `pages: write`, which the deploy job has; on a
-          # pull request this is a no-op because nothing is published.
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v5
         with:
