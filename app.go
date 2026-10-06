@@ -3,7 +3,11 @@
 
 package main
 
-import "github.com/go-widgets/webcanvas"
+import (
+	"github.com/go-opentype/fonts/inter"
+	"github.com/go-widgets/toolkit"
+	"github.com/go-widgets/webcanvas"
+)
 
 // workbench adapts the scene to the harness that owns the canvas and the
 // events. Each method forwards to one handler: the mapping is a rename, not a
@@ -22,9 +26,40 @@ type workbench struct {
 // large window adds up.
 const maxRatio = 3
 
+// uiFontPx is the size the workbench sets its text at. Large enough to read on
+// a dense toolbar, small enough that a button label still fits beside four
+// others.
+const uiFontPx = 13
+
+// useVectorText installs an anti-aliased, shaped face for every widget.
+//
+// ⛔ The toolkit's compiled-in default is a 5x7 BITMAP font, and anti-aliased
+// text is an explicit opt-in -- which this app had never made. So every label
+// here was drawn from a bitmap: no antialiasing to be had at any pixel ratio,
+// and no amount of drawing it at the screen's own resolution could make it
+// look like type. Sharpening the canvas made the bitmap sharper, which is not
+// the same thing.
+//
+// Inter rather than the toolkit's bundled Atkinson Hyperlegible: Atkinson is
+// designed by the Braille Institute for maximum character distinction, which
+// is the right default for a toolkit that cannot know its app, and reads as
+// deliberately unusual in a dense tool. Inter is drawn for user interfaces,
+// and is the face this fleet already sets its own marks in.
+//
+// A parse failure leaves the bitmap in place rather than failing to start: a
+// workbench that opens with plain text beats one that does not open.
+func useVectorText() {
+	f, err := toolkit.NewTrueTypeFont(inter.TTF, uiFontPx)
+	if err != nil {
+		return
+	}
+	toolkit.SetFont(f)
+}
+
 // newWorkbench builds the scene and wraps it. ratio is the screen's device
 // pixels per CSS pixel; a native caller passes 1.
 func newWorkbench(h host, ratio float64) workbench {
+	useVectorText()
 	return workbench{s: newState(surfaceW, surfaceH, h), ratio: clampRatio(ratio)}
 }
 

@@ -51,11 +51,28 @@ func rowAt(t *testing.T, s *state, rows []int, n int, across int) (int, int) {
 
 // plusAt is the + of the spin button in the nth row, which is at the right
 // hand end of the control, under the row's name.
+//
+// ⛔ Derived from the panel's own right edge, not from the row's middle plus a
+// number. It used to be `x + 120`, which is where the + happened to sit when
+// every label was drawn in the built-in 5x7 bitmap; the moment the workbench
+// asked for a real typeface the controls changed width and the press landed
+// beside the button instead of on it. Three tests failed, and all three were
+// spin buttons.
 func plusAt(t *testing.T, s *state, rows []int, n int) (int, int) {
 	t.Helper()
-	x, y := rowAt(t, s, rows, n, 1)
-	return x + 120, y - 8
+	b := s.tools.built[s.tools.open].Bounds()
+	_, y := rowAt(t, s, rows, n, 1)
+	return b.X + b.W - plusInset, y - plusRise
 }
+
+// plusInset and plusRise are where the + sits relative to the panel's right
+// edge and the row's middle. MEASURED rather than guessed: a sweep of the row
+// found the button answering from right-26 to right-36 at y-8, so 30 is the
+// middle of that band.
+const (
+	plusInset = 30
+	plusRise  = 8
+)
 
 // press puts a press on the panel and redraws, the way a frame follows an
 // event in the browser.
