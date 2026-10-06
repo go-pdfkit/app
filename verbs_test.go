@@ -372,7 +372,7 @@ func TestReadingWhatAPageSaysAndWhatItCarries(t *testing.T) {
 	// panel, and what says the control is wired is that a press finds it.
 	before := s.tools.reading
 	pressed := false
-	for y := viewTop; y < viewTop+viewH && !pressed; y += 4 {
+	for y := viewTop; y < viewTop+s.viewH() && !pressed; y += 4 {
 		for x := s.pageW() - 80; x < s.pageW() && !pressed; x += 8 {
 			s.handleClick(x, y)
 			s.draw(buffer())

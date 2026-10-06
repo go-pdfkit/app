@@ -8,51 +8,53 @@
 <link rel="manifest" href="manifest.webmanifest">
 <style>
   :root { color-scheme: light dark; }
-  html, body { margin: 0; background: #10131a; color: #e8eaf2;
+  /* The workbench IS the page: it is given the whole viewport, and the canvas
+     is sized in device pixels by the Go side so nothing is stretched. Any
+     scrollbar here would be a second scrollbar over a tool that scrolls
+     itself. */
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #10131a; color: #e8eaf2;
     font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
-  .wrap { max-width: 1040px; margin: 0 auto; padding: 20px 16px 40px; }
-  header { text-align: center; margin-bottom: 18px; }
-  h1 { font-size: 1.5rem; letter-spacing: -.02em; margin: 0 0 4px; }
-  .tagline { color: #99a0b5; margin: 0; }
-  .stage { position: relative; }
-  #screen { display: block; width: 100%; height: auto; background: #fff;
-    border: 1px solid #262c40; border-radius: 12px; opacity: 0; transition: opacity .2s; }
+  /* dvh, not vh: on a phone vh is the viewport with the browser chrome
+     retracted, so a vh-sized canvas is taller than what you can see. */
+  .stage { position: fixed; inset: 0; height: 100dvh; }
+  #screen { display: block; width: 100%; height: 100%; background: #fff;
+    opacity: 0; transition: opacity .2s; }
   .stage.ready #screen { opacity: 1; }
+  h1 { font-size: 1.5rem; letter-spacing: -.02em; margin: 0 0 4px; }
+  .tagline { color: #99a0b5; margin: 0 0 22px; }
   #loading { position: absolute; inset: 0; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 12px; background: #10131a;
-    border: 1px solid #262c40; border-radius: 12px; color: #99a0b5; }
+    color: #99a0b5; text-align: center; padding: 0 16px; }
   .stage.ready #loading { display: none; }
   .track { width: min(420px, 60vw); height: 8px; border-radius: 6px; background: #1b2130; overflow: hidden; }
   .fill { height: 100%; width: 0; background: #14b8a6; transition: width .12s ease; }
   #pct { font-family: ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
-  .note { color: #99a0b5; font-size: .9rem; text-align: center; margin-top: 14px; }
+  .note { color: #99a0b5; font-size: .9rem; text-align: center; margin-top: 18px; max-width: 46ch; }
   .note strong { color: #e8eaf2; font-weight: 600; }
   #err { display: none; color: #ff6b60; font-family: ui-monospace, Menlo, Consolas, monospace;
-    font-size: .85rem; white-space: pre-wrap; margin: 14px 0; }
+    font-size: .85rem; white-space: pre-wrap; margin: 14px 0; max-width: 90vw; overflow: auto; }
   #err.show { display: block; }
   input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
+<div class="stage" id="stage">
+  <canvas id="screen" width="1000" height="720"></canvas>
+  <!-- Everything that is not the workbench lives in here, and goes when the
+       first frame is painted: once it is loaded the page is the tool. -->
+  <div id="loading">
     <h1>PDF workbench</h1>
     <p class="tagline">Open a PDF, rearrange it, stamp it, save it — without it leaving this tab.</p>
-  </header>
-  <div class="stage" id="stage">
-    <canvas id="screen" width="1000" height="720"></canvas>
-    <div id="loading">
-      <div>loading the workbench</div>
-      <div class="track"><div class="fill" id="fill"></div></div>
-      <div id="pct">0%</div>
-    </div>
+    <div>loading the workbench</div>
+    <div class="track"><div class="fill" id="fill"></div></div>
+    <div id="pct">0%</div>
+    <pre id="err"></pre>
+    <p class="note">Everything happens on this machine. There is <strong>no server</strong> to send a
+      file to: the whole tool is one program your browser downloaded once, and it keeps
+      working with the network off.</p>
   </div>
-  <pre id="err"></pre>
-  <p class="note">Everything happens on this machine. There is <strong>no server</strong> to send a
-    file to: the whole tool is one program your browser downloaded once, and it keeps
-    working with the network off.</p>
-  <input type="file" id="file" accept="application/pdf,.pdf">
 </div>
+<input type="file" id="file" accept="application/pdf,.pdf">
 <script src="wasm_exec.js"></script>
 <script>
 // Stream the wasm so the progress bar means something, then start it.
