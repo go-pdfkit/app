@@ -576,28 +576,57 @@ func TestAPageBoxWithSomethingThatIsNotANumberInIt(t *testing.T) {
 	}
 }
 
-func TestAControlIsWideEnoughForItsName(t *testing.T) {
-	// A control is as wide as the whole of its name plus room either side,
-	// with a floor so that a one-character one is still something to press.
-	long := buttonWidth("Watermark")
-	short := buttonWidth("<")
+func TestAControlIsWideEnoughForWhatItHolds(t *testing.T) {
+	// A control is as wide as the whole of its name and its mark, with a floor
+	// so that a one-character one is still something to press.
+	long := controlWidth(button("Watermark", toolkit.ButtonDefault, nil))
+	short := controlWidth(button("<", toolkit.ButtonDefault, nil))
 	if long <= short {
 		t.Errorf("Watermark is %d wide and < is %d", long, short)
 	}
-	if got := buttonWidth(""); got != minButtonW {
+	if got := controlWidth(button("", toolkit.ButtonDefault, nil)); got != minButtonW {
 		t.Errorf("a nameless control is %d wide, want the floor of %d", got, minButtonW)
 	}
 	if long < toolkit.TextWidth("Watermark") {
 		t.Errorf("Watermark does not fit in %d", long)
 	}
-	// The whole strip fits across the surface, which is what keeps a control
-	// from being pushed off the end of it.
-	total := 0
-	for _, label := range []string{"Open", "Save", "<", ">", "Rotate", "Delete", "Two up", "Watermark", "Sanitize"} {
-		total += buttonWidth(label)
+	// A mark makes a control wider, because it is drawn beside the name rather
+	// than over it.
+	plain := button("Pages", toolkit.ButtonDefault, nil)
+	marked := button("Pages", toolkit.ButtonDefault, nil)
+	marked.LeadingIcon().Set(iconoirGlyph(stripIcons["Pages"].name))
+	if controlWidth(marked) <= controlWidth(plain) {
+		t.Errorf("a control with a mark is %d wide and one without is %d, so the mark has nowhere to go",
+			controlWidth(marked), controlWidth(plain))
 	}
-	if total > surfaceW-2*margin {
-		t.Errorf("the strip is %d wide and the surface is %d", total, surfaceW-2*margin)
+}
+
+func TestTheWholeStripFitsAcrossTheSurface(t *testing.T) {
+	// ⛔ Measured on the STRIP THE WORKBENCH BUILDS, not on a list of labels
+	// written out here. The list this replaced held "Two up", "Watermark" and
+	// "Sanitize" -- three controls that are not on the strip and have not been
+	// for some time -- while the six that are went unmeasured. A copy of the
+	// toolbar kept in the test is a copy that drifts, and it drifts silently,
+	// because it goes on passing.
+	s, _ := opened(t, 2)
+	s.draw(buffer())
+	kids := s.toolbar.Children()
+	if len(kids) < 10 {
+		t.Fatalf("the strip has %d controls, which is too few to be the strip", len(kids))
+	}
+	total, gaps := 0, s.toolbar.Spacing*(len(kids)-1)
+	var names []string
+	for _, k := range kids {
+		b, ok := k.(*toolkit.Button)
+		if !ok {
+			t.Fatalf("something on the strip is a %T, not a control", k)
+		}
+		total += controlWidth(b)
+		names = append(names, b.Label().Get())
+	}
+	if room := surfaceW - 2*margin; total+gaps > room {
+		t.Errorf("the strip is %d wide with %d of gaps and the surface gives it %d, so %d controls do not all fit: %v",
+			total, gaps, room, len(kids), names)
 	}
 }
 
@@ -654,5 +683,37 @@ func TestAPageThatRanOutOfTimeWithNothingDrawnSaysSo(t *testing.T) {
 	s.draw(buf)
 	if inked(buf, s.theme.Background) == 0 {
 		t.Error("the reason was not drawn")
+	}
+}
+
+func TestEveryMarkOnTheStripIsOneThePackHas(t *testing.T) {
+	// ⛔ A name the pack does not have draws NOTHING. DrawIconoir has no way to
+	// complain -- it is handed a box and an ink and asked to paint -- so a
+	// typo is a control that quietly loses its mark and keeps its label, which
+	// looks like a design decision. The pack lists what it holds; this asks.
+	have := map[string]bool{}
+	for _, n := range toolkit.IconoirNames() {
+		have[n] = true
+	}
+	if len(have) < 100 {
+		t.Fatalf("the pack lists %d icons, which is too few to be the pack", len(have))
+	}
+	for label, m := range stripIcons {
+		if !have[m.name] {
+			t.Errorf("the %q control asks for %q, which the pack does not have", label, m.name)
+		}
+	}
+	// And every control on the strip has one, because a strip where some
+	// controls are marked and some are not reads as the unmarked ones being
+	// different in kind.
+	s, _ := opened(t, 2)
+	for _, k := range s.toolbar.Children() {
+		b, ok := k.(*toolkit.Button)
+		if !ok {
+			continue
+		}
+		if _, ok := stripIcons[b.Label().Get()]; !ok {
+			t.Errorf("the %q control carries no mark", b.Label().Get())
+		}
 	}
 }

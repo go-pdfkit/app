@@ -3,7 +3,6 @@ package main
 import (
 	"testing"
 
-	"github.com/go-opentype/fonts/inter"
 	"github.com/go-widgets/toolkit"
 )
 
@@ -65,7 +64,7 @@ func TestTheBandsFollowTheFace(t *testing.T) {
 
 	small := map[string]int{"toolbar": toolbarH(), "status": statusH(), "bare row": bareH(), "labelled row": labelledH()}
 
-	big, err := toolkit.NewTrueTypeFont(inter.TTF, uiFontPx*2)
+	big, err := toolkit.NewTrueTypeFont(uiFace, uiFontPx*2)
 	if err != nil {
 		t.Fatalf("a face at twice the size: %v", err)
 	}

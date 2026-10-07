@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -72,7 +73,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	srv := &http.Server{Handler: noStore(http.FileServer(http.Dir(root)))}
+	buildStamp.Store(firstBuild)
+	srv := &http.Server{Handler: noStore(stamped(http.FileServer(http.Dir(root))))}
 	go srv.Serve(ln)
 	defer srv.Close()
 	page := fmt.Sprintf("http://%s/index.html", ln.Addr())
@@ -138,11 +140,38 @@ func run() error {
 	return check(ctx, c, page, sample, shot, dl)
 }
 
-// noStore keeps the browser from serving a stale build out of its own cache.
+// noStore keeps the browser from serving a stale build out of its own HTTP
+// cache.
+//
+// ⛔ It does NOT keep the service worker from serving one. A worker's Cache
+// Storage is its own: `caches.put` keeps whatever it is handed and
+// `caches.match` returns it, and neither consults Cache-Control. This header
+// is why the browser checks never saw the worker pin a returning visitor to
+// the build they first loaded — the one defect in the shell that no amount of
+// driving the canvas could find. shellReaches is the check that does.
 func noStore(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		h.ServeHTTP(w, r)
+	})
+}
+
+// buildStamp is what /build.txt says. It stands in for the whole shell: the
+// worker treats every GET alike, so one small file that the check can change
+// under the browser's feet answers the question a 20MB wasm would answer more
+// slowly — does a build published after somebody's first visit reach them?
+var buildStamp atomic.Value
+
+// stamped serves /build.txt from buildStamp and everything else from disk.
+func stamped(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/build.txt" {
+			h.ServeHTTP(w, r)
+			return
+		}
+		s, _ := buildStamp.Load().(string)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		io.WriteString(w, s)
 	})
 }
 

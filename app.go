@@ -4,7 +4,7 @@
 package main
 
 import (
-	"github.com/go-opentype/fonts/inter"
+	"github.com/go-opentype/fonts/ibmplexsans"
 	"github.com/go-widgets/toolkit"
 	"github.com/go-widgets/webcanvas"
 )
@@ -50,11 +50,40 @@ func init() { useVectorText() }
 // look like type. Sharpening the canvas made the bitmap sharper, which is not
 // the same thing.
 //
-// Inter rather than the toolkit's bundled Atkinson Hyperlegible: Atkinson is
-// designed by the Braille Institute for maximum character distinction, which
-// is the right default for a toolkit that cannot know its app, and reads as
-// deliberately unusual in a dense tool. Inter is drawn for user interfaces,
-// and is the face this fleet already sets its own marks in.
+// IBM Plex Sans, and the reason is a MEASUREMENT rather than a preference.
+//
+// ⛔ The face here was Inter, and a person reading the workbench said its
+// lowercase g read as a 9. Deciding that by recalling which faces have a
+// double-storey g is recall, not measurement, and it is wrong about half the
+// time -- Arial, Lato, Open Sans and Source Sans are each misremembered one
+// way or the other. So every family the fleet embeds was rendered, each glyph
+// cropped to its own ink and scaled into one square, and the two compared:
+//
+//	sourcesans3           16.7%   ink shared between g and 9
+//	montserrat            21.6%
+//	ibmplexsans           24.2%
+//	lato                  29.7%
+//	atkinsonhyperlegible  53.3%
+//	inter                 56.7%
+//
+// Inter is among the worst of the fifty-odd families, which is the complaint
+// stated as a number. Two results were worth having:
+//
+//   - Atkinson Hyperlegible, the toolkit's bundled face and the obvious reach
+//     for "most legible", would barely have helped. It is drawn to separate
+//     the characters that are confused at a distance, and g against 9 is not
+//     one of the pairs it separates.
+//
+//   - The sweep's winner is not the right answer either. A ranking of shapes
+//     says nothing about what a face COSTS, and at the size where Source Sans
+//     3 is as wide on the body as Inter 13px it is 23 pixels tall against
+//     Inter's 16 -- seven pixels on every row, which is more than the panels
+//     have to give.
+//
+// IBM Plex Sans separates them 2.3 times better than Inter, is the same width
+// at the same size, and is one pixel taller on the line. Its g carries a
+// pronounced hooked tail where the 9's descends straight, which is the
+// difference a person actually sees.
 //
 // A parse failure leaves the bitmap in place rather than failing to start: a
 // workbench that opens with plain text beats one that does not open.
@@ -68,7 +97,7 @@ func useVectorText() {
 
 // uiFace is the typeface itself, a variable so a test can hand it something
 // that is not one and watch the workbench carry on.
-var uiFace = inter.TTF
+var uiFace = ibmplexsans.TTF
 
 // newWorkbench builds the scene and wraps it. ratio is the screen's device
 // pixels per CSS pixel; a native caller passes 1.

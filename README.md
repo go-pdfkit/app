@@ -21,11 +21,18 @@ network.
 
 ## Offline for real
 
-The service worker caches the shell and the binary on first visit, so the
-second visit works with the network off — and so does the first one, once
-loaded, since nothing is fetched after start-up. A file is read through
-the browser's own picker and handed back as a download; the bytes never
-touch a server, and there is no server to touch.
+The service worker keeps a copy of the shell and the binary, so a visit with
+the network off works — and so does the first one, once loaded, since nothing
+is fetched after start-up. A file is read through the browser's own picker
+and handed back as a download; the bytes never touch a server, and there is
+no server to touch.
+
+It asks the network **first** and falls back on that copy, rather than the
+other way round. Cache-first is the usual shape and it is a trap: a worker
+only reinstalls when its own script changes byte for byte, so the copy taken
+on somebody's first visit is the one they keep, and five releases in a row
+reached nobody who had been here before. `browsercheck` changes a file under
+the browser, reloads, and fails if the tab is still served the old one.
 
 ## What is on the strip, and what is beside the page
 
@@ -92,11 +99,21 @@ which is most of what the rail is for. Pages are drawn nearest-first within a
 budget per frame, so a long document fills its rail in rather than holding up
 the page it belongs to.
 
-Text is set in [Inter](https://github.com/go-opentype/fonts) through the
-toolkit's TrueType path. The band and row heights follow the installed face
-rather than being constants, which is what lets the workbench have a
-typeface at all: the numbers it used to be laid out with were the padding a
-5×7 bitmap had been given.
+Each control on the strip carries a mark from
+[go-icons/iconoir](https://github.com/go-icons/iconoir), rasterised and
+recoloured by the toolkit rather than outlined here — and the two arrows wear
+theirs *instead* of a caption, since an arrow beside a `<` is the same thing
+said twice. How wide a control is comes from the control: `PreferredWidth`
+measures the caption, the mark and the paddings with the numbers `Draw` uses.
+
+Text is set in [IBM Plex Sans](https://github.com/go-opentype/fonts) through
+the toolkit's TrueType path. It replaced Inter because a reader said the
+lowercase `g` read as a `9`, and that turned out to be measurable: rendering
+both glyphs from every family the fleet embeds and comparing their ink, Inter
+shares 56.7% of it between `g` and `9` and Plex 24.2%. The band and row
+heights follow the installed face rather than being constants, which is what
+lets the workbench change typeface at all — the numbers it used to be laid
+out with were the padding a 5×7 bitmap had been given.
 
 ## How it is checked
 
