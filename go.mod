@@ -4,13 +4,15 @@ go 1.27.1
 
 require (
 	github.com/go-gfx/gfx v0.34.0
+	github.com/go-opentype/fonts v0.12.0
 	github.com/go-pdfkit/extract v0.3.0
 	github.com/go-pdfkit/forms v0.3.0
 	github.com/go-pdfkit/ops v0.12.0
 	github.com/go-pdfkit/reader v0.6.0
 	github.com/go-pdfkit/render v0.67.0
+	github.com/go-widgets/mvvm v0.12.0
 	github.com/go-widgets/painter v0.13.0
-	github.com/go-widgets/toolkit v0.321.2
+	github.com/go-widgets/toolkit v0.326.0
 	github.com/go-widgets/webcanvas v0.1.0
 )
 
@@ -26,14 +28,13 @@ require (
 	github.com/go-images/jpeg v0.2.0 // indirect
 	github.com/go-images/jpeg2000 v0.13.2 // indirect
 	github.com/go-images/png v0.1.0 // indirect
-	github.com/go-opentype/fonts v0.12.0 // indirect
 	github.com/go-opentype/opentype v0.13.0 // indirect
 	github.com/go-opentype/shape v0.5.0 // indirect
 	github.com/go-pdfkit/pdffont v0.3.1 // indirect
 	github.com/go-pdfkit/xfa v0.21.0 // indirect
 	github.com/go-richdoc/richdoc v0.4.0 // indirect
 	github.com/go-typeset/bidi v0.3.0 // indirect
-	github.com/go-widgets/mvvm v0.9.0 // indirect
+	github.com/go-widgets/data v0.3.0 // indirect
 	github.com/sergeymakinen/go-bmp v1.0.0 // indirect
 	github.com/sergeymakinen/go-ico v1.0.0 // indirect
 	github.com/tannevaled/gobig2 v0.2.0 // indirect

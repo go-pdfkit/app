@@ -45,7 +45,11 @@ func (s *state) readGroup() *column {
 	// page and write it, and two choosers saying different things about the
 	// same picture would be a question nobody asked.
 	formats := toolkit.NewCycleButton(formatNames()...)
-	formats.Index().Subscribe(func(i int) { s.tools.picture = i })
+	// One way, like the quarter turns in the Pages panel and for the same
+	// reason: what the control holds is an index into the formats and what
+	// the model holds is which format, and an index is not a format. There is
+	// nothing for a two-way binding to keep equal.
+	formats.Index().Subscribe(func(i int) { s.tools.picture.Set(i) })
 	box.add(buttons(formats, button("Hand over this page", toolkit.ButtonDefault,
 		s.pageAsPicture)), bareH())
 	box.add(button("Hand over every page, zipped", toolkit.ButtonDefault,
@@ -59,17 +63,17 @@ func (s *state) readGroup() *column {
 // read puts a reading of the page where the picture of it was, or the picture
 // back when it is the reading already showing.
 func (s *state) read(what string) {
-	if s.tools.reading == what {
+	if s.tools.reading.Get() == what {
 		what = ""
 	}
-	s.tools.reading = what
+	s.tools.reading.Set(what)
 	s.note = ""
 	s.refresh()
 }
 
 // readingView is the page read rather than drawn.
 func (s *state) readingView(src *reader.Document) toolkit.Widget {
-	if s.tools.reading == readingText {
+	if s.tools.reading.Get() == readingText {
 		return s.textView(src)
 	}
 	return s.imagesView(src)
@@ -336,10 +340,10 @@ func formatNames() []string {
 // the list: the chooser cannot make that happen, and a panic if something else
 // ever did would be a poor way of finding out.
 func (s *state) chosenFormat() pictureFormat {
-	if s.tools.picture < 0 || s.tools.picture >= len(pictureFormats) {
+	if s.tools.picture.Get() < 0 || s.tools.picture.Get() >= len(pictureFormats) {
 		return pictureFormats[0]
 	}
-	return pictureFormats[s.tools.picture]
+	return pictureFormats[s.tools.picture.Get()]
 }
 
 // holds says what the bytes of a picture are.

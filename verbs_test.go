@@ -114,12 +114,12 @@ func TestTheMarksPanelWritesWhatWasTypedWhereItWasAsked(t *testing.T) {
 	press(s, x, y)
 	x, y = plusAtNth(t, s, marksRows(), 6, 1)
 	press(s, x, y)
-	if s.tools.digits != 7 {
-		t.Fatalf("the Bates number is padded to %d digits", s.tools.digits)
+	if s.tools.digits.Get() != 7 {
+		t.Fatalf("the Bates number is padded to %d digits", s.tools.digits.Get())
 	}
-	s.tools.digits = 6
-	if s.tools.start != 2 {
-		t.Fatalf("the Bates number starts at %d", s.tools.start)
+	s.tools.digits.Set(6)
+	if s.tools.start.Get() != 2 {
+		t.Fatalf("the Bates number starts at %d", s.tools.start.Get())
 	}
 	x, y = rowAt(t, s, marksRows(), 7, 1)
 	press(s, x, y)
@@ -132,11 +132,11 @@ func TestTheMarksPanelWritesWhatWasTypedWhereItWasAsked(t *testing.T) {
 	// The + of the point size, which shares its row with the list of places.
 	x, y = plusAt(t, s, marksRows(), 9)
 	press(s, x, y)
-	if s.tools.size != 13 {
-		t.Fatalf("the stamp is %d points", s.tools.size)
+	if s.tools.size.Get() != 13 {
+		t.Fatalf("the stamp is %d points", s.tools.size.Get())
 	}
 	chooseAt(t, s, marksRows(), 9, 1)
-	if s.tools.at == 0 {
+	if s.tools.at.Get() == 0 {
 		t.Fatal("no place was chosen from the list")
 	}
 	x, y = rowAt(t, s, marksRows(), 10, 1)
@@ -144,7 +144,7 @@ func TestTheMarksPanelWritesWhatWasTypedWhereItWasAsked(t *testing.T) {
 	if !bytes.Contains(content(t, s.doc), []byte("(COPY?) Tj")) {
 		t.Error("the stamp is not on the first page")
 	}
-	if !strings.Contains(s.note, places[s.tools.at].name) {
+	if !strings.Contains(s.note, places[s.tools.at.Get()].name) {
 		t.Errorf("the status line says %q", s.note)
 	}
 }
@@ -154,13 +154,13 @@ func TestAMarkOnEveryPageWhenNoRangeIsGiven(t *testing.T) {
 	if s.marked() != "all" {
 		t.Errorf("with nothing typed the range is %q", s.marked())
 	}
-	s.tools.markSpec = " 2 "
+	s.tools.markSpec.Set(" 2 ")
 	if s.marked() != " 2 " {
 		t.Errorf("with a range typed it is %q", s.marked())
 	}
 	// A place that is not one falls back on the middle rather than reaching
 	// past the end of the list.
-	s.tools.at = 99
+	s.tools.at.Set(99)
 	s.stamp()
 	if !strings.Contains(s.note, places[0].name) {
 		t.Errorf("the status line says %q", s.note)
@@ -244,13 +244,13 @@ func TestProtectingAFileAndTakingItOffAgain(t *testing.T) {
 	// A password, typed into a box that shows dots rather than letters.
 	typeInto(t, s, protectRows(), 2, "shh")
 	typeInto(t, s, protectRows(), 3, "owner")
-	if s.tools.userPw != "shh" || s.tools.ownerPw != "owner" {
-		t.Fatalf("the boxes hold %q and %q", s.tools.userPw, s.tools.ownerPw)
+	if s.tools.userPw.Get() != "shh" || s.tools.ownerPw.Get() != "owner" {
+		t.Fatalf("the boxes hold %q and %q", s.tools.userPw.Get(), s.tools.ownerPw.Get())
 	}
 	// One of the permissions taken away.
 	x, y = rowAt(t, s, protectRows(), 6, 0)
 	press(s, x, y)
-	if s.tools.allow["copy text out of it"] {
+	if s.tools.allow["copy text out of it"].Get() {
 		t.Error("the tick did not come off")
 	}
 
@@ -326,7 +326,7 @@ func TestWhatAFileIsProtectedWith(t *testing.T) {
 	// Protecting a document there is none of says so, and leaves the
 	// password that reads it back alone.
 	none := newState(surfaceW, surfaceH, &fakeHost{})
-	none.tools.userPw = "x"
+	none.tools.userPw.Set("x")
 	none.encrypt()
 	if none.reopenPw != "" || none.note == "" {
 		t.Errorf("reopen password %q, note %q", none.reopenPw, none.note)
@@ -358,29 +358,29 @@ func TestReadingWhatAPageSaysAndWhatItCarries(t *testing.T) {
 
 	x, y := rowAt(t, s, readRows(), 0, 1)
 	press(s, x, y)
-	if s.tools.reading != readingText {
-		t.Fatalf("the reading is %q", s.tools.reading)
+	if s.tools.reading.Get() != readingText {
+		t.Fatalf("the reading is %q", s.tools.reading.Get())
 	}
 	if s.page != nil {
 		t.Error("the picture of the page was drawn as well as the reading of it")
 	}
 	// Pressing it again puts the page back.
 	press(s, x, y)
-	if s.tools.reading != "" {
-		t.Errorf("the reading is %q", s.tools.reading)
+	if s.tools.reading.Get() != "" {
+		t.Errorf("the reading is %q", s.tools.reading.Get())
 	}
 
 	// What it carries: one picture, handed over under a name that says what
 	// it is.
 	x, y = rowAt(t, s, readRows(), 1, 1)
 	press(s, x, y)
-	if s.tools.reading != readingImages {
-		t.Fatalf("the reading is %q", s.tools.reading)
+	if s.tools.reading.Get() != readingImages {
+		t.Fatalf("the reading is %q", s.tools.reading.Get())
 	}
 	// The button beside the picture hands it over. Where it is is swept for
 	// rather than computed: the list is put where the page was, not in the
 	// panel, and what says the control is wired is that a press finds it.
-	before := s.tools.reading
+	before := s.tools.reading.Get()
 	pressed := false
 	for y := viewTop(); y < viewTop()+s.viewH() && !pressed; y += 4 {
 		for x := s.pageW() - 80; x < s.pageW() && !pressed; x += 8 {
@@ -395,26 +395,26 @@ func TestReadingWhatAPageSaysAndWhatItCarries(t *testing.T) {
 	if !strings.Contains(s.note, ".jpg") {
 		t.Errorf("the picture was handed over as %q", s.note)
 	}
-	if s.tools.reading != before {
+	if s.tools.reading.Get() != before {
 		t.Error("handing a picture over changed which reading is on the screen")
 	}
 
 	// And the page comes back.
 	x, y = rowAt(t, s, readRows(), 2, 1)
 	press(s, x, y)
-	if s.tools.reading != "" || s.page == nil {
-		t.Errorf("the reading is %q and the page %v", s.tools.reading, s.page != nil)
+	if s.tools.reading.Get() != "" || s.page == nil {
+		t.Errorf("the reading is %q and the page %v", s.tools.reading.Get(), s.page != nil)
 	}
 }
 
 func TestAPageWithNothingToRead(t *testing.T) {
 	s, _ := opened(t, 2) // the sample carries a square and no text
-	s.tools.reading = readingText
+	s.tools.reading.Set(readingText)
 	s.refresh()
 	if s.page != nil {
 		t.Error("a picture of the page was drawn under the reading")
 	}
-	s.tools.reading = readingImages
+	s.tools.reading.Set(readingImages)
 	s.refresh()
 	if s.page != nil {
 		t.Error("a picture of the page was drawn under the list")
@@ -447,7 +447,7 @@ func TestAPageThatCannotBeReadAtAll(t *testing.T) {
 		t.Fatal("the document did not open")
 	}
 	for _, what := range []string{readingText, readingImages} {
-		s.tools.reading = what
+		s.tools.reading.Set(what)
 		s.refresh()
 		if s.page != nil {
 			t.Errorf("a page was drawn for the %s reading", what)
@@ -551,8 +551,8 @@ func TestAPageIsHandedOverInEveryFormatTheChooserOffers(t *testing.T) {
 		t.Fatalf("only %d formats are offered", len(pictureFormats))
 	}
 	for i, pic := range pictureFormats {
-		if s.tools.picture != i {
-			t.Fatalf("the chooser is on %d and the list on %d", s.tools.picture, i)
+		if s.tools.picture.Get() != i {
+			t.Fatalf("the chooser is on %d and the list on %d", s.tools.picture.Get(), i)
 		}
 		h.as, h.saved = "", nil
 		press(s, bx, by)
@@ -578,9 +578,9 @@ func TestAPageIsHandedOverInEveryFormatTheChooserOffers(t *testing.T) {
 		}
 		press(s, cx, cy) // on to the next format, wrapping to the first
 	}
-	if s.tools.picture != 0 {
+	if s.tools.picture.Get() != 0 {
 		t.Errorf("the chooser did not wrap round to the first format, it is on %d",
-			s.tools.picture)
+			s.tools.picture.Get())
 	}
 }
 
@@ -638,7 +638,7 @@ func TestTheFormatsOfferedAreTheOnesThatCanBeWritten(t *testing.T) {
 	// reaching past the end of the list.
 	s, _ := opened(t, 1)
 	for _, bad := range []int{-1, len(pictureFormats)} {
-		s.tools.picture = bad
+		s.tools.picture.Set(bad)
 		if got := s.chosenFormat(); got != pictureFormats[0] {
 			t.Errorf("choice %d gave %s", bad, got.format)
 		}
@@ -653,10 +653,10 @@ func TestAPageWithNoAlphaComesOutOnWhiteRatherThanBlack(t *testing.T) {
 	// whichever way round the page was drawn.
 	s, h := opened(t, 1)
 	for _, pic := range pictureFormats {
-		s.tools.picture = 0
+		s.tools.picture.Set(0)
 		for i, p := range pictureFormats {
 			if p.format == pic.format {
-				s.tools.picture = i
+				s.tools.picture.Set(i)
 			}
 		}
 		s.pageAsPicture()
@@ -875,7 +875,7 @@ func TestTheZipFollowsTheFormatChosenForOnePage(t *testing.T) {
 		}
 	}
 	s, h := opened(t, 2)
-	s.tools.picture = jpeg
+	s.tools.picture.Set(jpeg)
 	s.everyPageZipped()
 	zr, err := zip.NewReader(bytes.NewReader(h.saved), int64(len(h.saved)))
 	if err != nil {

@@ -14,6 +14,8 @@ import (
 
 	"github.com/go-pdfkit/ops"
 	"github.com/go-pdfkit/reader"
+	"github.com/go-widgets/mvvm"
+	"github.com/go-widgets/mvvm/tkbind"
 	"github.com/go-widgets/toolkit"
 )
 
@@ -27,10 +29,8 @@ func (s *state) fileGroup() *column {
 	box.add(button("Drop what it says about itself", toolkit.ButtonDanger, s.clearInfo), bareH())
 	box.add(button("Pack it smaller", toolkit.ButtonDefault, s.compress), bareH())
 
-	box.add(s.entryRow("Title", "what the document is called", "",
-		func(v string) { s.tools.title = v }), labelledH())
-	box.add(s.entryRow("Author", "who wrote it", "",
-		func(v string) { s.tools.author = v }), labelledH())
+	box.add(s.entryRow("Title", "what the document is called", s.tools.title), labelledH())
+	box.add(s.entryRow("Author", "who wrote it", s.tools.author), labelledH())
 	box.add(button("Say so in the file", toolkit.ButtonDefault, s.setInfo), bareH())
 	return box
 }
@@ -107,7 +107,7 @@ func (s *state) written() int {
 
 // setInfo puts a title and an author into the file.
 func (s *state) setInfo() {
-	title, author := s.tools.title, s.tools.author
+	title, author := s.tools.title.Get(), s.tools.author.Get()
 	s.changeSaying("said who it is by", func(d *ops.Doc) error {
 		d.SetInfo("Title", title)
 		d.SetInfo("Author", author)
@@ -131,15 +131,13 @@ var allowed = []struct {
 // password to put on the file that will be written.
 func (s *state) protectGroup() *column {
 	box := newColumn()
-	box.add(s.secretRow("Password to open a file with", func(v string) { s.tools.openPw = v }), labelledH())
+	box.add(s.secretRow("Password to open a file with", s.tools.openPw), labelledH())
 	box.add(toolkit.NewLabel("Type it before pressing Open."), bareH())
 
-	box.add(s.secretRow("User password", func(v string) { s.tools.userPw = v }), labelledH())
-	box.add(s.secretRow("Owner password", func(v string) { s.tools.ownerPw = v }), labelledH())
+	box.add(s.secretRow("User password", s.tools.userPw), labelledH())
+	box.add(s.secretRow("Owner password", s.tools.ownerPw), labelledH())
 	for _, a := range allowed {
-		name := a.name
-		box.add(tickRow("May "+name, s.tools.allow[name],
-			func(on bool) { s.tools.allow[name] = on }), bareH())
+		box.add(s.tickRow("May "+a.name, s.tools.allow[a.name]), bareH())
 	}
 	box.add(button("Protect it", toolkit.ButtonProminent, s.encrypt), bareH())
 	box.add(button("Take the protection off", toolkit.ButtonDanger, s.decrypt), bareH())
@@ -148,10 +146,10 @@ func (s *state) protectGroup() *column {
 }
 
 // secretRow is a box that shows dots rather than what is typed into it.
-func (s *state) secretRow(label string, to func(string)) toolkit.Widget {
-	e := toolkit.NewEntry("")
+func (s *state) secretRow(label string, to *mvvm.Observable[string]) toolkit.Widget {
+	e := toolkit.NewEntry(to.Get())
 	e.Mask = '•'
-	e.Text().Subscribe(to)
+	tkbind.BindEntry(to, e, s.repaint)
 	s.typing = append(s.typing, e)
 	return toolkit.NewFormField(label, e)
 }
@@ -163,23 +161,23 @@ func (s *state) secretRow(label string, to func(string)) toolkit.Widget {
 // same bytes twice — encryption needs randomness, so every redraw produces a
 // different file — but it is the same document, protected the same way.
 func (s *state) encrypt() {
-	if s.tools.userPw == "" && s.tools.ownerPw == "" {
+	if s.tools.userPw.Get() == "" && s.tools.ownerPw.Get() == "" {
 		s.fail("protecting a file needs a user password or an owner password")
 		return
 	}
 	var perms reader.Permissions
 	for _, a := range allowed {
-		if s.tools.allow[a.name] {
+		if s.tools.allow[a.name].Get() {
 			perms |= a.bit
 		}
 	}
 	how := reader.Encryption{
-		UserPassword:  s.tools.userPw,
-		OwnerPassword: s.tools.ownerPw,
+		UserPassword:  s.tools.userPw.Get(),
+		OwnerPassword: s.tools.ownerPw.Get(),
 		Permissions:   perms,
 	}
 	was := s.reopenPw
-	s.reopenPw = s.tools.userPw
+	s.reopenPw = s.tools.userPw.Get()
 	if !s.changeSaying("protected with AES-256", func(d *ops.Doc) error {
 		d.Encrypt(how)
 		return nil

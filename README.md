@@ -115,6 +115,27 @@ heights follow the installed face rather than being constants, which is what
 lets the workbench change typeface at all — the numbers it used to be laid
 out with were the padding a 5×7 bitmap had been given.
 
+## The panel and its datum are the same value
+
+Every control in a panel is **two-way bound** to the thing it shows, through
+[`mvvm`](https://github.com/go-widgets/mvvm) and its `tkbind` adapters — the
+box, the spinner, the list and the tick box each hold the same
+`Observable[T]` the rest of the program reads.
+
+They used to be plain fields filled in by a `Subscribe` on each control: a
+value could travel from the control to the model and never the other way,
+because the only way back in was to rebuild the widget, and a panel is built
+once and kept. Nothing could correct a number from outside, so nothing tried
+— dropping pages 3 to 9 left *"Put a blank page before 7"* still offering a
+page that was no longer there.
+
+Two controls are deliberately one-way: the quarter turns and the picture
+formats are cycle buttons whose index is not the datum the model holds (`0, 1,
+2` against `90, 180, 270`), so there is nothing for a two-way binding to keep
+equal. The **form** panel is the remaining gap — its datum lives in the PDF's
+own fields rather than in the panel's state, and binding those is a separate
+piece of work.
+
 ## How it is checked
 
 The workbench is a plain Go type with no build tag, so a native test drives
