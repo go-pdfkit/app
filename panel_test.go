@@ -220,24 +220,24 @@ func TestEveryControlInThePagesPanelIsWiredToItsVerb(t *testing.T) {
 			t.Fatal("a character was refused by the box that has the caret")
 		}
 	}
-	if s.tools.spec != "2-3" {
-		t.Fatalf("the box holds %q", s.tools.spec)
+	if s.tools.spec.Get() != "2-3" {
+		t.Fatalf("the box holds %q", s.tools.spec.Get())
 	}
 	at := s.at
 	if !s.handleKeyDown("ArrowRight") || s.at != at {
 		t.Error("an arrow key turned the page while a box was being typed into")
 	}
-	if !s.handleKeyDown("Backspace") || s.tools.spec != "2-" {
-		t.Errorf("after a backspace the box holds %q", s.tools.spec)
+	if !s.handleKeyDown("Backspace") || s.tools.spec.Get() != "2-" {
+		t.Errorf("after a backspace the box holds %q", s.tools.spec.Get())
 	}
-	s.tools.spec = "2-3"
+	s.tools.spec.Set("2-3")
 
 	// Turning: the left half of that row cycles how far, the right half does
 	// it. One press of the cycle takes a quarter turn to a half.
 	x, y = rowAt(t, s, pagesRows(), 2, 0)
 	press(s, x, y)
-	if s.tools.turn != 180 {
-		t.Fatalf("the turn is %d degrees", s.tools.turn)
+	if s.tools.turn.Get() != 180 {
+		t.Fatalf("the turn is %d degrees", s.tools.turn.Get())
 	}
 	x, y = rowAt(t, s, pagesRows(), 2, 1)
 	press(s, x, y)
@@ -266,7 +266,7 @@ func TestEveryControlInThePagesPanelIsWiredToItsVerb(t *testing.T) {
 	}
 
 	// And dropping them.
-	s.tools.spec = "1"
+	s.tools.spec.Set("1")
 	x, y = rowAt(t, s, pagesRows(), 1, 1)
 	press(s, x, y)
 	if s.doc.PageCount() != 1 {
@@ -281,8 +281,8 @@ func TestMovingCroppingBlankingAndSplittingFromThePanel(t *testing.T) {
 	// A number is pressed up before the verb beside it is pressed.
 	x, y := plusAt(t, s, pagesRows(), 4)
 	press(s, x, y)
-	if s.tools.moveTo != 2 {
-		t.Fatalf("the spin button says %d", s.tools.moveTo)
+	if s.tools.moveTo.Get() != 2 {
+		t.Fatalf("the spin button says %d", s.tools.moveTo.Get())
 	}
 	s.at = 1
 	x, y = rowAt(t, s, pagesRows(), 5, 1)
@@ -303,8 +303,8 @@ func TestMovingCroppingBlankingAndSplittingFromThePanel(t *testing.T) {
 			t.Fatal("a character was refused by the crop box")
 		}
 	}
-	if s.tools.box != "0,0,150,200" {
-		t.Fatalf("the crop box holds %q", s.tools.box)
+	if s.tools.box.Get() != "0,0,150,200" {
+		t.Fatalf("the crop box holds %q", s.tools.box.Get())
 	}
 	before := s.fitScale(s.src)
 	x, y = rowAt(t, s, pagesRows(), 7, 1)
@@ -317,8 +317,8 @@ func TestMovingCroppingBlankingAndSplittingFromThePanel(t *testing.T) {
 	was := s.doc.PageCount()
 	x, y = plusAt(t, s, pagesRows(), 8)
 	press(s, x, y)
-	if s.tools.before != 2 {
-		t.Fatalf("the blank page is to go before %d", s.tools.before)
+	if s.tools.before.Get() != 2 {
+		t.Fatalf("the blank page is to go before %d", s.tools.before.Get())
 	}
 	x, y = rowAt(t, s, pagesRows(), 9, 1)
 	press(s, x, y)
@@ -331,8 +331,8 @@ func TestMovingCroppingBlankingAndSplittingFromThePanel(t *testing.T) {
 	pages := s.doc.PageCount()
 	x, y = plusAt(t, s, pagesRows(), 10)
 	press(s, x, y)
-	if s.tools.every != 2 {
-		t.Fatalf("a piece is to hold %d pages", s.tools.every)
+	if s.tools.every.Get() != 2 {
+		t.Fatalf("a piece is to hold %d pages", s.tools.every.Get())
 	}
 	x, y = rowAt(t, s, pagesRows(), 11, 1)
 	press(s, x, y)
@@ -362,10 +362,10 @@ func TestTheSheetPanel(t *testing.T) {
 	// which puts four pages on two sheets.
 	x, y := plusAt(t, s, sheetRows(), 0)
 	press(s, x, y)
-	if s.tools.up != 3 {
-		t.Fatalf("the number says %d to a sheet", s.tools.up)
+	if s.tools.up.Get() != 3 {
+		t.Fatalf("the number says %d to a sheet", s.tools.up.Get())
 	}
-	s.tools.up = 2
+	s.tools.up.Set(2)
 	x, y = rowAt(t, s, sheetRows(), 1, 1)
 	press(s, x, y)
 	if s.doc.PageCount() != 2 || s.at != 1 {
@@ -436,11 +436,11 @@ func TestOnlyTheBoxLastPressedTakesWhatIsTyped(t *testing.T) {
 	for _, c := range []string{"0", ",", "0", ",", "9", ",", "9"} {
 		s.handleChar(c)
 	}
-	if s.tools.spec != "1-2" {
-		t.Errorf("the range box holds %q", s.tools.spec)
+	if s.tools.spec.Get() != "1-2" {
+		t.Errorf("the range box holds %q", s.tools.spec.Get())
 	}
-	if s.tools.box != "0,0,9,9" {
-		t.Errorf("the crop box holds %q", s.tools.box)
+	if s.tools.box.Get() != "0,0,9,9" {
+		t.Errorf("the crop box holds %q", s.tools.box.Get())
 	}
 	// And a press that lands on neither leaves both of them alone.
 	press(s, margin+2, viewTop()+s.viewH()-2)
@@ -497,7 +497,7 @@ func TestWhatAVerbSaysWhenItCannotRun(t *testing.T) {
 		empty.nUp, empty.booklet, empty.merge, empty.overlay, empty.watermark,
 	} {
 		empty.note = ""
-		empty.tools.box = "0,0,10,10"
+		empty.tools.box.Set("0,0,10,10")
 		act()
 		if empty.note == "" {
 			t.Error("a verb with no document said nothing")
@@ -506,7 +506,7 @@ func TestWhatAVerbSaysWhenItCannotRun(t *testing.T) {
 
 	s, _ := opened(t, 3)
 	// A range that names every page is refused: a document needs one.
-	s.tools.spec = "1-3,3"
+	s.tools.spec.Set("1-3,3")
 	s.deleteRange()
 	if s.doc.PageCount() != 3 {
 		t.Errorf("every page was deleted, leaving %d", s.doc.PageCount())
@@ -515,25 +515,25 @@ func TestWhatAVerbSaysWhenItCannotRun(t *testing.T) {
 		t.Errorf("the status line says %q", s.note)
 	}
 	// A range that is not a range at all is the operation's to complain about.
-	s.tools.spec = "nonsense"
+	s.tools.spec.Set("nonsense")
 	s.deleteRange()
 	if s.note == "" || s.doc.PageCount() != 3 {
 		t.Errorf("a nonsense range said %q and left %d pages", s.note, s.doc.PageCount())
 	}
 	// Moving a page nowhere it can go.
-	s.tools.moveTo = 99
+	s.tools.moveTo.Set(99)
 	s.at = 1
 	s.movePage()
 	if s.at != 1 {
 		t.Errorf("the view followed a move that did not happen, to %d", s.at)
 	}
 	// Laying out no pages to a sheet, and folding a document that cannot be.
-	s.tools.up = 0
+	s.tools.up.Set(0)
 	s.nUp()
 	if s.doc.PageCount() != 3 {
 		t.Errorf("a nonsense n-up left %d pages", s.doc.PageCount())
 	}
-	s.tools.every = 0
+	s.tools.every.Set(0)
 	s.split()
 	if s.note == "" {
 		t.Error("a nonsense split said nothing")
@@ -566,7 +566,7 @@ func TestReadingACropBox(t *testing.T) {
 		t.Errorf("parseBox gave %v, %v", box, err)
 	}
 	s, _ := opened(t, 2)
-	s.tools.box = "not a box"
+	s.tools.box.Set("not a box")
 	s.crop()
 	if s.note == "" {
 		t.Error("a crop box that cannot be read said nothing")
@@ -592,7 +592,7 @@ func TestAPieceThatCannotBeWritten(t *testing.T) {
 	was := docBytes
 	docBytes = func(*ops.Doc) ([]byte, error) { return nil, errors.New("no") }
 	defer func() { docBytes = was }()
-	s.tools.every = 1
+	s.tools.every.Set(1)
 	s.split()
 	if !strings.Contains(s.note, "cannot be written") {
 		t.Errorf("the status line says %q", s.note)

@@ -21,6 +21,8 @@ import (
 	"strings"
 
 	"github.com/go-pdfkit/ops"
+	"github.com/go-widgets/mvvm"
+	"github.com/go-widgets/mvvm/tkbind"
 	"github.com/go-widgets/toolkit"
 )
 
@@ -58,70 +60,102 @@ type tools struct {
 	open  string
 	built map[string]toolkit.Widget
 
+	// ⛔ Every one of these is an Observable, and the control that shows it
+	// holds THE SAME ONE -- two-way, through mvvm/tkbind. They used to be
+	// plain fields, and what that looked like was
+	//
+	//	e.Text().Subscribe(func(v string) { s.tools.spec = v })
+	//
+	// in twenty-seven places: a copy OUT of the widget into a field, and no
+	// way back in except rebuilding the widget. That is a datum crossing a
+	// boundary by being copied, which is the thing MVVM is for not having, and
+	// the direction that is missing is the one nobody notices -- it works
+	// until something other than the control changes the model, and then the
+	// panel shows the old number while the document has the new one.
+	//
+	// movePage is where that bit: it follows the page it moved, so s.at
+	// changes underneath the "Move this page to" spinner.
+
 	// The Pages group.
-	spec   string // which pages, empty for the one on the screen
-	turn   int    // a quarter turn, in degrees
-	moveTo int    // where the page on the screen is to go
-	box    string // a crop box, as four numbers
-	before int    // where a blank page goes
-	every  int    // how many pages a split file holds
+	spec   *mvvm.Observable[string] // which pages, empty for the one on the screen
+	turn   *mvvm.Observable[int]    // a quarter turn, in degrees
+	moveTo *mvvm.Observable[int]    // where the page on the screen is to go
+	box    *mvvm.Observable[string] // a crop box, as four numbers
+	before *mvvm.Observable[int]    // where a blank page goes
+	every  *mvvm.Observable[int]    // how many pages a split file holds
 
 	// The Sheet group.
-	up int // how many pages to a sheet
+	up *mvvm.Observable[int] // how many pages to a sheet
 
 	// The Marks group, which acts on a range of its own: the Pages group's
 	// box is that group's, and one box shared between two panels would show
 	// the wrong thing in whichever of them was not last used.
-	markSpec string
-	mark     string // what a watermark says
-	numbers  string // the shape of a page number
-	prefix   string // what comes before a Bates number
-	start    int    // the first Bates number
-	digits   int    // how many digits it is padded to
-	stamp    string // what a stamp says
-	at       int    // where on the page it goes
-	size     int    // how large, in points
+	markSpec *mvvm.Observable[string]
+	mark     *mvvm.Observable[string] // what a watermark says
+	numbers  *mvvm.Observable[string] // the shape of a page number
+	prefix   *mvvm.Observable[string] // what comes before a Bates number
+	start    *mvvm.Observable[int]    // the first Bates number
+	digits   *mvvm.Observable[int]    // how many digits it is padded to
+	stamp    *mvvm.Observable[string] // what a stamp says
+	at       *mvvm.Observable[int]    // where on the page it goes
+	size     *mvvm.Observable[int]    // how large, in points
 
 	// The File group.
-	title, author string
+	title, author *mvvm.Observable[string]
 
 	// The Protect group.
-	openPw, userPw, ownerPw string
-	allow                   map[string]bool
+	openPw, userPw, ownerPw *mvvm.Observable[string]
+	// allow is one Observable PER PERMISSION rather than an Observable of a
+	// map: a map is not comparable, so one Observable over the whole of it
+	// could not tell a change from a re-set, and every tick would repaint
+	// every box.
+	allow map[string]*mvvm.Observable[bool]
 
 	// The Read group: which reading of the document is on the screen instead
 	// of the picture of it, or empty for the picture, and which of the
 	// writable picture formats a page is handed over in.
-	reading string
-	picture int
+	reading *mvvm.Observable[string]
+	picture *mvvm.Observable[int]
 }
 
 // newTools builds the panel's state with the defaults each control starts at.
 func newTools() *tools {
 	return &tools{
-		built:   map[string]toolkit.Widget{},
-		turn:    90,
-		moveTo:  1,
-		before:  1,
-		every:   1,
-		up:      2,
-		mark:    "DRAFT",
-		numbers: "{page} / {pages}",
-		start:   1,
-		digits:  6,
-		stamp:   "COPY",
-		size:    12,
-		allow:   everythingAllowed(),
+		built:    map[string]toolkit.Widget{},
+		spec:     mvvm.NewObservable(""),
+		turn:     mvvm.NewObservable(90),
+		moveTo:   mvvm.NewObservable(1),
+		box:      mvvm.NewObservable(""),
+		before:   mvvm.NewObservable(1),
+		every:    mvvm.NewObservable(1),
+		up:       mvvm.NewObservable(2),
+		markSpec: mvvm.NewObservable(""),
+		mark:     mvvm.NewObservable("DRAFT"),
+		numbers:  mvvm.NewObservable("{page} / {pages}"),
+		prefix:   mvvm.NewObservable(""),
+		start:    mvvm.NewObservable(1),
+		digits:   mvvm.NewObservable(6),
+		stamp:    mvvm.NewObservable("COPY"),
+		at:       mvvm.NewObservable(0),
+		size:     mvvm.NewObservable(12),
+		title:    mvvm.NewObservable(""),
+		author:   mvvm.NewObservable(""),
+		openPw:   mvvm.NewObservable(""),
+		userPw:   mvvm.NewObservable(""),
+		ownerPw:  mvvm.NewObservable(""),
+		allow:    everythingAllowed(),
+		reading:  mvvm.NewObservable(""),
+		picture:  mvvm.NewObservable(0),
 	}
 }
 
 // everythingAllowed is what a protected file lets a reader do until somebody
 // says otherwise, which is everything: a password on a file is nearly always
 // meant to keep it shut rather than to stop whoever opened it printing it.
-func everythingAllowed() map[string]bool {
-	out := map[string]bool{}
+func everythingAllowed() map[string]*mvvm.Observable[bool] {
+	out := map[string]*mvvm.Observable[bool]{}
 	for _, a := range allowed {
-		out[a.name] = true
+		out[a.name] = mvvm.NewObservable(true)
 	}
 	return out
 }
@@ -236,32 +270,31 @@ func (c *column) scrollerOf(w int) *toolkit.ScrollView {
 // they come in.
 func (s *state) pagesGroup() *column {
 	box := newColumn()
-	box.add(s.entryRow("Which pages", "1-3,7 — empty means this one", "",
-		func(v string) { s.tools.spec = v }), labelledH())
+	box.add(s.entryRow("Which pages", "1-3,7 — empty means this one", s.tools.spec), labelledH())
 	box.add(buttons(
 		button("Keep only these", toolkit.ButtonDefault, s.selectPages),
 		button("Delete these", toolkit.ButtonDanger, s.deleteRange),
 	), bareH())
 
 	turns := toolkit.NewCycleButton("a quarter", "a half", "three quarters")
-	turns.Index().Subscribe(func(i int) { s.tools.turn = 90 * (i + 1) })
+	// A cycle button has no tkbind binder because what it shows and what the
+	// model holds are not the same datum: the control is on index 0, 1 or 2
+	// and the document wants 90, 180 or 270. One direction, through the
+	// Observable, and the quarter turns it names are the whole mapping.
+	turns.Index().Subscribe(func(i int) { s.tools.turn.Set(90 * (i + 1)) })
 	box.add(buttons(turns, button("Turn them", toolkit.ButtonDefault, s.turnRange)), bareH())
 	box.add(button("Reverse the order", toolkit.ButtonDefault, s.reverse), bareH())
 
-	box.add(s.spinRow("Move this page to", 1, s.tools.moveTo,
-		func(v int) { s.tools.moveTo = v }), labelledH())
+	box.add(s.spinRow("Move this page to", 1, s.tools.moveTo), labelledH())
 	box.add(button("Move it there", toolkit.ButtonDefault, s.movePage), bareH())
 
-	box.add(s.entryRow("Crop to, in points", "x0,y0,x1,y1", "",
-		func(v string) { s.tools.box = v }), labelledH())
+	box.add(s.entryRow("Crop to, in points", "x0,y0,x1,y1", s.tools.box), labelledH())
 	box.add(button("Crop them", toolkit.ButtonDefault, s.crop), bareH())
 
-	box.add(s.spinRow("Put a blank page before", 1, s.tools.before,
-		func(v int) { s.tools.before = v }), labelledH())
+	box.add(s.spinRow("Put a blank page before", 1, s.tools.before), labelledH())
 	box.add(button("Insert it", toolkit.ButtonDefault, s.insertBlank), bareH())
 
-	box.add(s.spinRow("Split into files of", 1, s.tools.every,
-		func(v int) { s.tools.every = v }), labelledH())
+	box.add(s.spinRow("Split into files of", 1, s.tools.every), labelledH())
 	box.add(button("Split and hand them over", toolkit.ButtonProminent, s.split), bareH())
 
 	// Last, and not among the things that take a range: this one asks the
@@ -274,7 +307,7 @@ func (s *state) pagesGroup() *column {
 // more than one file into this one.
 func (s *state) sheetGroup() *column {
 	box := newColumn()
-	box.add(s.spinRow("Pages to a sheet", 1, s.tools.up, func(v int) { s.tools.up = v }), labelledH())
+	box.add(s.spinRow("Pages to a sheet", 1, s.tools.up), labelledH())
 	box.add(button("Lay them out", toolkit.ButtonDefault, s.nUp), bareH())
 	box.add(button("Fold it into a booklet", toolkit.ButtonDefault, s.booklet), bareH())
 	box.add(button("Add a file after this one", toolkit.ButtonDefault, s.merge), bareH())
@@ -282,37 +315,49 @@ func (s *state) sheetGroup() *column {
 	return box
 }
 
-// entryRow is a named box to type in, bound to where what is typed goes.
-func (s *state) entryRow(label, hint, initial string, to func(string)) toolkit.Widget {
-	e := toolkit.NewEntry(initial)
+// The four rows a panel is made of. Each one BINDS its control to the datum it
+// shows, two ways, through mvvm/tkbind -- so the control and the model are the
+// same value seen twice rather than two values kept in step by hand.
+//
+// repaint is what every binding is given as its invalidate: a datum that
+// changed has to reach the canvas, and the canvas is redrawn when the scene
+// says it is dirty.
+
+// entryRow is a named box to type in, showing and setting a string.
+func (s *state) entryRow(label, hint string, to *mvvm.Observable[string]) toolkit.Widget {
+	e := toolkit.NewEntry(to.Get())
 	e.Placeholder = hint
-	e.Text().Subscribe(to)
+	tkbind.BindEntry(to, e, s.repaint)
 	s.typing = append(s.typing, e)
 	return toolkit.NewFormField(label, e)
 }
 
-// spinRow is a named number, bound to where the number goes.
-func (s *state) spinRow(label string, min, initial int, to func(int)) toolkit.Widget {
-	sp := toolkit.NewSpinButton(min, pageCeiling, initial, 1)
-	sp.Value().Subscribe(to)
+// spinRow is a named number.
+func (s *state) spinRow(label string, min int, to *mvvm.Observable[int]) toolkit.Widget {
+	sp := toolkit.NewSpinButton(min, pageCeiling, to.Get(), 1)
+	tkbind.BindSpin(to, sp, s.repaint)
 	return toolkit.NewFormField(label, sp)
 }
 
-// chooseRow is a named list to choose from, bound to where the choice goes.
-// The list is drawn over whatever is under it by the popover host the view is
-// wrapped in, which is the one thing a drop-down cannot do for itself.
-func chooseRow(label string, options []string, chosen int, to func(int)) toolkit.Widget {
-	d := toolkit.NewDropDown(options, chosen)
-	d.Selected().Subscribe(to)
+// chooseRow is a named list to choose from. The list is drawn over whatever is
+// under it by the popover host the view is wrapped in, which is the one thing
+// a drop-down cannot do for itself.
+func (s *state) chooseRow(label string, options []string, to *mvvm.Observable[int]) toolkit.Widget {
+	d := toolkit.NewDropDown(options, to.Get())
+	tkbind.BindChoice(to, d, s.repaint)
 	return toolkit.NewFormField(label, d)
 }
 
 // tickRow is a box to tick, which names itself.
-func tickRow(label string, on bool, to func(bool)) toolkit.Widget {
-	c := toolkit.NewCheckButton(label, on)
-	c.Checked().Subscribe(to)
+func (s *state) tickRow(label string, on *mvvm.Observable[bool]) toolkit.Widget {
+	c := toolkit.NewCheckButton(label, on.Get())
+	tkbind.BindCheck(on, c, s.repaint)
 	return c
 }
+
+// repaint is what a binding calls when either side moved. Only the canvas
+// needs telling: the control and the model are already the same value.
+func (s *state) repaint() { s.dirty = true }
 
 // pageCeiling is as high as any of these numbers is allowed to go. It is not a
 // page count: the document changes under the control, and a number that is too
@@ -347,10 +392,10 @@ func (s *state) settle() {
 // where is the range the Pages group acts on: what was typed, or the page on
 // the screen when nothing was.
 func (s *state) where() string {
-	if strings.TrimSpace(s.tools.spec) == "" {
+	if strings.TrimSpace(s.tools.spec.Get()) == "" {
 		return pageSpec(s.at)
 	}
-	return s.tools.spec
+	return s.tools.spec.Get()
 }
 
 // selectPages keeps the pages the range names and drops the rest.
@@ -392,7 +437,7 @@ func emptied(d *ops.Doc, spec string) bool {
 
 // turnRange turns the pages the range names.
 func (s *state) turnRange() {
-	spec, by := s.where(), s.tools.turn
+	spec, by := s.where(), s.tools.turn.Get()
 	s.changeSaying(fmt.Sprintf("turned %s by %d degrees", spec, by),
 		func(d *ops.Doc) error { return d.Rotate(spec, by) })
 }
@@ -408,7 +453,7 @@ func (s *state) reverse() {
 // movePage takes the page on the screen somewhere else in the order, and
 // follows it there.
 func (s *state) movePage() {
-	from, to := s.at, s.tools.moveTo
+	from, to := s.at, s.tools.moveTo.Get()
 	if !s.changeSaying(fmt.Sprintf("moved page %d to %d", from, to),
 		func(d *ops.Doc) error { return d.Move(from, to) }) {
 		return
@@ -421,7 +466,7 @@ func (s *state) movePage() {
 
 // crop cuts the pages the range names down to a box.
 func (s *state) crop() {
-	box, err := parseBox(s.tools.box)
+	box, err := parseBox(s.tools.box.Get())
 	if err != nil {
 		s.fail(err.Error())
 		return
@@ -449,7 +494,7 @@ func parseBox(spec string) ([4]float64, error) {
 
 // insertBlank puts an empty page of the same size before another one.
 func (s *state) insertBlank() {
-	at := s.tools.before
+	at := s.tools.before.Get()
 	s.changeSaying(fmt.Sprintf("a blank page before %d", at),
 		func(d *ops.Doc) error { return d.InsertBlank(at) })
 }
@@ -461,7 +506,7 @@ func (s *state) split() {
 		s.fail("open a document first")
 		return
 	}
-	parts, err := s.doc.Split(s.tools.every)
+	parts, err := s.doc.Split(s.tools.every.Get())
 	if err != nil {
 		s.fail(err.Error())
 		return
@@ -485,7 +530,7 @@ func partName(name string, n int) string {
 
 // nUp lays several pages on one sheet.
 func (s *state) nUp() {
-	n := s.tools.up
+	n := s.tools.up.Get()
 	if !s.changeSaying(fmt.Sprintf("%d to a sheet", n), func(d *ops.Doc) error { return d.NUp(n) }) {
 		return
 	}

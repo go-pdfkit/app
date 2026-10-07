@@ -13,6 +13,7 @@ import (
 	"github.com/go-pdfkit/ops"
 	"github.com/go-pdfkit/reader"
 	"github.com/go-pdfkit/render"
+	"github.com/go-widgets/mvvm"
 	"github.com/go-widgets/painter"
 	"github.com/go-widgets/toolkit"
 )
@@ -243,7 +244,7 @@ const minButtonW = 28
 func (s *state) open() {
 	s.host.Open(func(name string, data []byte) {
 		fromPicture := false
-		d, err := ops.OpenWithPassword(data, s.tools.openPw)
+		d, err := ops.OpenWithPassword(data, s.tools.openPw.Get())
 		if err != nil {
 			// Somebody who hands a picture to a PDF workbench wants a PDF of
 			// it. Telling them it is not a PDF is true and useless: they knew.
@@ -273,7 +274,7 @@ func (s *state) open() {
 		}
 		s.showingForm = false
 		s.reopenPw = ""
-		s.tools.reading = ""
+		s.tools.reading.Set("")
 		s.readForm(data)
 		if s.form != nil {
 			s.note = fmt.Sprintf("this document has a form: %d fields",
@@ -396,9 +397,39 @@ func (s *state) fail(msg string) {
 // rebuilt from the document as it now stands, so what is on the screen is
 // always what would come out of Save.
 func (s *state) refresh() {
+	s.keepPageNumbersInTheDocument()
 	s.renderPage()
 	s.status = toolkit.NewStatusbar(s.statusLine())
 	s.dirty = true
+}
+
+// keepPageNumbersInTheDocument holds the panel's page numbers inside the
+// document they refer to, so that dropping pages 3 to 9 does not leave "Put a
+// blank page before 7" offering a page that is no longer there.
+//
+// ⛔ This is the direction the panel did not have. Its numbers used to be
+// plain fields filled in by a Subscribe on each control, so a value could
+// travel from the control to the model and NEVER the other way: the only way
+// back in was to rebuild the widget, and a panel is built once and kept. The
+// scene therefore could not correct them, and did not try -- which is
+// invisible until the document shrinks under a number somebody set before it
+// did.
+//
+// Now the control and the model are the same Observable, so a Set here is what
+// the panel shows.
+func (s *state) keepPageNumbersInTheDocument() {
+	if s.doc == nil {
+		return
+	}
+	n := s.doc.PageCount()
+	for _, v := range []*mvvm.Observable[int]{s.tools.moveTo, s.tools.before} {
+		if v.Get() > n {
+			v.Set(n)
+		}
+		if v.Get() < 1 {
+			v.Set(1)
+		}
+	}
 }
 
 // takeDirty reports whether anything has changed since it was last asked, and
@@ -502,7 +533,7 @@ func (s *state) renderPage() {
 	}
 	// A reading of the page is read out of the document written and read back,
 	// like the picture of it, so what is listed is what would come out of Save.
-	if s.tools.reading != "" {
+	if s.tools.reading.Get() != "" {
 		s.show(s.readingView(src))
 		return
 	}

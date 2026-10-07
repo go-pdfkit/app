@@ -237,7 +237,7 @@ func TestDeletingThePageOnTheScreen(t *testing.T) {
 
 func TestLayingPagesOutTwoUp(t *testing.T) {
 	s, _ := opened(t, 4)
-	s.tools.up = 2
+	s.tools.up.Set(2)
 	s.nUp()
 	if s.doc.PageCount() != 2 {
 		t.Errorf("%d sheets", s.doc.PageCount())
