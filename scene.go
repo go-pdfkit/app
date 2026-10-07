@@ -157,7 +157,16 @@ func newState(w, h int, h2 host) *state {
 func (s *state) strip() *toolkit.HBox {
 	box := toolkit.NewHBox()
 	add := func(label string, style toolkit.ButtonStyle, on func()) {
-		box.AddFixed(button(label, style, on), buttonWidth(label))
+		b := button(label, style, on)
+		if m, ok := stripIcons[label]; ok {
+			g := iconoirGlyph(m.name)
+			if m.insteadOfTheWord {
+				b.Icon = g
+			} else {
+				b.LeadingIcon().Set(g)
+			}
+		}
+		box.AddFixed(b, controlWidth(b))
 	}
 	add("Open", toolkit.ButtonProminent, s.open)
 	add("Save", toolkit.ButtonProminent, s.save)
@@ -175,21 +184,60 @@ func (s *state) strip() *toolkit.HBox {
 	return box
 }
 
-// buttonWidth is wide enough for the whole of a label, whatever the font in
-// force measures it at, with room either side.
-func buttonWidth(label string) int {
-	w := toolkit.TextWidth(label) + 2*buttonPadding
-	if w < minButtonW {
-		w = minButtonW
-	}
-	return w
+// stripIcons is the mark each control on the strip carries.
+//
+// ⛔ Through the toolkit, from a pack, never drawn here. toolkit.DrawIconoir
+// rasterises one of the 1 383 SVGs that go-icons/iconoir embeds, recoloured to
+// the ink the button is using and cached per icon and size. A glyph outlined
+// by hand in this file would be a per-app duplicate of a layer that exists to
+// be shared, and at the fourteen pixels a dense toolbar gives it, a hand-drawn
+// outline reads as a square.
+//
+// insteadOfTheWord is for the two controls whose caption IS a mark: an arrow
+// beside a "<" is the same thing said twice, and it costs the width of both.
+var stripIcons = map[string]struct {
+	name             string
+	insteadOfTheWord bool
+}{
+	"Open":    {name: "folder"},
+	"Save":    {name: "download"}, // what saving does here: the tab hands the file back
+	"<":       {name: "nav-arrow-left", insteadOfTheWord: true},
+	">":       {name: "nav-arrow-right", insteadOfTheWord: true},
+	"Rotate":  {name: "crop-rotate-tr"}, // a page-shaped frame being turned
+	"Delete":  {name: "trash"},
+	"Pages":   {name: "multiple-pages"},
+	"Sheet":   {name: "view-grid"}, // several pages laid out on one
+	"Marks":   {name: "edit-pencil"},
+	"File":    {name: "page"},
+	"Protect": {name: "lock"},
+	"Read":    {name: "text-magnifying-glass"},
+	"Fill in": {name: "input-field"},
 }
 
-// How much room a control keeps around its own name.
-const (
-	buttonPadding = 12
-	minButtonW    = 28
-)
+// iconoirGlyph draws one icon from the pack at whatever box it is given.
+func iconoirGlyph(name string) toolkit.IconFunc {
+	return func(p painter.Painter, r toolkit.Rect, ink toolkit.RGBA) {
+		toolkit.DrawIconoir(p, r, name, ink)
+	}
+}
+
+// controlWidth is what a control needs to show what it holds.
+//
+// ⛔ ASKED OF THE CONTROL. This used to be `TextWidth(label) + 2*padding`,
+// computed here -- a second copy of a layout the button already knows, and one
+// that counted no glyph at all. PreferredWidth measures the caption, the
+// leading mark and the paddings with the same numbers Draw lays them out with,
+// so the strip cannot disagree with what is painted on it.
+func controlWidth(b *toolkit.Button) int {
+	if w := b.PreferredWidth(); w > minButtonW {
+		return w
+	}
+	return minButtonW
+}
+
+// minButtonW is the floor, so a control named by one character is still
+// something to press.
+const minButtonW = 28
 
 // open asks for a file and takes it as the document.
 func (s *state) open() {

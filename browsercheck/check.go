@@ -193,7 +193,140 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 		return fmt.Errorf("the mark the panel wrote is not in the file the tab handed back")
 	}
 	fmt.Println("the mark written from the panel is in the saved file")
+
+	return shellReaches(ctx, c, sid, page)
+}
+
+// The two builds the staleness check publishes, in order. They are only ever
+// compared for equality, so what they say matters less than that they differ.
+const (
+	firstBuild  = "the build they first saw"
+	secondBuild = "the build published afterwards"
+)
+
+// shellReaches asks the one question the rest of this program cannot: does a
+// build published AFTER somebody's first visit reach them?
+//
+// ⛔ It is the check the shell did not have, and its absence cost five
+// releases. The service worker kept a copy of every file it had ever served
+// and answered from that copy forever: a worker only reinstalls when its own
+// script changes byte for byte, the cache was named by a constant so the
+// activate sweep never deleted anything, and nothing revalidated. Everyone who
+// had opened the workbench once kept the build they first saw. It was reported
+// as the layout regressing, because that is what it looks like from the
+// outside.
+//
+// Driving the canvas cannot find this. Every check above runs in the first
+// visit, where the cache and the server agree by construction. So this one
+// changes a file UNDER the browser, reloads, and asks what the page gets.
+//
+// ⛔ It asserts that a published build REACHES the tab, not that any
+// particular thing goes wrong when it does not. Run against the cache-first
+// worker this replaced, it failed three times in three different ways -- the
+// reload never finished, navigator.serviceWorker was gone when asked, and the
+// fetch threw "Failed to fetch" -- and a check written to recognise the first
+// of those would have passed the other two. A worker that cannot ship is a
+// worker that cannot ship, however it declines to.
+func shellReaches(ctx context.Context, c *conn, sid, page string) error {
+	// The worker has to be in charge for any of this to be about the worker.
+	// On the visit that registers it, the page is usually still uncontrolled:
+	// it is the NEXT load the worker answers, which is exactly the returning
+	// visitor this is about.
+	if err := until(ctx, 30*time.Second, func() (bool, error) {
+		v, err := eval(ctx, c, sid, inCharge)
+		return v == "true", err
+	}); err != nil {
+		return fmt.Errorf("the offline worker never took charge of the tab, so nothing here is about it: %w", err)
+	}
+
+	got, err := fetched(ctx, c, sid, "build.txt")
+	if err != nil {
+		return err
+	}
+	if got != firstBuild {
+		return fmt.Errorf("the tab reads %q from a server that is serving %q", got, firstBuild)
+	}
+	fmt.Println("the tab is served by the offline worker, and sees the build it arrived on")
+
+	// Publish. Nothing else changes: same URL, same worker, same tab.
+	buildStamp.Store(secondBuild)
+
+	if _, err := c.call(ctx, "Page.navigate", map[string]any{"url": page}, sid); err != nil {
+		return err
+	}
+	// ⛔ Waiting for the WORKBENCH to start here would be waiting for twenty
+	// megabytes of wasm, and the first cut did exactly that. Under the
+	// cache-first worker it timed out, so the check failed saying "the
+	// workbench did not come back" -- true, and not the defect. What is being
+	// asked is what the page is SERVED, which needs a document and a worker in
+	// charge and nothing else.
+	// ⛔ Waiting on the DOCUMENT, not on the worker being in charge. Requiring
+	// a controller here made the check report "the tab never came back" under
+	// the broken worker -- true, and not the thing being asked. A worker that
+	// has stopped answering and a worker that answers with last week's file
+	// are both "the shell cannot ship", and the question below distinguishes
+	// them by itself.
+	if err := until(ctx, 60*time.Second, func() (bool, error) {
+		v, err := eval(ctx, c, sid, `(() => { try { return document.readyState !== 'loading'; } catch (e) { return false; } })()`)
+		return v == "true", err
+	}); err != nil {
+		return fmt.Errorf("the tab never came back after the reload: %w", err)
+	}
+	who, err := eval(ctx, c, sid, inCharge)
+	if err != nil {
+		return err
+	}
+
+	got, err = fetched(ctx, c, sid, "build.txt")
+	if err != nil {
+		return err
+	}
+	if got != secondBuild {
+		return fmt.Errorf("a returning visitor is pinned to an old build: the server publishes %q "+
+			"and the tab is still served %q (a worker in charge of the tab: %s), so nothing released "+
+			"after somebody's first visit reaches them", secondBuild, got, who)
+	}
+	fmt.Println("a build published after the first visit reaches the tab on the next load")
 	return nil
+}
+
+// inCharge asks whether there is a document and a worker answering for it.
+//
+// ⛔ TOTAL on purpose. The first cut read `navigator.serviceWorker.controller`
+// straight, and right after a navigate there may be no navigator.serviceWorker
+// at all -- the tab is still between documents. That throws, and a throw out
+// of a poll is not "not yet", it is a failed check: the run against the broken
+// worker failed on a TypeError instead of on the staleness, and the run
+// against the fixed one passed on the timing rather than on the answer.
+// Neither told me anything.
+const inCharge = `(() => {
+	try {
+		return document.readyState !== 'loading' &&
+			!!(navigator.serviceWorker && navigator.serviceWorker.controller);
+	} catch (e) { return false; }
+})()`
+
+// fetched is what the page gets for a URL, which is what the worker decides.
+//
+// eval hands back the raw JSON of what the snippet evaluated to, so a string
+// arrives quoted and has to be read back as one.
+func fetched(ctx context.Context, c *conn, sid, url string) (string, error) {
+	// The throw is caught IN THE TAB and handed back as text, because a worker
+	// that will not serve the file makes fetch reject -- and a rejection
+	// arriving as a page of DevTools JSON says what the exception object looks
+	// like rather than what happened.
+	v, err := eval(ctx, c, sid, fmt.Sprintf(`(async () => {
+		try { return await (await fetch(%q, {cache: 'no-store'})).text(); }
+		catch (e) { return 'nothing: the tab could not fetch it at all (' + e + ')'; }
+	})()`, url))
+	if err != nil {
+		return "", fmt.Errorf("asking the tab for %s: %w", url, err)
+	}
+	var s string
+	if err := json.Unmarshal([]byte(v), &s); err != nil {
+		return "", fmt.Errorf("the tab answered %s for %s, which is not a string: %w", v, url, err)
+	}
+	return s, nil
 }
 
 // Where the panel and the page are on the canvas, and how far apart the

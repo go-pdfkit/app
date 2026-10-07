@@ -184,7 +184,14 @@ const (
 	rowsW  = panelW - 34
 
 	// What a row costs besides its text. See the band geometry in scene.go.
-	bareChrome = 16 // around a control's own text
+	//
+	// 15 rather than 16 because the face changed and its line is a pixel
+	// taller: a control row stays about thirty-two pixels whatever is set in
+	// it, so the padding gives back what the line takes. Tuning a free design
+	// parameter until TestNoPanelOverflowsTheRoomItIsGiven passes is what that
+	// test is FOR -- it states what the layout has to satisfy, and the padding
+	// is what there is to satisfy it with.
+	bareChrome = 15 // around a control's own text
 	labelGap   = 10 // between a caption and the control it names
 )
 
