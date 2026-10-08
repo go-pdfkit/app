@@ -272,30 +272,30 @@ func (s *state) pagesGroup() *column {
 	box := newColumn()
 	box.add(s.entryRow("Which pages", "1-3,7 — empty means this one", s.tools.spec), labelledH())
 	box.add(buttons(
-		button("Keep only these", toolkit.ButtonDefault, s.selectPages),
-		button("Delete these", toolkit.ButtonDanger, s.deleteRange),
+		s.verb("Keep only these", toolkit.ButtonDefault, s.selectPages, s.opened),
+		s.verb("Delete these", toolkit.ButtonDanger, s.deleteRange, s.opened),
 	), bareH())
 
 	turns := toolkit.NewCycleButton("a quarter", "a half", "three quarters")
-	// A cycle button has no tkbind binder because what it shows and what the
-	// model holds are not the same datum: the control is on index 0, 1 or 2
-	// and the document wants 90, 180 or 270. One direction, through the
-	// Observable, and the quarter turns it names are the whole mapping.
-	turns.Index().Subscribe(func(i int) { s.tools.turn.Set(90 * (i + 1)) })
-	box.add(buttons(turns, button("Turn them", toolkit.ButtonDefault, s.turnRange)), bareH())
-	box.add(button("Reverse the order", toolkit.ButtonDefault, s.reverse), bareH())
+	// The positions and what they mean, bound through the table that says so.
+	// This was `90 * (i + 1)` in a Subscribe: a mapping spelled as arithmetic,
+	// readable only forwards, with no way for anything else to put a quarter
+	// turn on the screen.
+	tkbind.BindCycleValues(s.tools.turn, turns, quarterTurns, s.repaint)
+	box.add(buttons(turns, s.verb("Turn them", toolkit.ButtonDefault, s.turnRange, s.opened)), bareH())
+	box.add(s.verb("Reverse the order", toolkit.ButtonDefault, s.reverse, s.opened), bareH())
 
 	box.add(s.spinRow("Move this page to", 1, s.tools.moveTo), labelledH())
-	box.add(button("Move it there", toolkit.ButtonDefault, s.movePage), bareH())
+	box.add(s.verb("Move it there", toolkit.ButtonDefault, s.movePage, s.opened), bareH())
 
 	box.add(s.entryRow("Crop to, in points", "x0,y0,x1,y1", s.tools.box), labelledH())
-	box.add(button("Crop them", toolkit.ButtonDefault, s.crop), bareH())
+	box.add(s.verb("Crop them", toolkit.ButtonDefault, s.crop, s.opened), bareH())
 
 	box.add(s.spinRow("Put a blank page before", 1, s.tools.before), labelledH())
-	box.add(button("Insert it", toolkit.ButtonDefault, s.insertBlank), bareH())
+	box.add(s.verb("Insert it", toolkit.ButtonDefault, s.insertBlank, s.opened), bareH())
 
 	box.add(s.spinRow("Split into files of", 1, s.tools.every), labelledH())
-	box.add(button("Split and hand them over", toolkit.ButtonProminent, s.split), bareH())
+	box.add(s.verb("Split and hand them over", toolkit.ButtonProminent, s.split, s.opened), bareH())
 
 	// Last, and not among the things that take a range: this one asks the
 	// document which pages it means rather than being told.
@@ -308,10 +308,10 @@ func (s *state) pagesGroup() *column {
 func (s *state) sheetGroup() *column {
 	box := newColumn()
 	box.add(s.spinRow("Pages to a sheet", 1, s.tools.up), labelledH())
-	box.add(button("Lay them out", toolkit.ButtonDefault, s.nUp), bareH())
-	box.add(button("Fold it into a booklet", toolkit.ButtonDefault, s.booklet), bareH())
-	box.add(button("Add a file after this one", toolkit.ButtonDefault, s.merge), bareH())
-	box.add(button("Lay a file over this one", toolkit.ButtonDefault, s.overlay), bareH())
+	box.add(s.verb("Lay them out", toolkit.ButtonDefault, s.nUp, s.opened), bareH())
+	box.add(s.verb("Fold it into a booklet", toolkit.ButtonDefault, s.booklet, s.opened), bareH())
+	box.add(s.verb("Add a file after this one", toolkit.ButtonDefault, s.merge, s.opened), bareH())
+	box.add(s.verb("Lay a file over this one", toolkit.ButtonDefault, s.overlay, s.opened), bareH())
 	return box
 }
 
@@ -359,16 +359,53 @@ func (s *state) tickRow(label string, on *mvvm.Observable[bool]) toolkit.Widget 
 // needs telling: the control and the model are already the same value.
 func (s *state) repaint() { s.dirty = true }
 
+// quarterTurns is what each position of the turn control means, in degrees.
+var quarterTurns = []int{90, 180, 270}
+
 // pageCeiling is as high as any of these numbers is allowed to go. It is not a
 // page count: the document changes under the control, and a number that is too
 // large is refused by the operation itself, which is the one place that knows.
 const pageCeiling = 9999
 
-// button is one control of the panel or the strip.
+// button is one control of the panel or the strip, pressable whenever it is
+// on the screen.
 func button(label string, style toolkit.ButtonStyle, on func()) *toolkit.Button {
 	b := toolkit.NewButton(label, on)
 	b.Style = style
 	return b
+}
+
+// verb is a control that may only be pressed when the workbench is in a state
+// that allows it: it carries a command, and the command's rule decides whether
+// the control is pressable at all.
+//
+// ⛔ The rule is not a second copy of the guard inside the handler, and it is
+// not there to make the handler safe -- the handler keeps its own guard, and
+// Command.Execute refuses anyway. It is there to SAY SO BEFOREHAND. A control
+// that looks pressable, is pressed, and answers with a sentence in the status
+// line has told somebody afterwards what it could have shown them before: the
+// arrows grey at the ends of a document, Delete greys on a document of one
+// page, and everything greys when there is nothing open.
+func (s *state) verb(label string, style toolkit.ButtonStyle, on func(), when func() bool) *toolkit.Button {
+	cmd := mvvm.NewCommand(on, when)
+	s.commands = append(s.commands, cmd)
+	b := button(label, style, nil)
+	tkbind.BindButton(cmd, b, s.repaint)
+	return b
+}
+
+// opened is the rule nearly every verb has: there is a document to act on.
+func (s *state) opened() bool { return s.doc != nil }
+
+// reconsider tells every verb to look again at whether it may run.
+//
+// Commands do not watch anything -- CanExecute is a question, asked when
+// something says the answer may have changed -- so this is called from
+// refresh, which is what runs after every change to the document.
+func (s *state) reconsider() {
+	for _, c := range s.commands {
+		c.RaiseCanExecuteChanged()
+	}
 }
 
 // buttons puts controls side by side on one row, sharing the width.

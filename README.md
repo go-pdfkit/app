@@ -129,12 +129,28 @@ once and kept. Nothing could correct a number from outside, so nothing tried
 — dropping pages 3 to 9 left *"Put a blank page before 7"* still offering a
 page that was no longer there.
 
-Two controls are deliberately one-way: the quarter turns and the picture
-formats are cycle buttons whose index is not the datum the model holds (`0, 1,
-2` against `90, 180, 270`), so there is nothing for a two-way binding to keep
-equal. The **form** panel is the remaining gap — its datum lives in the PDF's
-own fields rather than in the panel's state, and binding those is a separate
-piece of work.
+The cycle buttons are bound through a table saying what each **position**
+means, since a quarter turn is `90`, `180` or `270` and the button sits at
+`0`, `1` or `2`. The form panel's fields are bound the same way, and what the
+*file* kept is written back: `SetText` truncates to `MaxLen` and strips
+newlines without saying so, and the box used to go on showing nine characters
+while the document held five.
+
+Nothing is wired to a widget by hand any more. The three `Subscribe` calls
+left are the other boundary — a field's datum being written into the PDF.
+
+## A control says beforehand whether it can be pressed
+
+Every verb is an [`mvvm.Command`](https://pkg.go.dev/github.com/go-widgets/mvvm#Command)
+with a rule, and the rule drives whether the control is pressable at all: the
+arrows grey at the ends of a document, **Delete** greys on a document of one
+page, **Fill in** greys unless there is a form, and everything greys when
+nothing is open.
+
+Each of those rules already existed inside its handler, where it answered
+*afterwards* with a sentence in the status line. The handlers keep their
+guards — they are the contract of the verb, not of the button — so this does
+not make anything safer. It makes the workbench say it first.
 
 ## How it is checked
 

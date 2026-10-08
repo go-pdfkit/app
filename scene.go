@@ -133,6 +133,10 @@ type state struct {
 	// file arrives from the browser long after the press that asked for it,
 	// so there is no event left to repaint on; the harness asks here instead.
 	dirty bool
+
+	// commands is every verb the workbench offers, kept so that a change to
+	// the document can tell all of them to reconsider whether they may run.
+	commands []*mvvm.Command
 }
 
 // newState builds the workbench.
@@ -157,8 +161,16 @@ func newState(w, h int, h2 host) *state {
 // panel that a group opens beside the page.
 func (s *state) strip() *toolkit.HBox {
 	box := toolkit.NewHBox()
-	add := func(label string, style toolkit.ButtonStyle, on func()) {
-		b := button(label, style, on)
+	// when is the rule that decides whether a control may be pressed; nil is
+	// "always", for the ones that are about getting a document rather than
+	// acting on one.
+	add := func(label string, style toolkit.ButtonStyle, on func(), when func() bool) {
+		var b *toolkit.Button
+		if when == nil {
+			b = button(label, style, on)
+		} else {
+			b = s.verb(label, style, on, when)
+		}
 		if m, ok := stripIcons[label]; ok {
 			g := iconoirGlyph(m.name)
 			if m.insteadOfTheWord {
@@ -169,19 +181,23 @@ func (s *state) strip() *toolkit.HBox {
 		}
 		box.AddFixed(b, controlWidth(b))
 	}
-	add("Open", toolkit.ButtonProminent, s.open)
-	add("Save", toolkit.ButtonProminent, s.save)
-	add("<", toolkit.ButtonDefault, func() { s.step(-1) })
-	add(">", toolkit.ButtonDefault, func() { s.step(1) })
-	add("Rotate", toolkit.ButtonDefault, s.rotate)
-	add("Delete", toolkit.ButtonDanger, s.deletePage)
+	add("Open", toolkit.ButtonProminent, s.open, nil)
+	add("Save", toolkit.ButtonProminent, s.save, s.opened)
+	add("<", toolkit.ButtonDefault, func() { s.step(-1) }, func() bool { return s.doc != nil && s.at > 1 })
+	add(">", toolkit.ButtonDefault, func() { s.step(1) }, func() bool { return s.doc != nil && s.at < s.doc.PageCount() })
+	add("Rotate", toolkit.ButtonDefault, s.rotate, s.opened)
+	// A document of one page is not one a page can be dropped from, which the
+	// verb refuses and the control can say first.
+	add("Delete", toolkit.ButtonDanger, s.deletePage, func() bool { return s.doc != nil && s.doc.PageCount() > 1 })
 	// Then one control per group of verbs. What each one opens is a panel
 	// beside the page rather than another handful of buttons, because most of
-	// what is left needs to be told something first.
+	// what is left needs to be told something first. Opening a panel is always
+	// allowed -- the verbs inside it are the ones that need a document, and
+	// each of them says so for itself.
 	for _, name := range groupNames {
-		add(name, toolkit.ButtonDefault, func() { s.showGroup(name) })
+		add(name, toolkit.ButtonDefault, func() { s.showGroup(name) }, nil)
 	}
-	add("Fill in", toolkit.ButtonDefault, s.showForm)
+	add("Fill in", toolkit.ButtonDefault, s.showForm, func() bool { return s.form != nil })
 	return box
 }
 
@@ -397,6 +413,7 @@ func (s *state) fail(msg string) {
 // rebuilt from the document as it now stands, so what is on the screen is
 // always what would come out of Save.
 func (s *state) refresh() {
+	s.reconsider()
 	s.keepPageNumbersInTheDocument()
 	s.renderPage()
 	s.status = toolkit.NewStatusbar(s.statusLine())
