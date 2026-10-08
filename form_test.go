@@ -240,8 +240,8 @@ func TestChoosingFromTheListChoosesInTheField(t *testing.T) {
 	}
 	// A row that is not there changes nothing rather than breaking.
 	before := field.Value
-	s.form.choose(s, field, 9)
-	s.form.choose(s, field, -1)
+	s.form.pickOf(s, field).Set(9)
+	s.form.pickOf(s, field).Set(-1)
 	if field.Value != before {
 		t.Errorf("a row that does not exist changed it to %q", field.Value)
 	}
@@ -249,7 +249,7 @@ func TestChoosingFromTheListChoosesInTheField(t *testing.T) {
 func TestAFieldTheDocumentWillNotAllowToBeChanged(t *testing.T) {
 	s, _ := openedForm(t)
 	locked, _ := s.form.what.Form().Field("serial")
-	s.form.set(s, locked, "something else")
+	s.form.textOf(s, locked).Set("something else")
 	if locked.Value != "A-1756" {
 		t.Errorf("a read-only field was changed to %q", locked.Value)
 	}
@@ -264,7 +264,7 @@ func TestSavingAFilledFormKeepsItAForm(t *testing.T) {
 	// answers appended.
 	s, h := openedForm(t)
 	field, _ := s.form.what.Form().Field("name")
-	s.form.set(s, field, "Mozart")
+	s.form.textOf(s, field).Set("Mozart")
 	s.save()
 	if len(h.saved) == 0 {
 		t.Fatalf("nothing was saved: %q", s.note)
@@ -297,7 +297,7 @@ func TestSavingAFormNobodyFilledInGoesTheUsualWay(t *testing.T) {
 func TestAFormThatCannotBeSaved(t *testing.T) {
 	s, _ := openedForm(t)
 	field, _ := s.form.what.Form().Field("name")
-	s.form.set(s, field, "Mozart")
+	s.form.textOf(s, field).Set("Mozart")
 	// A file the reader had to repair has no cross-reference section worth
 	// pointing back at, which is what the writing refuses.
 	s.form.what = brokenFilling(t)
@@ -434,3 +434,95 @@ func TestThePanelIsBuiltOnce(t *testing.T) {
 // errRefused stands for whatever the verb layer says when it will not open a
 // form.
 var errRefused = errors.New("refused")
+
+// entriesIn collects the text boxes laid out under a widget.
+func entriesIn(w toolkit.Widget) []*toolkit.Entry {
+	var out []*toolkit.Entry
+	var walk func(toolkit.Widget)
+	walk = func(w toolkit.Widget) {
+		if e, ok := w.(*toolkit.Entry); ok {
+			out = append(out, e)
+		}
+		if c, ok := w.(kids); ok {
+			for _, k := range c.Children() {
+				walk(k)
+			}
+		}
+	}
+	walk(w)
+	return out
+}
+
+func TestTheBoxShowsWhatTheFileKeptAndNotWhatWasTyped(t *testing.T) {
+	// ⛔ The document is allowed to keep something other than what was typed,
+	// and to do it quietly: SetText TRUNCATES to MaxLen and strips newlines
+	// without returning an error. With the box wired one way -- Subscribe, box
+	// to document -- it went on showing nine characters while the file held
+	// five, and the only place that knew was the file.
+	//
+	// Read off the WIDGET, because what is on the screen is the whole point.
+	s, _ := openedForm(t)
+	s.showForm()
+	s.draw(buffer())
+
+	field, ok := s.form.what.Form().Field("code")
+	if !ok {
+		t.Fatal("the form has no bounded field to overfill")
+	}
+	if field.MaxLen != 5 {
+		t.Fatalf("the bounded field takes %d characters, so this is not the field it was", field.MaxLen)
+	}
+
+	// Which box belongs to that field: put a mark through the field's own
+	// datum and see which one shows it. Two fields start empty, so matching on
+	// the value alone picks whichever came first.
+	s.form.textOf(s, field).Set("mark")
+	var box *toolkit.Entry
+	for _, e := range entriesIn(s.form.rows) {
+		if e.Text().Get() == "mark" {
+			box = e
+		}
+	}
+	if box == nil {
+		t.Fatal("no box on the panel is bound to that field")
+	}
+
+	box.Text().Set("123456789")
+	if got := field.Value; got != "12345" {
+		t.Errorf("the file holds %q for a field of five characters", got)
+	}
+	if got := box.Text().Get(); got != "12345" {
+		t.Errorf("the box shows %q while the file holds %q — somebody would save a document "+
+			"that does not say what the panel told them it says", got, field.Value)
+	}
+}
+
+func TestAFieldHasOneDatumHoweverOftenItsRowIsBuilt(t *testing.T) {
+	// ⛔ The table is what stops a second subscription being stacked on the
+	// same field. Without it, asking twice gives two Observables writing into
+	// one document, and whichever the control happens to be bound to is the
+	// only one the panel can show — so a value set anywhere else reaches the
+	// file and not the screen.
+	s, _ := openedForm(t)
+	text, _ := s.form.what.Form().Field("name")
+	tick, _ := s.form.what.Form().Field("agree")
+	pick, _ := s.form.what.Form().Field("where")
+
+	if a, b := s.form.textOf(s, text), s.form.textOf(s, text); a != b {
+		t.Error("a text field was given two data to be written through")
+	}
+	if a, b := s.form.tickOf(s, tick), s.form.tickOf(s, tick); a != b {
+		t.Error("a tick field was given two data to be written through")
+	}
+	if a, b := s.form.pickOf(s, pick), s.form.pickOf(s, pick); a != b {
+		t.Error("a choice field was given two data to be written through")
+	}
+
+	// And one change is one change: a field counted twice would say so.
+	s.form.textOf(s, text).Set("Clara")
+	was := s.form.changed
+	s.form.textOf(s, text).Set("Clara Schumann")
+	if s.form.changed != was {
+		t.Errorf("one field read twice is counted as %d changed, was %d", s.form.changed, was)
+	}
+}

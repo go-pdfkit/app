@@ -5,6 +5,8 @@ import (
 
 	"github.com/go-pdfkit/forms"
 	"github.com/go-pdfkit/ops"
+	"github.com/go-widgets/mvvm"
+	"github.com/go-widgets/mvvm/tkbind"
 	"github.com/go-widgets/toolkit"
 )
 
@@ -32,6 +34,75 @@ type filling struct {
 	// changed counts the fields somebody has altered, which is what the
 	// status line says and what decides whether saving means anything.
 	changed int
+
+	// One Observable per field, which the control and the DOCUMENT both speak
+	// through. The control is bound to it two ways; a subscription writes it
+	// into the file and puts back what the file kept.
+	//
+	// ⛔ That last part is a defect being fixed, not a refinement. SetText
+	// TRUNCATES to MaxLen and strips newlines, and says nothing about it; an
+	// uneditable ComboBox refuses a value outright. With the control wired one
+	// way -- Subscribe, box to document -- the box went on showing twelve
+	// characters while the file held eight, and the only place that knew was
+	// the file.
+	text map[*forms.Field]*mvvm.Observable[string]
+	tick map[*forms.Field]*mvvm.Observable[bool]
+	pick map[*forms.Field]*mvvm.Observable[int]
+}
+
+// textOf is the field's value as something the control can be bound to. Made
+// once per field and kept, so that rebuilding a row does not stack another
+// subscription on the same field.
+func (f *filling) textOf(s *state, field *forms.Field) *mvvm.Observable[string] {
+	if v, ok := f.text[field]; ok {
+		return v
+	}
+	v := mvvm.NewObservable(field.Value)
+	v.Subscribe(func(x string) {
+		f.after(s, field.SetText(x))
+		// What the document KEPT. Set is re-entrant by design -- a Set from
+		// inside a notification re-notifies with the newer value until it
+		// settles -- so this lands on the control and stops.
+		v.Set(field.Value)
+	})
+	f.text[field] = v
+	return v
+}
+
+// tickOf is the same for a box that is ticked or not.
+//
+// ⛔ No write-back here, and none in pickOf, though the symmetry is tempting.
+// SetChecked cannot keep anything other than what it is handed on a field a
+// control was built for -- a read-only one is shown as a label and never
+// reaches here -- and Choose is only ever given one of the field's own
+// options. Both write-backs were written, and both SURVIVED the mutation run:
+// no test could tell them from nothing, because there is nothing for them to
+// do. Keeping unreachable symmetry is how a file fills with code that looks
+// like it is protecting something.
+func (f *filling) tickOf(s *state, field *forms.Field) *mvvm.Observable[bool] {
+	if v, ok := f.tick[field]; ok {
+		return v
+	}
+	v := mvvm.NewObservable(field.Checked())
+	v.Subscribe(func(on bool) { f.after(s, field.SetChecked(on)) })
+	f.tick[field] = v
+	return v
+}
+
+// pickOf is the same for a row chosen out of a list.
+func (f *filling) pickOf(s *state, field *forms.Field) *mvvm.Observable[int] {
+	if v, ok := f.pick[field]; ok {
+		return v
+	}
+	v := mvvm.NewObservable(chosenRow(field))
+	v.Subscribe(func(row int) {
+		if row < 0 || row >= len(field.Options) {
+			return
+		}
+		f.after(s, field.Choose(field.Options[row].Value))
+	})
+	f.pick[field] = v
+	return v
 }
 
 // readForm looks for a form in what was just opened. A document without one —
@@ -43,7 +114,12 @@ func (s *state) readForm(data []byte) {
 	if err != nil || !ok {
 		return
 	}
-	s.form = &filling{what: what}
+	s.form = &filling{
+		what: what,
+		text: map[*forms.Field]*mvvm.Observable[string]{},
+		tick: map[*forms.Field]*mvvm.Observable[bool]{},
+		pick: map[*forms.Field]*mvvm.Observable[int]{},
+	}
 }
 
 // openForm is a variable so that a test can watch what happens when a
@@ -101,14 +177,16 @@ func (f *filling) row(s *state, field *forms.Field) toolkit.Widget {
 	}
 	switch field.Kind {
 	case forms.Text:
-		entry := toolkit.NewEntry(field.Value)
+		v := f.textOf(s, field)
+		entry := toolkit.NewEntry(v.Get())
 		entry.Placeholder = placeholderFor(field)
-		entry.Text().Subscribe(func(v string) { f.set(s, field, v) })
+		tkbind.BindEntry(v, entry, s.repaint)
 		return toolkit.NewFormField(label, entry)
 
 	case forms.Checkbox, forms.Radio:
-		box := toolkit.NewCheckButton(buttonLabel(field), field.Checked())
-		box.Checked().Subscribe(func(on bool) { f.tick(s, field, on) })
+		v := f.tickOf(s, field)
+		box := toolkit.NewCheckButton(buttonLabel(field), v.Get())
+		tkbind.BindCheck(v, box, s.repaint)
 		return toolkit.NewFormField(label, box)
 
 	case forms.ComboBox, forms.ListBox:
@@ -119,8 +197,9 @@ func (f *filling) row(s *state, field *forms.Field) toolkit.Widget {
 		if len(options) == 0 {
 			return nil
 		}
-		drop := toolkit.NewDropDown(options, chosenRow(field))
-		drop.Selected().Subscribe(func(i int) { f.choose(s, field, i) })
+		v := f.pickOf(s, field)
+		drop := toolkit.NewDropDown(options, v.Get())
+		tkbind.BindChoice(v, drop, s.repaint)
 		return toolkit.NewFormField(label, drop)
 	}
 	// A push button does nothing here and a signature is not a thing this
@@ -161,22 +240,6 @@ func chosenRow(field *forms.Field) int {
 		}
 	}
 	return 0
-}
-
-// set, tick and choose put a value in a field and say so.
-func (f *filling) set(s *state, field *forms.Field, v string) {
-	f.after(s, field.SetText(v))
-}
-
-func (f *filling) tick(s *state, field *forms.Field, on bool) {
-	f.after(s, field.SetChecked(on))
-}
-
-func (f *filling) choose(s *state, field *forms.Field, row int) {
-	if row < 0 || row >= len(field.Options) {
-		return
-	}
-	f.after(s, field.Choose(field.Options[row].Value))
 }
 
 // after counts what was changed and says what went wrong, if anything.

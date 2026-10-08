@@ -50,6 +50,8 @@ github.com/go-widgets/data v0.3.0 h1:svVFLhjCEIHxgfPS6wQQ6PP8R6m6CvWBBhYHmDZBk4E
 github.com/go-widgets/data v0.3.0/go.mod h1:cd2pxSoCdGX1luy4SlpX+LVsJGMXaqzZfgK85Q4Kr1c=
 github.com/go-widgets/mvvm v0.12.0 h1:1CMFHH04D3xK1QBtXAF9i1xPZDXArYaij2RTmy1fhLM=
 github.com/go-widgets/mvvm v0.12.0/go.mod h1:9DjoZRoUkdBcMd0KeiN6T6zWCjOR1enX1Rmcj96WDFY=
+github.com/go-widgets/mvvm v0.13.0 h1:cfBIsT29StK0gknb4jqiOQhKZNcWf+PUR/jYpuoHmm0=
+github.com/go-widgets/mvvm v0.13.0/go.mod h1:9DjoZRoUkdBcMd0KeiN6T6zWCjOR1enX1Rmcj96WDFY=
 github.com/go-widgets/painter v0.13.0 h1:xBPbopFuYfeDVbQKUKviU6HnP2mAhztJ+BpasahlJLU=
 github.com/go-widgets/painter v0.13.0/go.mod h1:IPRLqdUJuJX8sfuHeYLZCzjoLvA0ApbOlyIAVmguJDQ=
 github.com/go-widgets/toolkit v0.326.0 h1:F7otUDG1p9VaQXpgca9k2fQNSsAjqLjDGU/zAcKDm3Y=

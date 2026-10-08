@@ -22,16 +22,16 @@ import (
 // fileGroup is the panel.
 func (s *state) fileGroup() *column {
 	box := newColumn()
-	box.add(button("Sanitize — drop what runs", toolkit.ButtonDefault, s.sanitize), bareH())
-	box.add(button("Flatten the annotations in", toolkit.ButtonDefault, s.flatten), bareH())
-	box.add(button("Drop every annotation", toolkit.ButtonDanger, s.dropAnnots), bareH())
-	box.add(button("Drop the bookmarks", toolkit.ButtonDanger, s.dropOutlines), bareH())
-	box.add(button("Drop what it says about itself", toolkit.ButtonDanger, s.clearInfo), bareH())
-	box.add(button("Pack it smaller", toolkit.ButtonDefault, s.compress), bareH())
+	box.add(s.verb("Sanitize — drop what runs", toolkit.ButtonDefault, s.sanitize, s.opened), bareH())
+	box.add(s.verb("Flatten the annotations in", toolkit.ButtonDefault, s.flatten, s.opened), bareH())
+	box.add(s.verb("Drop every annotation", toolkit.ButtonDanger, s.dropAnnots, s.opened), bareH())
+	box.add(s.verb("Drop the bookmarks", toolkit.ButtonDanger, s.dropOutlines, s.opened), bareH())
+	box.add(s.verb("Drop what it says about itself", toolkit.ButtonDanger, s.clearInfo, s.opened), bareH())
+	box.add(s.verb("Pack it smaller", toolkit.ButtonDefault, s.compress, s.opened), bareH())
 
 	box.add(s.entryRow("Title", "what the document is called", s.tools.title), labelledH())
 	box.add(s.entryRow("Author", "who wrote it", s.tools.author), labelledH())
-	box.add(button("Say so in the file", toolkit.ButtonDefault, s.setInfo), bareH())
+	box.add(s.verb("Say so in the file", toolkit.ButtonDefault, s.setInfo, s.opened), bareH())
 	return box
 }
 
@@ -139,9 +139,9 @@ func (s *state) protectGroup() *column {
 	for _, a := range allowed {
 		box.add(s.tickRow("May "+a.name, s.tools.allow[a.name]), bareH())
 	}
-	box.add(button("Protect it", toolkit.ButtonProminent, s.encrypt), bareH())
-	box.add(button("Take the protection off", toolkit.ButtonDanger, s.decrypt), bareH())
-	box.add(button("What is it protected with?", toolkit.ButtonDefault, s.protection), bareH())
+	box.add(s.verb("Protect it", toolkit.ButtonProminent, s.encrypt, s.opened), bareH())
+	box.add(s.verb("Take the protection off", toolkit.ButtonDanger, s.decrypt, s.opened), bareH())
+	box.add(s.verb("What is it protected with?", toolkit.ButtonDefault, s.protection, s.opened), bareH())
 	return box
 }
 

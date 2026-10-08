@@ -21,6 +21,7 @@ import (
 	"github.com/go-pdfkit/extract"
 	"github.com/go-pdfkit/reader"
 	"github.com/go-pdfkit/render"
+	"github.com/go-widgets/mvvm/tkbind"
 	"github.com/go-widgets/toolkit"
 )
 
@@ -33,29 +34,27 @@ const (
 // readGroup is the panel.
 func (s *state) readGroup() *column {
 	box := newColumn()
-	box.add(button("What this page says", toolkit.ButtonDefault,
-		func() { s.read(readingText) }), bareH())
-	box.add(button("What this page carries", toolkit.ButtonDefault,
-		func() { s.read(readingImages) }), bareH())
-	box.add(button("Show the page again", toolkit.ButtonDefault,
-		func() { s.read("") }), bareH())
+	box.add(s.verb("What this page says", toolkit.ButtonDefault,
+		func() { s.read(readingText) }, s.opened), bareH())
+	box.add(s.verb("What this page carries", toolkit.ButtonDefault,
+		func() { s.read(readingImages) }, s.opened), bareH())
+	box.add(s.verb("Show the page again", toolkit.ButtonDefault,
+		func() { s.read("") }, s.opened), bareH())
 	// The chooser sits on the same row as the verb it governs, so that what
 	// the file will be is beside the press that makes it rather than three
 	// rows above. It governs the zip below it as well: both of them draw the
 	// page and write it, and two choosers saying different things about the
 	// same picture would be a question nobody asked.
 	formats := toolkit.NewCycleButton(formatNames()...)
-	// One way, like the quarter turns in the Pages panel and for the same
-	// reason: what the control holds is an index into the formats and what
-	// the model holds is which format, and an index is not a format. There is
-	// nothing for a two-way binding to keep equal.
-	formats.Index().Subscribe(func(i int) { s.tools.picture.Set(i) })
-	box.add(buttons(formats, button("Hand over this page", toolkit.ButtonDefault,
-		s.pageAsPicture)), bareH())
-	box.add(button("Hand over every page, zipped", toolkit.ButtonDefault,
-		s.everyPageZipped), bareH())
-	box.add(button("Hand over what this page says", toolkit.ButtonDefault,
-		s.textAsFile), bareH())
+	// The format is held as the position itself, so this is the plain
+	// index-to-index binding rather than the mapping one.
+	tkbind.BindCycle(s.tools.picture, formats, s.repaint)
+	box.add(buttons(formats, s.verb("Hand over this page", toolkit.ButtonDefault,
+		s.pageAsPicture, s.opened)), bareH())
+	box.add(s.verb("Hand over every page, zipped", toolkit.ButtonDefault,
+		s.everyPageZipped, s.opened), bareH())
+	box.add(s.verb("Hand over what this page says", toolkit.ButtonDefault,
+		s.textAsFile, s.opened), bareH())
 	box.add(toolkit.NewLabel("None of these changes the document."), bareH())
 	return box
 }
@@ -124,6 +123,13 @@ func (s *state) imagesView(src *reader.Document) toolkit.Widget {
 		name := fmt.Sprintf("page%03d-%02d%s", s.at, i+1, pictureSuffix(im))
 		data := im.Data
 		row := toolkit.NewSettingRow(name,
+			// ⛔ A plain button, not a verb. This view is rebuilt on every
+			// refresh, and a verb appends a command to the state that is
+			// never taken off again -- a list that grows for as long as
+			// somebody keeps reading pages. The panels are built once and
+			// kept, which is what makes a command there safe. And there is
+			// nothing for a rule to say: a reading only exists when a
+			// document does.
 			button("Hand it over", toolkit.ButtonDefault, func() { s.handOver(name, data) }))
 		row.Subtitle = fmt.Sprintf("%d by %d, %s, %d bytes, drawn %.0f by %.0f points at %.0f, %.0f",
 			im.Width, im.Height, holds(im), len(im.Data),

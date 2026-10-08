@@ -126,5 +126,5 @@ func rangeOf(pages []int) string {
 
 // blankButton is the control, put with the other things that remove pages.
 func blankButton(s *state) toolkit.Widget {
-	return button("Drop the blank pages", toolkit.ButtonDanger, s.dropBlank)
+	return s.verb("Drop the blank pages", toolkit.ButtonDanger, s.dropBlank, s.opened)
 }
