@@ -3,35 +3,35 @@ module github.com/go-pdfkit/app
 go 1.27.2
 
 require (
-	github.com/go-gfx/gfx v0.36.0
+	github.com/go-gfx/gfx v0.36.1
 	github.com/go-opentype/fonts v0.14.0
 	github.com/go-pdfkit/extract v0.9.0
-	github.com/go-pdfkit/forms v0.5.0
-	github.com/go-pdfkit/ops v0.21.0
+	github.com/go-pdfkit/forms v0.6.0
+	github.com/go-pdfkit/ops v0.22.0
 	github.com/go-pdfkit/reader v0.9.0
-	github.com/go-pdfkit/render v0.68.0
+	github.com/go-pdfkit/render v0.69.0
 	github.com/go-widgets/mvvm v0.15.0
 	github.com/go-widgets/painter v0.16.0
-	github.com/go-widgets/toolkit v0.329.0
+	github.com/go-widgets/toolkit v0.340.0
 	github.com/go-widgets/webcanvas v0.4.1
 )
 
 require (
 	github.com/andybalholm/brotli v1.2.6 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
-	github.com/go-crdt/collab v0.77.1 // indirect
+	github.com/go-crdt/collab v0.77.4 // indirect
 	github.com/go-crdt/crdt v0.57.0 // indirect
 	github.com/go-icons/iconoir v0.3.0 // indirect
 	github.com/go-images/gif v0.2.0 // indirect
 	github.com/go-images/images v0.1.0 // indirect
 	github.com/go-images/jpeg v0.3.0 // indirect
-	github.com/go-images/jpeg2000 v0.13.7 // indirect
+	github.com/go-images/jpeg2000 v0.13.8 // indirect
 	github.com/go-images/png v0.2.0 // indirect
 	github.com/go-opentype/opentype v0.16.0 // indirect
 	github.com/go-opentype/shape v0.7.0 // indirect
 	github.com/go-pdfkit/pdffont v0.4.0 // indirect
 	github.com/go-pdfkit/xfa v0.22.0 // indirect
-	github.com/go-richdoc/richdoc v0.6.0 // indirect
+	github.com/go-richdoc/richdoc v0.7.0 // indirect
 	github.com/go-simd/highway v0.0.14 // indirect
 	github.com/go-typeset/bidi v0.3.1 // indirect
 	github.com/go-widgets/data v0.3.0 // indirect
