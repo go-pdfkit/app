@@ -22,24 +22,82 @@ import (
 // row landed in the gap between two controls. Eleven tests failed on an
 // off-by-a-font.
 
+// ⛔ Every row of every panel is now a SETTING. The verbs moved to the ribbon,
+// so these tables hold what the verbs are told and nothing else -- which is why
+// they are mostly labelled rows: a setting has a caption, a button had none.
+
 func pagesRows() []int {
-	return []int{labelledH(), bareH(), bareH(), bareH(), labelledH(), bareH(),
-		labelledH(), bareH(), labelledH(), bareH(), labelledH(), bareH()}
+	return []int{labelledH(), labelledH(), labelledH(), labelledH(), labelledH(), labelledH()}
 }
 
 func sheetRows() []int {
-	return []int{labelledH(), bareH(), bareH(), bareH(), bareH()}
+	return []int{labelledH()}
 }
 
 // openGroup shows a group and lays it out, which is what gives its controls
 // the bounds a press is tested against.
+//
+// It chooses the group's TAB, because that is the only way a panel opens now:
+// there is no switch left to turn one on with, so a test that set the field
+// directly would be testing an arrangement the workbench cannot reach.
 func openGroup(t *testing.T, s *state, name string) {
 	t.Helper()
-	s.showGroup(name)
+	s.ribbon.ActiveTab().Set(tabIndexOf(t, name))
 	s.draw(buffer())
 	if s.tools.open != name {
 		t.Fatalf("the %s group did not open", name)
 	}
+}
+
+// tabIndexOf is where a group's tab is on the ribbon.
+func tabIndexOf(t *testing.T, name string) int {
+	t.Helper()
+	for i, tab := range ribbonTabs {
+		if tab.label == name {
+			return i
+		}
+	}
+	t.Fatalf("no tab is named %q", name)
+	return 0
+}
+
+// pressVerb presses the ribbon control that runs the verb, on the tab that
+// holds it.
+//
+// ⛔ PRESSED WHERE IT IS DRAWN, like every other control in this suite, and
+// not by calling the handler: the point of the test is that the thing on the
+// screen is wired to the thing it claims to be. ControlRect is the ribbon's own
+// answer to where a control ended up, so the press follows the layout instead
+// of a second copy of it.
+func pressVerb(t *testing.T, s *state, id string) {
+	t.Helper()
+	v, ok := verbs[id]
+	if !ok {
+		t.Fatalf("there is no verb %q", id)
+	}
+	s.ribbon.ActiveTab().Set(tabHolding(t, id))
+	s.draw(buffer())
+	r, shown := s.ribbon.ControlRect(v.label)
+	if !shown {
+		t.Fatalf("%q is not shown on the ribbon", v.label)
+	}
+	press(s, r.X+r.W/2, r.Y+r.H/2)
+}
+
+// tabHolding is the tab a verb is on.
+func tabHolding(t *testing.T, id string) int {
+	t.Helper()
+	for i, tab := range ribbonTabs {
+		for _, g := range tab.groups {
+			for _, have := range g.ids {
+				if have == id {
+					return i
+				}
+			}
+		}
+	}
+	t.Fatalf("the verb %q is on no tab", id)
+	return 0
 }
 
 // rowAt is a point inside the nth row of the panel now open, across is where
@@ -176,30 +234,122 @@ func press(s *state, x, y int) {
 	s.draw(buffer())
 }
 
-func TestTheStripOpensAndClosesEachGroup(t *testing.T) {
+func TestEachTabOpensItsOwnPanelAndHomePutsItAway(t *testing.T) {
 	s, _ := opened(t, 3)
 	s.draw(buffer())
-	// Every group is reachable by pressing its name on the strip, and
-	// pressing it again puts it away.
-	for _, name := range groupNames {
-		var at int
-		for x := margin; x < surfaceW-margin; x += 2 {
-			s.handleClick(x, margin+toolbarH()/2)
-			if s.tools.open == name {
-				at = x
-				break
-			}
+	// Every group is reachable by pressing its tab where the ribbon drew it,
+	// and Home puts the panel away again.
+	for i, name := range groupNames {
+		r, ok := s.ribbon.TabRect(i + 1)
+		if !ok {
+			t.Fatalf("the ribbon has no tab %d, for %q", i+1, name)
 		}
-		if at == 0 {
-			t.Fatalf("no press on the strip opened %q", name)
+		press(s, r.X+r.W/2, r.Y+r.H/2)
+		if s.tools.open != name {
+			t.Fatalf("pressing the %q tab opened %q", name, s.tools.open)
 		}
-		s.draw(buffer())
 		if s.pageW() >= s.viewW() {
 			t.Error("the page kept the whole width with a panel beside it")
 		}
-		s.handleClick(at, margin+toolbarH()/2)
+		home, _ := s.ribbon.TabRect(0)
+		press(s, home.X+home.W/2, home.Y+home.H/2)
 		if s.tools.open != "" {
-			t.Errorf("pressing %q again left it open", name)
+			t.Errorf("going back to Home left the %q panel open", name)
+		}
+	}
+}
+
+// TestAMinimisedRibbonStillRunsItsVerbs covers the one piece of the ribbon
+// that a container cannot route a press to.
+//
+// ⛔ A minimised ribbon's body is drawn OVER the page, outside the ribbon's
+// own rectangle, so a press in it is a press the page would otherwise take:
+// without PopoverClick ahead of everything else, the verb does nothing and the
+// page under it turns instead. That is the failure this is here for.
+func TestAMinimisedRibbonStillRunsItsVerbs(t *testing.T) {
+	s, _ := opened(t, 3)
+	s.draw(buffer())
+	full := s.toolbarH()
+	page := s.viewH()
+
+	s.ribbon.Collapsed().Set(true)
+	s.refresh()
+	s.draw(buffer())
+	if s.toolbarH() >= full {
+		t.Errorf("a minimised ribbon is %d tall and a whole one %d", s.toolbarH(), full)
+	}
+	if s.viewH() <= page {
+		t.Error("minimising the ribbon did not give the room back to the page")
+	}
+
+	// Pressing a tab makes its body peek over the page.
+	tab, ok := s.ribbon.TabRect(0)
+	if !ok {
+		t.Fatal("a minimised ribbon has no tabs left to press")
+	}
+	press(s, tab.X+tab.W/2, tab.Y+tab.H/2)
+	r, shown := s.ribbon.ControlRect(verbs["rotate"].label)
+	if !shown {
+		t.Fatal("pressing a minimised ribbon's tab did not bring its body back")
+	}
+	if r.Y+r.H <= s.toolbarH() {
+		t.Error("the peeking body is inside the band, so it is not over the page at all")
+	}
+	press(s, r.X+r.W/2, r.Y+r.H/2)
+	if got, _ := s.doc.Rotation(1); got != 90 {
+		t.Errorf("the page is turned %d degrees, so the press reached no verb", got)
+	}
+	if s.at != 1 {
+		t.Errorf("the press fell through to the page, which turned to %d", s.at)
+	}
+}
+
+// TestTheTabsAfterHomeAreTheGroups is what lets tabGroup index groupNames.
+func TestTheTabsAfterHomeAreTheGroups(t *testing.T) {
+	if ribbonTabs[0].label != tabHome {
+		t.Fatalf("the first tab is %q, not the document's own", ribbonTabs[0].label)
+	}
+	if len(ribbonTabs) != len(groupNames)+1 {
+		t.Fatalf("%d tabs for %d groups and Home", len(ribbonTabs), len(groupNames))
+	}
+	for i, name := range groupNames {
+		if ribbonTabs[i+1].label != name {
+			t.Errorf("tab %d is %q but group %d is %q", i+1, ribbonTabs[i+1].label, i, name)
+		}
+		if got := tabGroup(i + 1); got != name {
+			t.Errorf("tab %d opens the %q panel, not %q", i+1, got, name)
+		}
+	}
+	// Home, and anything past the end, open nothing.
+	for _, i := range []int{-1, 0, len(ribbonTabs)} {
+		if got := tabGroup(i); got != "" {
+			t.Errorf("tab %d opens the %q panel", i, got)
+		}
+	}
+}
+
+// TestEveryVerbIsOnTheRibbonExactlyOnce is the control over the two tables:
+// one says what the verbs are, the other where they go, and nothing keeps them
+// in step but this.
+func TestEveryVerbIsOnTheRibbonExactlyOnce(t *testing.T) {
+	seen := map[string]int{}
+	for _, tab := range ribbonTabs {
+		for _, g := range tab.groups {
+			for _, id := range g.ids {
+				if _, ok := verbs[id]; !ok {
+					t.Errorf("the %s tab names %q, which is no verb", tab.label, id)
+				}
+				seen[id]++
+			}
+		}
+	}
+	for id := range verbs {
+		switch seen[id] {
+		case 1:
+		case 0:
+			t.Errorf("the verb %q is on no tab, so nothing can run it", id)
+		default:
+			t.Errorf("the verb %q is on the ribbon %d times", id, seen[id])
 		}
 	}
 }
@@ -232,15 +382,14 @@ func TestEveryControlInThePagesPanelIsWiredToItsVerb(t *testing.T) {
 	}
 	s.tools.spec.Set("2-3")
 
-	// Turning: the left half of that row cycles how far, the right half does
-	// it. One press of the cycle takes a quarter turn to a half.
-	x, y = rowAt(t, s, pagesRows(), 2, 0)
+	// Turning: the panel says how far, the ribbon does it. One press of the
+	// cycle takes a quarter turn to a half.
+	x, y = rowAt(t, s, pagesRows(), 1, 1)
 	press(s, x, y)
 	if s.tools.turn.Get() != 180 {
 		t.Fatalf("the turn is %d degrees", s.tools.turn.Get())
 	}
-	x, y = rowAt(t, s, pagesRows(), 2, 1)
-	press(s, x, y)
+	pressVerb(t, s, "turn")
 	if got, _ := s.doc.Rotation(2); got != 180 {
 		t.Errorf("page two is turned %d degrees", got)
 	}
@@ -249,15 +398,13 @@ func TestEveryControlInThePagesPanelIsWiredToItsVerb(t *testing.T) {
 	}
 
 	// Reversing, which needs no telling.
-	x, y = rowAt(t, s, pagesRows(), 3, 1)
-	press(s, x, y)
+	pressVerb(t, s, "reverse")
 	if got, _ := s.doc.Rotation(5); got != 180 {
 		t.Error("the order was not reversed: the turned page did not move")
 	}
 
 	// Keeping only the pages the box names.
-	x, y = rowAt(t, s, pagesRows(), 1, 0)
-	press(s, x, y)
+	pressVerb(t, s, "keep")
 	if s.doc.PageCount() != 2 {
 		t.Errorf("keeping 2-3 left %d pages", s.doc.PageCount())
 	}
@@ -267,8 +414,7 @@ func TestEveryControlInThePagesPanelIsWiredToItsVerb(t *testing.T) {
 
 	// And dropping them.
 	s.tools.spec.Set("1")
-	x, y = rowAt(t, s, pagesRows(), 1, 1)
-	press(s, x, y)
+	pressVerb(t, s, "drop")
 	if s.doc.PageCount() != 1 {
 		t.Errorf("deleting page one left %d pages", s.doc.PageCount())
 	}
@@ -278,15 +424,14 @@ func TestMovingCroppingBlankingAndSplittingFromThePanel(t *testing.T) {
 	s, h := opened(t, 4)
 	openGroup(t, s, groupPages)
 
-	// A number is pressed up before the verb beside it is pressed.
-	x, y := plusAt(t, s, pagesRows(), 4)
+	// A number is pressed up in the panel before the verb on the ribbon runs.
+	x, y := plusAt(t, s, pagesRows(), 2)
 	press(s, x, y)
 	if s.tools.moveTo.Get() != 2 {
 		t.Fatalf("the spin button says %d", s.tools.moveTo.Get())
 	}
 	s.at = 1
-	x, y = rowAt(t, s, pagesRows(), 5, 1)
-	press(s, x, y)
+	pressVerb(t, s, "move")
 	if s.at != 2 {
 		t.Errorf("the view did not follow the page it moved, and shows %d", s.at)
 	}
@@ -296,7 +441,7 @@ func TestMovingCroppingBlankingAndSplittingFromThePanel(t *testing.T) {
 
 	// Cropping: what is typed is a box, and what is drawn afterwards is the
 	// page as it would be saved.
-	x, y = rowAt(t, s, pagesRows(), 6, 1)
+	x, y = rowAt(t, s, pagesRows(), 3, 1)
 	press(s, x, y)
 	for _, c := range strings.Split("0,0,150,200", "") {
 		if !s.handleChar(c) {
@@ -307,21 +452,19 @@ func TestMovingCroppingBlankingAndSplittingFromThePanel(t *testing.T) {
 		t.Fatalf("the crop box holds %q", s.tools.box.Get())
 	}
 	before := s.fitScale(s.src)
-	x, y = rowAt(t, s, pagesRows(), 7, 1)
-	press(s, x, y)
+	pressVerb(t, s, "crop")
 	if s.fitScale(s.src) <= before {
 		t.Error("cropping the page did not change how it is drawn")
 	}
 
 	// A blank page goes in where the number says.
 	was := s.doc.PageCount()
-	x, y = plusAt(t, s, pagesRows(), 8)
+	x, y = plusAt(t, s, pagesRows(), 4)
 	press(s, x, y)
 	if s.tools.before.Get() != 2 {
 		t.Fatalf("the blank page is to go before %d", s.tools.before.Get())
 	}
-	x, y = rowAt(t, s, pagesRows(), 9, 1)
-	press(s, x, y)
+	pressVerb(t, s, "insert")
 	if s.doc.PageCount() != was+1 {
 		t.Errorf("%d pages after inserting a blank one", s.doc.PageCount())
 	}
@@ -329,13 +472,12 @@ func TestMovingCroppingBlankingAndSplittingFromThePanel(t *testing.T) {
 	// Splitting hands over one file per piece and changes nothing. Two pages
 	// to a piece, pressed up from one.
 	pages := s.doc.PageCount()
-	x, y = plusAt(t, s, pagesRows(), 10)
+	x, y = plusAt(t, s, pagesRows(), 5)
 	press(s, x, y)
 	if s.tools.every.Get() != 2 {
 		t.Fatalf("a piece is to hold %d pages", s.tools.every.Get())
 	}
-	x, y = rowAt(t, s, pagesRows(), 11, 1)
-	press(s, x, y)
+	pressVerb(t, s, "split")
 	if s.doc.PageCount() != pages {
 		t.Error("splitting changed the document it was asked about")
 	}
@@ -366,8 +508,7 @@ func TestTheSheetPanel(t *testing.T) {
 		t.Fatalf("the number says %d to a sheet", s.tools.up.Get())
 	}
 	s.tools.up.Set(2)
-	x, y = rowAt(t, s, sheetRows(), 1, 1)
-	press(s, x, y)
+	pressVerb(t, s, "nup")
 	if s.doc.PageCount() != 2 || s.at != 1 {
 		t.Errorf("%d sheets, showing %d", s.doc.PageCount(), s.at)
 	}
@@ -375,8 +516,7 @@ func TestTheSheetPanel(t *testing.T) {
 	// A booklet reorders the sheets rather than adding any.
 	s2, _ := opened(t, 4)
 	openGroup(t, s2, groupSheet)
-	x, y = rowAt(t, s2, sheetRows(), 2, 1)
-	press(s2, x, y)
+	pressVerb(t, s2, "booklet")
 	if s2.doc.PageCount() != 2 {
 		t.Errorf("a booklet of four pages came to %d sheets", s2.doc.PageCount())
 	}
@@ -387,8 +527,7 @@ func TestAddingAndOverlayingAnotherFile(t *testing.T) {
 	openGroup(t, s, groupSheet)
 	h.file = samplePDF(t, 3)
 
-	x, y := rowAt(t, s, sheetRows(), 3, 1)
-	press(s, x, y)
+	pressVerb(t, s, "merge")
 	if s.doc.PageCount() != 5 {
 		t.Errorf("adding a three page file to a two page one gave %d", s.doc.PageCount())
 	}
@@ -396,8 +535,7 @@ func TestAddingAndOverlayingAnotherFile(t *testing.T) {
 		t.Errorf("the status line says %q", s.note)
 	}
 
-	x, y = rowAt(t, s, sheetRows(), 4, 1)
-	press(s, x, y)
+	pressVerb(t, s, "overlay")
 	if s.doc.PageCount() != 5 {
 		t.Errorf("laying a file over this one changed the page count to %d", s.doc.PageCount())
 	}
@@ -407,13 +545,13 @@ func TestAddingAndOverlayingAnotherFile(t *testing.T) {
 
 	// A second file that is not a PDF is said so, and changes nothing.
 	h.file = []byte("this is not a PDF")
-	press(s, x, y)
+	pressVerb(t, s, "overlay")
 	if !strings.Contains(s.note, "cannot open") {
 		t.Errorf("the status line says %q", s.note)
 	}
 	// And one the person did not choose leaves the document alone.
 	h.file = nil
-	press(s, x, y)
+	pressVerb(t, s, "overlay")
 	if s.doc.PageCount() != 5 {
 		t.Errorf("changing one's mind about a second file gave %d pages", s.doc.PageCount())
 	}
@@ -431,7 +569,7 @@ func TestOnlyTheBoxLastPressedTakesWhatIsTyped(t *testing.T) {
 	for _, c := range []string{"1", "-", "2"} {
 		s.handleChar(c)
 	}
-	x, y = rowAt(t, s, pagesRows(), 6, 1)
+	x, y = rowAt(t, s, pagesRows(), 3, 1)
 	press(s, x, y)
 	for _, c := range []string{"0", ",", "0", ",", "9", ",", "9"} {
 		s.handleChar(c)
@@ -443,7 +581,7 @@ func TestOnlyTheBoxLastPressedTakesWhatIsTyped(t *testing.T) {
 		t.Errorf("the crop box holds %q", s.tools.box.Get())
 	}
 	// And a press that lands on neither leaves both of them alone.
-	press(s, margin+2, viewTop()+s.viewH()-2)
+	press(s, margin+2, s.viewTop()+s.viewH()-2)
 	if s.editing() {
 		t.Error("a press on nothing left a box with the caret")
 	}
@@ -459,7 +597,7 @@ func TestAPanelPutAwayLetsGoOfTheKeys(t *testing.T) {
 	}
 	// Putting the panel away, or opening the form panel instead, takes the
 	// caret out of a box nobody can see any more.
-	s.showGroup(groupPages)
+	s.ribbon.ActiveTab().Set(0)
 	if s.editing() {
 		t.Error("a box nobody can see still has the caret")
 	}
@@ -483,7 +621,7 @@ func TestTheFormPanelClosesAnyGroup(t *testing.T) {
 		t.Errorf("group %q open, form %v", s.tools.open, s.showingForm)
 	}
 	// And opening a group puts the form away again.
-	s.showGroup(groupSheet)
+	openGroup(t, s, groupSheet)
 	if s.showingForm {
 		t.Error("the form stayed up beside a group of verbs")
 	}

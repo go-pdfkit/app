@@ -79,15 +79,34 @@ func TestEverySheetGetsANumberedMinipageAndTheOneYouAreOnIsMarked(t *testing.T) 
 }
 
 func TestPressingAMinipageGoesToThatSheet(t *testing.T) {
+	// ⛔ The LAST minipage the rail actually shows, found rather than counted.
+	// This used to press the fourth of five, which worked only because the band
+	// under the old strip happened to be tall enough for four tiles; a ribbon is
+	// taller than a row of buttons, so the fourth fell below the fold and the
+	// press landed on nothing — which is the scroll view doing its job, not a
+	// broken minipage. What the test is for is that a press on a tile goes to
+	// that tile's page, so it presses one that is there.
 	s, _ := opened(t, 5)
 	got := tiles(t, s)
-	r := got[3].Bounds()
-	if r.W == 0 || r.H == 0 {
-		t.Fatal("the minipages have no bounds, so none of them can be pressed")
+	rail := s.railView.Bounds()
+	last := -1
+	for i, th := range got {
+		r := th.Bounds()
+		if r.W == 0 || r.H == 0 {
+			t.Fatal("the minipages have no bounds, so none of them can be pressed")
+		}
+		if r.Y >= rail.Y && r.Y+r.H <= rail.Y+rail.H {
+			last = i
+		}
 	}
+	if last < 1 {
+		t.Fatalf("the rail shows %d whole minipages of %d, which is too few to press one that is not the page already on the screen",
+			last+1, len(got))
+	}
+	r := got[last].Bounds()
 	press(s, r.X+r.W/2, r.Y+r.H/2)
-	if s.at != 4 {
-		t.Errorf("pressing the fourth minipage left page %d on the screen", s.at)
+	if s.at != last+1 {
+		t.Errorf("pressing minipage %d left page %d on the screen", last+1, s.at)
 	}
 }
 

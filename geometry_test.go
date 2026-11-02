@@ -62,14 +62,18 @@ func TestTheBandsFollowTheFace(t *testing.T) {
 	was := toolkit.CurrentFont()
 	t.Cleanup(func() { toolkit.SetFont(was) })
 
-	small := map[string]int{"toolbar": toolbarH(), "status": statusH(), "bare row": bareH(), "labelled row": labelledH()}
+	// The ribbon's own height follows the face too, and it works that out from
+	// its metrics rather than from a constant here -- so it is asked, like the
+	// rest, rather than recomputed.
+	s := newState(surfaceW, surfaceH, &fakeHost{})
+	small := map[string]int{"ribbon": s.toolbarH(), "status": statusH(), "bare row": bareH(), "labelled row": labelledH()}
 
 	big, err := toolkit.NewTrueTypeFont(uiFace, uiFontPx*2)
 	if err != nil {
 		t.Fatalf("a face at twice the size: %v", err)
 	}
 	toolkit.SetFont(big)
-	grew := map[string]int{"toolbar": toolbarH(), "status": statusH(), "bare row": bareH(), "labelled row": labelledH()}
+	grew := map[string]int{"ribbon": s.toolbarH(), "status": statusH(), "bare row": bareH(), "labelled row": labelledH()}
 
 	for band, before := range small {
 		after := grew[band]

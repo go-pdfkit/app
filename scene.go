@@ -41,10 +41,10 @@ const (
 )
 
 // minSurfaceH is the smallest height the three bands still fit in. It follows
-// the installed face, because two of those bands are sized by their text.
-func minSurfaceH() int { return viewTop() + statusH() + margin + 1 }
+// the installed face, because every one of those bands is sized by its text.
+func (s *state) minSurfaceH() int { return s.viewTop() + statusH() + margin + 1 }
 
-// Geometry of the three bands: a toolbar, the page, a status line.
+// Geometry of the three bands: the ribbon, the page, a status line.
 //
 // ⛔ The band heights are FUNCTIONS, not constants, and that is the point of
 // this block. Every band holds text, so every band's height is the text it
@@ -54,17 +54,14 @@ func minSurfaceH() int { return viewTop() + statusH() + margin + 1 }
 // face made the glyph taller and the bands did not follow: labels clipped, and
 // the tests that press at literal offsets pressed past their target.
 //
-// The chrome figures are the padding a line of type wants around it, not the
-// padding a 5x7 bitmap happened to be given: the old numbers were 23 and 15
-// around a 7-pixel glyph, which with a 16-pixel one made every band taller
-// than the room it had. TestNoPanelOverflowsTheRoomItIsGiven is the control --
-// it measures the laid-out panels against their own box, so it fails for any
-// face that does not fit rather than for a number that changed.
+// The chrome figure is the padding a line of type wants around it, not the
+// padding a 5x7 bitmap happened to be given. TestNoPanelOverflowsTheRoomItIsGiven
+// is the control -- it measures the laid-out panels against their own box, so
+// it fails for any face that does not fit rather than for a number that changed.
 const (
 	margin = 8
 
-	toolbarChrome = 16 // padding around a toolbar button's label
-	statusChrome  = 10 // padding around the status line's text
+	statusChrome = 10 // padding around the status line's text
 	// ⛔ viewW and viewH are NOT constants any more: they were
 	// surfaceW/surfaceH minus the bands, computed once at compile time, which
 	// is what kept the workbench at its design size however big the window
@@ -74,9 +71,20 @@ const (
 // textH is the height of one line of text in the face currently installed.
 func textH() int { return toolkit.CurrentFont().Height() }
 
-func toolbarH() int { return textH() + toolbarChrome }
-func statusH() int  { return textH() + statusChrome }
-func viewTop() int  { return margin + toolbarH() + margin }
+func statusH() int { return textH() + statusChrome }
+
+// toolbarH is the ribbon's own height, which it works out from its metrics:
+// the tab strip alone when it is collapsed, else the tabs, the body and the
+// group labels. It is ASKED OF THE RIBBON rather than computed here, for the
+// same reason a control's width is asked of the control -- a second copy of a
+// layout the widget already knows is a copy that can disagree with what is
+// painted.
+func (s *state) toolbarH() int { return s.ribbon.Height() }
+
+// viewTop is where the page band begins. The ribbon is flush with the top and
+// the sides, as a ribbon is: it is the window's own command surface, not a
+// widget floating in it.
+func (s *state) viewTop() int { return s.toolbarH() + margin }
 
 // A state is the whole workbench.
 type state struct {
@@ -84,8 +92,13 @@ type state struct {
 	theme *toolkit.Theme
 	host  host
 
-	toolbar *toolkit.HBox
-	status  *toolkit.Statusbar
+	ribbon *toolkit.Ribbon
+	// acts is one Action per verb, by id: what the ribbon's controls run and
+	// what reconsider greys. rules is each one's answer to whether it may run
+	// at all, kept beside it rather than read back out of the verbs table.
+	acts   map[string]*toolkit.Action
+	rules  map[string]func(*state) bool
+	status *toolkit.Statusbar
 	// view is the band under the strip: the page, or the form, with the tool
 	// panel beside it when a group of verbs is open — so it is a widget of
 	// whatever kind that arrangement needs rather than always a frame.
@@ -133,10 +146,6 @@ type state struct {
 	// file arrives from the browser long after the press that asked for it,
 	// so there is no event left to repaint on; the harness asks here instead.
 	dirty bool
-
-	// commands is every verb the workbench offers, kept so that a change to
-	// the document can tell all of them to reconsider whether they may run.
-	commands []*mvvm.Command
 }
 
 // newState builds the workbench.
@@ -145,116 +154,15 @@ func newState(w, h int, h2 host) *state {
 	s.empty = toolkit.NewLabel("Open a PDF to begin — nothing leaves this tab.")
 	s.view = toolkit.NewFrame(s.empty)
 	s.status = toolkit.NewStatusbar([]string{"no document", "", ""})
-	s.toolbar = s.strip()
+	s.ribbon = s.buildRibbon()
+	// The panel follows the tab, through the ribbon's own Observable rather
+	// than through a copy of the index kept here: the tab and the panel are one
+	// datum seen twice, and a Subscribe is the direction a plain field does not
+	// have.
+	s.ribbon.ActiveTab().Subscribe(s.followTab)
 	s.refresh()
 	return s
 }
-
-// strip is every control at the top, in the order they appear. They are
-// buttons rather than a Toolbar because a Toolbar is a strip of square icon
-// cells that shows only a label's first letter, and these controls are named
-// by their words: "Pages" and "Sheet" would both be reduced to an S.
-//
-// What is on it is what needs no telling: opening, saving, turning to another
-// page, turning the one on the screen over, dropping it. Everything else has
-// to be told which pages, or how many, or what to write, and lives in the
-// panel that a group opens beside the page.
-func (s *state) strip() *toolkit.HBox {
-	box := toolkit.NewHBox()
-	// when is the rule that decides whether a control may be pressed; nil is
-	// "always", for the ones that are about getting a document rather than
-	// acting on one.
-	add := func(label string, style toolkit.ButtonStyle, on func(), when func() bool) {
-		var b *toolkit.Button
-		if when == nil {
-			b = button(label, style, on)
-		} else {
-			b = s.verb(label, style, on, when)
-		}
-		if m, ok := stripIcons[label]; ok {
-			g := iconoirGlyph(m.name)
-			if m.insteadOfTheWord {
-				b.Icon = g
-			} else {
-				b.LeadingIcon().Set(g)
-			}
-		}
-		box.AddFixed(b, controlWidth(b))
-	}
-	add("Open", toolkit.ButtonProminent, s.open, nil)
-	add("Save", toolkit.ButtonProminent, s.save, s.opened)
-	add("<", toolkit.ButtonDefault, func() { s.step(-1) }, func() bool { return s.doc != nil && s.at > 1 })
-	add(">", toolkit.ButtonDefault, func() { s.step(1) }, func() bool { return s.doc != nil && s.at < s.doc.PageCount() })
-	add("Rotate", toolkit.ButtonDefault, s.rotate, s.opened)
-	// A document of one page is not one a page can be dropped from, which the
-	// verb refuses and the control can say first.
-	add("Delete", toolkit.ButtonDanger, s.deletePage, func() bool { return s.doc != nil && s.doc.PageCount() > 1 })
-	// Then one control per group of verbs. What each one opens is a panel
-	// beside the page rather than another handful of buttons, because most of
-	// what is left needs to be told something first. Opening a panel is always
-	// allowed -- the verbs inside it are the ones that need a document, and
-	// each of them says so for itself.
-	for _, name := range groupNames {
-		add(name, toolkit.ButtonDefault, func() { s.showGroup(name) }, nil)
-	}
-	add("Fill in", toolkit.ButtonDefault, s.showForm, func() bool { return s.form != nil })
-	return box
-}
-
-// stripIcons is the mark each control on the strip carries.
-//
-// ⛔ Through the toolkit, from a pack, never drawn here. toolkit.DrawIconoir
-// rasterises one of the 1 383 SVGs that go-icons/iconoir embeds, recoloured to
-// the ink the button is using and cached per icon and size. A glyph outlined
-// by hand in this file would be a per-app duplicate of a layer that exists to
-// be shared, and at the fourteen pixels a dense toolbar gives it, a hand-drawn
-// outline reads as a square.
-//
-// insteadOfTheWord is for the two controls whose caption IS a mark: an arrow
-// beside a "<" is the same thing said twice, and it costs the width of both.
-var stripIcons = map[string]struct {
-	name             string
-	insteadOfTheWord bool
-}{
-	"Open":    {name: "folder"},
-	"Save":    {name: "download"}, // what saving does here: the tab hands the file back
-	"<":       {name: "nav-arrow-left", insteadOfTheWord: true},
-	">":       {name: "nav-arrow-right", insteadOfTheWord: true},
-	"Rotate":  {name: "crop-rotate-tr"}, // a page-shaped frame being turned
-	"Delete":  {name: "trash"},
-	"Pages":   {name: "multiple-pages"},
-	"Sheet":   {name: "view-grid"}, // several pages laid out on one
-	"Marks":   {name: "edit-pencil"},
-	"File":    {name: "page"},
-	"Protect": {name: "lock"},
-	"Read":    {name: "text-magnifying-glass"},
-	"Fill in": {name: "input-field"},
-}
-
-// iconoirGlyph draws one icon from the pack at whatever box it is given.
-func iconoirGlyph(name string) toolkit.IconFunc {
-	return func(p painter.Painter, r toolkit.Rect, ink toolkit.RGBA) {
-		toolkit.DrawIconoir(p, r, name, ink)
-	}
-}
-
-// controlWidth is what a control needs to show what it holds.
-//
-// ⛔ ASKED OF THE CONTROL. This used to be `TextWidth(label) + 2*padding`,
-// computed here -- a second copy of a layout the button already knows, and one
-// that counted no glyph at all. PreferredWidth measures the caption, the
-// leading mark and the paddings with the same numbers Draw lays them out with,
-// so the strip cannot disagree with what is painted on it.
-func controlWidth(b *toolkit.Button) int {
-	if w := b.PreferredWidth(); w > minButtonW {
-		return w
-	}
-	return minButtonW
-}
-
-// minButtonW is the floor, so a control named by one character is still
-// something to press.
-const minButtonW = 28
 
 // open asks for a file and takes it as the document.
 func (s *state) open() {
@@ -604,7 +512,7 @@ func (s *state) show(w toolkit.Widget) {
 	// arrive before the next frame does: the view is built afresh by every
 	// change, and a widget nobody has given bounds to is under no point at
 	// all, so the press after a change would land on nothing.
-	s.view.SetBounds(painter.Rect{X: margin, Y: viewTop(), W: s.viewW(), H: s.viewH()})
+	s.view.SetBounds(painter.Rect{X: margin, Y: s.viewTop(), W: s.viewW(), H: s.viewH()})
 }
 
 // arrange is the view band's contents: the page, and the tool panel beside it
@@ -635,7 +543,7 @@ func (s *state) arrange(w toolkit.Widget) toolkit.Widget {
 // viewW and viewH are the band under the strip, in the surface's own pixels.
 // They follow s.w and s.h so the workbench fills whatever it is given.
 func (s *state) viewW() int { return s.w - 2*margin }
-func (s *state) viewH() int { return s.h - viewTop() - statusH() - margin }
+func (s *state) viewH() int { return s.h - s.viewTop() - statusH() - margin }
 
 // resize lays the workbench out on a new surface. The size arrives in DEVICE
 // pixels -- the caller has already multiplied by the screen's pixel ratio --
@@ -647,7 +555,7 @@ func (s *state) viewH() int { return s.h - viewTop() - statusH() - margin }
 // negative: a window dragged to nothing should leave the last good layout
 // standing, not a frame of arithmetic errors.
 func (s *state) resize(w, h int) bool {
-	if w < minSurfaceW || h < minSurfaceH() {
+	if w < minSurfaceW || h < s.minSurfaceH() {
 		return false
 	}
 	if w == s.w && h == s.h {
@@ -738,14 +646,29 @@ func mustResolve(src *reader.Document, o reader.Object) reader.Object {
 func (s *state) draw(buf []byte) {
 	fillBG(buf, s.theme.Background)
 	p := painter.NewPixelPainter(buf, s.w, s.h)
-	s.toolbar.SetBounds(painter.Rect{X: margin, Y: margin, W: s.w - 2*margin, H: toolbarH()})
-	s.toolbar.Draw(p, s.theme)
+	s.layOutRibbon()
+	s.ribbon.Draw(p, s.theme)
 	s.status.SetBounds(painter.Rect{X: 0, Y: s.h - statusH(), W: s.w, H: statusH()})
 	s.status.Draw(p, s.theme)
-	// The view last, because a list opened near the foot of the panel is drawn
-	// over whatever is below it — and below it is the status line.
-	s.view.SetBounds(painter.Rect{X: margin, Y: viewTop(), W: s.viewW(), H: s.viewH()})
+	// The view before the ribbon's pop-overs, because a list opened near the
+	// foot of the panel is drawn over whatever is below it — and below it is
+	// the status line.
+	s.view.SetBounds(painter.Rect{X: margin, Y: s.viewTop(), W: s.viewW(), H: s.viewH()})
 	s.view.Draw(p, s.theme)
+	// ⛔ LAST, AND OUTSIDE THE RIBBON'S OWN RECTANGLE. A folded group's pop-up,
+	// a tooltip and the keytips are drawn over everything else, so they belong
+	// after the page. The view is wrapped in a PopoverHost of its own, but the
+	// ribbon is not under it: a host without one has to call this itself, and
+	// without the call the group that folded into a button opens onto nothing.
+	s.ribbon.DrawPopover(p, s.theme)
+}
+
+// layOutRibbon puts the ribbon across the top. Flush with the edges: it is the
+// window's command surface rather than a widget floating in the margin, and its
+// own bounds at the origin are what make a surface point and a ribbon point the
+// same number.
+func (s *state) layOutRibbon() {
+	s.ribbon.SetBounds(painter.Rect{X: 0, Y: 0, W: s.w, H: s.toolbarH()})
 }
 
 // pointer sends a press, a move or a release to the strip and to the view.
@@ -755,8 +678,19 @@ func (s *state) draw(buf []byte) {
 // than controls — and because a widget that is not under the point ignores
 // what it is handed anyway.
 func (s *state) pointer(kind toolkit.EventKind, x, y int) bool {
-	view := s.view // a control may put another view in its place
+	// The ribbon is laid out here as well as in draw, because a press can
+	// arrive before the first frame does and a widget with no bounds is under
+	// no point at all.
+	s.layOutRibbon()
 	if kind == toolkit.EventClick {
+		// ⛔ THE RIBBON'S POP-OVERS ARE OFFERED THE PRESS FIRST. What a folded
+		// group opened is drawn outside the ribbon's own rectangle and over
+		// the page, so a press in it is a press the page would otherwise take:
+		// the option would do nothing and the page under it would turn.
+		if s.ribbon.PopoverClick(x, y) {
+			s.dirty = true
+			return true
+		}
 		// Nothing under the pointer takes the caret away from the box that
 		// has it. The toolkit moves focus on a click by walking the container
 		// for its focusable descendants, and that walk cannot see into a
@@ -766,7 +700,8 @@ func (s *state) pointer(kind toolkit.EventKind, x, y int) bool {
 		// this press lands in.
 		s.settle()
 	}
-	hit(s.toolbar, kind, x, y)
+	view := s.view // a control may put another view in its place
+	hit(s.ribbon, kind, x, y)
 	hit(view, kind, x, y)
 	return true
 }

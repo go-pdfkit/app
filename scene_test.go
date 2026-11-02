@@ -332,25 +332,30 @@ func TestTheNameADocumentIsSavedUnder(t *testing.T) {
 }
 
 func TestEveryControlIsReachableByClicking(t *testing.T) {
-	// The workbench is driven by pressing the strip at the top; a press
-	// somewhere along it has to reach a control rather than fall through.
+	// The workbench is driven by pressing the ribbon at the top; a press on a
+	// control has to reach it rather than fall through to the page.
 	s, _ := opened(t, 3)
 	buf := buffer()
-	s.draw(buf) // lays the toolbar out, which is what gives it bounds
+	s.draw(buf) // lays the ribbon out, which is what gives it bounds
 	reached := 0
-	for x := margin; x < surfaceW-margin; x += 4 {
+	for _, id := range ribbonTabs[0].groups[1].ids { // the Page group of Home
 		before := s.doc.PageCount()
 		at := s.at
-		s.handleClick(x, margin+toolbarH()/2)
+		r, ok := s.ribbon.ControlRect(verbs[id].label)
+		if !ok {
+			t.Fatalf("%q is not shown on the Home tab", id)
+		}
+		s.handleClick(r.X+r.W/2, r.Y+r.H/2)
+		s.draw(buf)
 		if s.doc.PageCount() != before || s.at != at || s.note != "" {
 			reached++
 		}
 		s.note = ""
 	}
 	if reached == 0 {
-		t.Error("no press anywhere along the strip reached a control")
+		t.Error("no press on a ribbon control reached a verb")
 	}
-	// A press well below the strip reaches nothing, and does not break.
+	// A press well below the ribbon reaches nothing, and does not break.
 	s.handleClick(surfaceW/2, surfaceH-30)
 	if !s.handleMove(10, 10) || !s.handleRelease(10, 10) {
 		t.Error("a move or a release was not taken")
@@ -576,57 +581,51 @@ func TestAPageBoxWithSomethingThatIsNotANumberInIt(t *testing.T) {
 	}
 }
 
-func TestAControlIsWideEnoughForWhatItHolds(t *testing.T) {
-	// A control is as wide as the whole of its name and its mark, with a floor
-	// so that a one-character one is still something to press.
-	long := controlWidth(button("Watermark", toolkit.ButtonDefault, nil))
-	short := controlWidth(button("<", toolkit.ButtonDefault, nil))
-	if long <= short {
-		t.Errorf("Watermark is %d wide and < is %d", long, short)
-	}
-	if got := controlWidth(button("", toolkit.ButtonDefault, nil)); got != minButtonW {
-		t.Errorf("a nameless control is %d wide, want the floor of %d", got, minButtonW)
-	}
-	if long < toolkit.TextWidth("Watermark") {
-		t.Errorf("Watermark does not fit in %d", long)
-	}
-	// A mark makes a control wider, because it is drawn beside the name rather
-	// than over it.
-	plain := button("Pages", toolkit.ButtonDefault, nil)
-	marked := button("Pages", toolkit.ButtonDefault, nil)
-	marked.LeadingIcon().Set(iconoirGlyph(stripIcons["Pages"].name))
-	if controlWidth(marked) <= controlWidth(plain) {
-		t.Errorf("a control with a mark is %d wide and one without is %d, so the mark has nowhere to go",
-			controlWidth(marked), controlWidth(plain))
-	}
-}
-
-func TestTheWholeStripFitsAcrossTheSurface(t *testing.T) {
-	// ⛔ Measured on the STRIP THE WORKBENCH BUILDS, not on a list of labels
+func TestEveryVerbOnEveryTabIsReachable(t *testing.T) {
+	// ⛔ Measured on the RIBBON THE WORKBENCH BUILDS, not on a list of labels
 	// written out here. The list this replaced held "Two up", "Watermark" and
-	// "Sanitize" -- three controls that are not on the strip and have not been
-	// for some time -- while the six that are went unmeasured. A copy of the
-	// toolbar kept in the test is a copy that drifts, and it drifts silently,
-	// because it goes on passing.
+	// "Sanitize" -- three controls that were not on the strip and had not been
+	// for some time -- while the six that were went unmeasured. A copy of the
+	// command surface kept in the test is a copy that drifts, and it drifts
+	// silently, because it goes on passing.
+	//
+	// A ribbon answers a surface too narrow for a tab by shrinking its groups
+	// and finally folding one into a button that opens it, so "it fits" is
+	// true by construction. What is worth asserting is that every verb is
+	// still REACHABLE -- shown as itself, or inside a group that is shown --
+	// and that nothing is laid out past the edges it was given.
 	s, _ := opened(t, 2)
-	s.draw(buffer())
-	kids := s.toolbar.Children()
-	if len(kids) < 10 {
-		t.Fatalf("the strip has %d controls, which is too few to be the strip", len(kids))
-	}
-	total, gaps := 0, s.toolbar.Spacing*(len(kids)-1)
-	var names []string
-	for _, k := range kids {
-		b, ok := k.(*toolkit.Button)
-		if !ok {
-			t.Fatalf("something on the strip is a %T, not a control", k)
+	for i, tab := range ribbonTabs {
+		s.ribbon.ActiveTab().Set(i)
+		s.draw(buffer())
+		band := s.ribbon.Bounds()
+		for _, g := range tab.groups {
+			folded := false
+			if _, ok := s.ribbon.ControlRect(g.label); ok {
+				// The whole group folded into one button that opens it, which
+				// is the ribbon's own answer to a surface too narrow.
+				folded = true
+			}
+			for _, id := range g.ids {
+				label := verbs[id].label
+				r, shown := s.ribbon.ControlRect(label)
+				if !shown {
+					if !folded {
+						t.Errorf("%q is neither shown on the %s tab nor folded into its %q group",
+							label, tab.label, g.label)
+					}
+					continue
+				}
+				if r.X < band.X || r.X+r.W > band.X+band.W {
+					t.Errorf("%q is laid out from %d to %d, and the ribbon is %d wide",
+						label, r.X, r.X+r.W, band.W)
+				}
+				if r.Y < band.Y || r.Y+r.H > band.Y+band.H {
+					t.Errorf("%q is laid out from %d to %d, and the ribbon is %d tall",
+						label, r.Y, r.Y+r.H, band.H)
+				}
+			}
 		}
-		total += controlWidth(b)
-		names = append(names, b.Label().Get())
-	}
-	if room := surfaceW - 2*margin; total+gaps > room {
-		t.Errorf("the strip is %d wide with %d of gaps and the surface gives it %d, so %d controls do not all fit: %v",
-			total, gaps, room, len(kids), names)
 	}
 }
 
@@ -686,11 +685,15 @@ func TestAPageThatRanOutOfTimeWithNothingDrawnSaysSo(t *testing.T) {
 	}
 }
 
-func TestEveryMarkOnTheStripIsOneThePackHas(t *testing.T) {
+func TestEveryMarkOnTheRibbonIsOneThePackHas(t *testing.T) {
 	// ⛔ A name the pack does not have draws NOTHING. DrawIconoir has no way to
 	// complain -- it is handed a box and an ink and asked to paint -- so a
 	// typo is a control that quietly loses its mark and keeps its label, which
 	// looks like a design decision. The pack lists what it holds; this asks.
+	//
+	// It matters more on a ribbon than it did on a strip: the large form of a
+	// control is an icon ABOVE its text, so a verb whose mark is missing is a
+	// verb with a hole where a third of it should be.
 	have := map[string]bool{}
 	for _, n := range toolkit.IconoirNames() {
 		have[n] = true
@@ -698,22 +701,34 @@ func TestEveryMarkOnTheStripIsOneThePackHas(t *testing.T) {
 	if len(have) < 100 {
 		t.Fatalf("the pack lists %d icons, which is too few to be the pack", len(have))
 	}
-	for label, m := range stripIcons {
-		if !have[m.name] {
-			t.Errorf("the %q control asks for %q, which the pack does not have", label, m.name)
-		}
-	}
-	// And every control on the strip has one, because a strip where some
-	// controls are marked and some are not reads as the unmarked ones being
-	// different in kind.
-	s, _ := opened(t, 2)
-	for _, k := range s.toolbar.Children() {
-		b, ok := k.(*toolkit.Button)
-		if !ok {
+	for id, v := range verbs {
+		if v.icon == "" {
+			t.Errorf("the verb %q carries no mark", id)
 			continue
 		}
-		if _, ok := stripIcons[b.Label().Get()]; !ok {
-			t.Errorf("the %q control carries no mark", b.Label().Get())
+		if !have[v.icon] {
+			t.Errorf("the verb %q asks for %q, which the pack does not have", id, v.icon)
+		}
+	}
+	// And every group leads with one large control: the group's primary
+	// command, which is what makes a ribbon readable at a glance rather than a
+	// wall of equal buttons.
+	for _, tab := range ribbonTabs {
+		for _, g := range tab.groups {
+			large := 0
+			for _, id := range g.ids {
+				if verbs[id].large {
+					large++
+				}
+			}
+			if large != 1 {
+				t.Errorf("the %q group of the %s tab has %d large controls, want exactly one",
+					g.label, tab.label, large)
+			}
+			if !verbs[g.ids[0]].large {
+				t.Errorf("the %q group of the %s tab does not lead with its large control",
+					g.label, tab.label)
+			}
 		}
 	}
 }
