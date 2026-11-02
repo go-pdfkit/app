@@ -48,7 +48,11 @@ func (s *state) controls() []spot {
 	for id, a := range s.acts {
 		r, ok := s.ribbon.ControlRect(a.Label)
 		if !ok {
-			continue // on another tab, or folded into a group's pop-up
+			// Not on the tab being shown — or on no tab at all, which is where
+			// the quick access bar's own commands live.
+			if r, ok = s.ribbon.QuickRect(a.Label); !ok {
+				continue
+			}
 		}
 		out = append(out, spot{Label: id, X: r.X, Y: r.Y, W: r.W, H: r.H, On: a.IsEnabled()})
 	}

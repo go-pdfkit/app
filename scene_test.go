@@ -338,7 +338,7 @@ func TestEveryControlIsReachableByClicking(t *testing.T) {
 	buf := buffer()
 	s.draw(buf) // lays the ribbon out, which is what gives it bounds
 	reached := 0
-	for _, id := range ribbonTabs[0].groups[1].ids { // the Page group of Home
+	for _, id := range ribbonTabs[0].groups[0].ids { // the Page group of Home
 		before := s.doc.PageCount()
 		at := s.at
 		r, ok := s.ribbon.ControlRect(verbs[id].label)

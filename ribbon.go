@@ -69,7 +69,6 @@ var ribbonTabs = []struct {
 	groups []verbGroup
 }{
 	{tabHome, []verbGroup{
-		{"File", []string{"open", "save"}},
 		{"Page", []string{"rotate", "previous", "next", "delete"}},
 		{"Form", []string{"fill"}},
 	}},
@@ -108,6 +107,18 @@ type verbGroup struct {
 	label string
 	ids   []string
 }
+
+// quickIDs are the verbs on the quick access bar: the two that are wanted
+// whatever tab is open.
+//
+// ⛔ AND THEY ARE ON NO TAB. A ribbon puts each command on one tab, so Open
+// and Save on the Home tab meant leaving whatever tab was being worked in to
+// save — the browser check had to walk back to Home for it, which is the
+// clearest possible statement that a reader would have to as well. They live
+// on the bar instead, which the toolkit keeps across every tab and across a
+// collapsed ribbon; the reference allows exactly this, a command that is on
+// the bar and "not available elsewhere in the ribbon UI".
+var quickIDs = []string{"open", "save"}
 
 // verbs is every command, by id. The ids are what ribbonTabs names.
 var verbs = map[string]verb{
@@ -365,7 +376,16 @@ func (s *state) buildRibbon() *toolkit.Ribbon {
 		}
 		tabs = append(tabs, tab)
 	}
-	return toolkit.NewRibbon(tabs...)
+	r := toolkit.NewRibbon(tabs...)
+	for _, id := range quickIDs {
+		v := verbs[id]
+		r.Quick = append(r.Quick, &toolkit.RibbonControl{
+			Kind:   toolkit.RibbonButton,
+			Action: s.action(id, v),
+			Tip:    v.tip,
+		})
+	}
+	return r
 }
 
 // action builds one verb's Action, bound to this workbench.
