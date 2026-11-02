@@ -34,17 +34,27 @@ on somebody's first visit is the one they keep, and five releases in a row
 reached nobody who had been here before. `browsercheck` changes a file under
 the browser, reloads, and fails if the tab is still served the old one.
 
-## What is on the strip, and what is beside the page
+## What is on the ribbon, and what is beside the page
 
-**Open** · **Save** · **&lt;** · **&gt;** · **Rotate** · **Delete**, and then
-one control per group of verbs: **Pages** · **Sheet** · **Marks** · **File** ·
-**Protect** · **Read**, with **Fill in** at the end for a document that carries
-a form. The arrow keys turn pages too.
+Seven tabs: **Home** · **Pages** · **Sheet** · **Marks** · **File** ·
+**Protect** · **Read**. Home carries the document itself — **Open**, **Save**,
+**Rotate**, **Previous**, **Next**, **Delete**, and **Fill in** for a document
+that carries a form. The arrow keys turn pages too.
 
-A strip cannot hold the rest. The verbs the library offers mostly have to be
-told something first — which pages, how many to a sheet, what to write, which
-password — and there is nowhere on a row of buttons to say it. So a group opens
-a panel **beside** the page rather than instead of it:
+**The ribbon carries the verbs; the panel carries what they are told.** That
+one sentence decides where every control goes. *Turn them* is a verb and sits
+on the ribbon; *a quarter / a half / three quarters* is what it is told and
+sits in the panel beside the page. A tab **is** a panel: choosing **Marks**
+opens the Marks settings beside the page, because a group of verbs and the
+settings those verbs read are the same subject seen twice.
+
+This replaced a strip of thirteen buttons, six of which were not verbs at all
+but switches that opened a panel of verbs — so the twenty-five things the
+library does were two presses away and named nowhere a reader could see them.
+The panels were a caption, a box and a button under it, which is why each was a
+scrolling column that ran off its own bottom edge.
+
+What each tab commands, and what its panel holds:
 
 - **Pages** — which pages to keep or drop, turn them a quarter, a half or
   three quarters, reverse the order, move the one on the screen, crop to a
@@ -99,12 +109,15 @@ which is most of what the rail is for. Pages are drawn nearest-first within a
 budget per frame, so a long document fills its rail in rather than holding up
 the page it belongs to.
 
-Each control on the strip carries a mark from
+Every verb carries a mark from
 [go-icons/iconoir](https://github.com/go-icons/iconoir), rasterised and
-recoloured by the toolkit rather than outlined here — and the two arrows wear
-theirs *instead* of a caption, since an arrow beside a `<` is the same thing
-said twice. How wide a control is comes from the control: `PreferredWidth`
-measures the caption, the mark and the paddings with the numbers `Draw` uses.
+recoloured by the toolkit rather than outlined here. A test asks the pack
+whether it has each of them, because `DrawIconoir` answers a name it does not
+know by painting **nothing at all** — on a ribbon, whose large form is an icon
+above its text, a missing mark is a hole where a third of the control should
+be. It caught two the first time it ran. Each group leads with exactly one
+large control, its primary command, which is what makes a ribbon readable at a
+glance rather than a wall of equal buttons.
 
 Text is set in [IBM Plex Sans](https://github.com/go-opentype/fonts) through
 the toolkit's TrueType path. It replaced Inter because a reader said the
@@ -141,11 +154,13 @@ left are the other boundary — a field's datum being written into the PDF.
 
 ## A control says beforehand whether it can be pressed
 
-Every verb is an [`mvvm.Command`](https://pkg.go.dev/github.com/go-widgets/mvvm#Command)
-with a rule, and the rule drives whether the control is pressable at all: the
-arrows grey at the ends of a document, **Delete** greys on a document of one
-page, **Fill in** greys unless there is a form, and everything greys when
-nothing is open.
+Every verb is one [`toolkit.Action`](https://pkg.go.dev/github.com/go-widgets/toolkit#Action)
+— the toolkit's single source of truth for a command — with a rule, and the
+rule drives whether the control may be used at all: the arrows grey at the ends
+of a document, **Delete** greys on a document of one page, **Fill in** greys
+unless there is a form, and everything greys when nothing is open. One Action
+per verb means a verb that cannot run greys on every surface showing it at
+once.
 
 Each of those rules already existed inside its handler, where it answered
 *afterwards* with a sentence in the status line. The handlers keep their
@@ -156,10 +171,11 @@ not make anything safer. It makes the workbench say it first.
 
 The workbench is a plain Go type with no build tag, so a native test drives
 the whole of it against a byte buffer: open a document built in the test,
-press a control at a pixel on the strip, and look at what got drawn. Every
-control is reached by pressing along the strip rather than by calling its
-handler, which is what says the thing on the screen is wired to the thing
-it says it is.
+press a control where the ribbon drew it, and look at what got drawn. Every
+control is reached by pressing it rather than by calling its handler, which is
+what says the thing on the screen is wired to the thing it says it is —
+`Ribbon.ControlRect` is the ribbon's own answer to where a control ended up, so
+the press follows the layout instead of a second copy of it.
 
 **100% of statements**, including every branch that reports a document
 that cannot be written, read back or drawn — none of which should ever
@@ -167,13 +183,23 @@ happen, which is exactly why they are worth being able to see.
 
 Then in a real browser, over the DevTools protocol with nothing eyeballed:
 Chrome loads the shell, the wasm starts, the file picker is intercepted and
-handed a PDF, and the canvas pixels are read back to prove the page arrived
-— which is how it was found that a file arriving from the browser needs a
-frame of its own, having no event to be drawn on. The same check then presses
-along the strip until a panel opens beside the page, presses down that panel
-until one of its verbs changes what is drawn, saves, and parses what came back
-to find the mark in it: a panel that is painted and gets no events looks
-exactly like one that works.
+handed a PDF, and the pixels where the page is drawn are read back to prove it
+arrived — which is how it was found that a file arriving from the browser needs
+a frame of its own, having no event to be drawn on. The check then chooses the
+**Marks** tab, watches its panel of settings appear, presses the watermark verb
+on the ribbon, goes back to **Home** where the file commands are, saves, and
+parses what came back to find the mark in it: a tab that is painted and gets no
+events looks exactly like one that works.
+
+**A canvas has no DOM**, so the workbench says where its controls are:
+`window.pdfkitControls()` publishes the ribbon's own answer — every tab, every
+verb the tab now shows, whether each may be used, and where the page and the
+panel are. The check used to sweep the strip from `x=0` to `x=1000` and call
+whichever press opened a file picker *Open*, which could never say which verb
+it had run and is out of reach entirely for controls on several rows of several
+tabs. It presses by name now, and refuses to press a greyed one: pressing one
+and waiting for the document to change waits out the whole timeout and reports
+a working verb as broken.
 
 ## Building
 
