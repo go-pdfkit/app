@@ -13,7 +13,26 @@ import (
 	"github.com/go-widgets/webcanvas"
 )
 
-func main() { webcanvas.Run("screen", newWorkbench(browser{}, pixelRatio())) }
+func main() {
+	a := newWorkbench(browser{}, pixelRatio())
+	publishControls(a.s)
+	webcanvas.Run("screen", a)
+}
+
+// publishControls puts the workbench's own answer to "where is the control
+// called X" on the page, as window.pdfkitControls().
+//
+// ⛔ It is the seam a canvas does not otherwise have. Everything the workbench
+// draws goes into one framebuffer, so a harness driving it has nothing to find
+// by name and can only press at coordinates it guessed -- which is what the
+// browser check in this repo did, and why it could never say which verb it had
+// run. Reading it from the ribbon's own layout is the only answer that cannot
+// drift from what is painted.
+func publishControls(s *state) {
+	js.Global().Set("pdfkitControls", js.FuncOf(func(js.Value, []js.Value) any {
+		return s.controlsJSON()
+	}))
+}
 
 // pixelRatio is how many device pixels the screen puts in a CSS pixel. A
 // browser that does not say is taken as one.

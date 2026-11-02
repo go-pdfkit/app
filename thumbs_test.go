@@ -79,15 +79,34 @@ func TestEverySheetGetsANumberedMinipageAndTheOneYouAreOnIsMarked(t *testing.T) 
 }
 
 func TestPressingAMinipageGoesToThatSheet(t *testing.T) {
+	// ⛔ The LAST minipage the rail actually shows, found rather than counted.
+	// This used to press the fourth of five, which worked only because the band
+	// under the old strip happened to be tall enough for four tiles; a ribbon is
+	// taller than a row of buttons, so the fourth fell below the fold and the
+	// press landed on nothing — which is the scroll view doing its job, not a
+	// broken minipage. What the test is for is that a press on a tile goes to
+	// that tile's page, so it presses one that is there.
 	s, _ := opened(t, 5)
 	got := tiles(t, s)
-	r := got[3].Bounds()
-	if r.W == 0 || r.H == 0 {
-		t.Fatal("the minipages have no bounds, so none of them can be pressed")
+	rail := s.railView.Bounds()
+	last := -1
+	for i, th := range got {
+		r := th.Bounds()
+		if r.W == 0 || r.H == 0 {
+			t.Fatal("the minipages have no bounds, so none of them can be pressed")
+		}
+		if r.Y >= rail.Y && r.Y+r.H <= rail.Y+rail.H {
+			last = i
+		}
 	}
+	if last < 1 {
+		t.Fatalf("the rail shows %d whole minipages of %d, which is too few to press one that is not the page already on the screen",
+			last+1, len(got))
+	}
+	r := got[last].Bounds()
 	press(s, r.X+r.W/2, r.Y+r.H/2)
-	if s.at != 4 {
-		t.Errorf("pressing the fourth minipage left page %d on the screen", s.at)
+	if s.at != last+1 {
+		t.Errorf("pressing minipage %d left page %d on the screen", last+1, s.at)
 	}
 }
 
@@ -183,7 +202,7 @@ func TestTheMinipagesTheBudgetStopsAreDrawnOnTheNextFrame(t *testing.T) {
 	// dirty -- until there is nothing left, when it stops asking.
 	for i := 0; i < 20 && s.railMore; i++ {
 		s.takeDirty()
-		if !s.tick() {
+		if !s.tick(frame) {
 			t.Fatalf("the rail still has %d minipages to draw and asked for no repaint", 6-len(s.thumbs.pix))
 		}
 	}
@@ -194,8 +213,43 @@ func TestTheMinipagesTheBudgetStopsAreDrawnOnTheNextFrame(t *testing.T) {
 		t.Errorf("%d minipages were drawn for a document of 6 pages", n)
 	}
 	s.takeDirty()
-	if s.tick() {
+	if s.tick(frame) {
 		t.Error("the rail asked for another repaint with everything drawn")
+	}
+}
+
+// frame is how long a frame lasts at sixty to the second, which is what the
+// harness hands the tick.
+const frame = 1.0 / 60
+
+// TestTheRibbonsClockRunsWhileThePointerIsOnIt is the control over the hover:
+// a control lights up under the pointer and a tooltip appears after a delay,
+// and both need the band repainted for anybody to see them.
+func TestTheRibbonsClockRunsWhileThePointerIsOnIt(t *testing.T) {
+	s, _ := opened(t, 2)
+	s.draw(buffer())
+
+	// With the pointer over the page, a frame that changes nothing asks for
+	// nothing: this canvas is still between events most of the time.
+	s.handleMove(surfaceW/2, s.viewTop()+40)
+	s.takeDirty()
+	if s.tick(frame) {
+		t.Error("a frame with the pointer on the page asked for a repaint")
+	}
+
+	// On the band, every frame repaints, because the ribbon is drawing a
+	// highlight and counting out a tooltip.
+	s.handleMove(surfaceW/2, s.toolbarH()/2)
+	s.takeDirty()
+	if !s.tick(frame) {
+		t.Error("a frame with the pointer on the ribbon asked for no repaint, " +
+			"so nothing under it ever lights up")
+	}
+	// And moving off it stops again.
+	s.handleMove(surfaceW/2, s.viewTop()+40)
+	s.takeDirty()
+	if s.tick(frame) {
+		t.Error("the band went on repainting after the pointer left it")
 	}
 }
 

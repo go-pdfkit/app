@@ -136,8 +136,15 @@ func (s *state) showForm() {
 	}
 	s.showingForm = !s.showingForm
 	// The form takes the whole view: a document with a hundred fields in it
-	// has no room to spare for a panel of verbs beside them, and every one of
-	// those verbs would destroy the form anyway.
+	// has no room to spare for a panel of settings beside them, and every verb
+	// those settings feed would destroy the form anyway.
+	//
+	// ⛔ PUT AWAY THROUGH THE RIBBON, not by emptying the field. The tab and
+	// the panel are one datum seen twice; emptying the field alone left the
+	// ribbon showing a tab whose panel was not there, and pressing that tab
+	// again changed nothing -- an Observable does not notify a Set to the value
+	// it already holds -- so the panel could not be brought back at all.
+	s.ribbon.ActiveTab().Set(0)
 	s.tools.open = ""
 	s.settle()
 	s.refresh()

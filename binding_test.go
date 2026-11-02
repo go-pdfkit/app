@@ -153,100 +153,88 @@ func TestATickAndAListAlsoFollowTheirDatum(t *testing.T) {
 	}
 }
 
-// named finds a control on the strip by what it says.
-func named(s *state, label string) *toolkit.Button {
-	for _, k := range s.toolbar.Children() {
-		if b, ok := k.(*toolkit.Button); ok && b.Label().Get() == label {
-			return b
-		}
+// greyed reports whether the ribbon shows a verb as one that cannot be run.
+//
+// ⛔ Read off the Action, which is what every surface showing that verb reads
+// too -- the ribbon control, and anything else it is ever put on. It used to be
+// read off the Button, which was the only surface there was.
+func greyed(t *testing.T, s *state, id string) bool {
+	t.Helper()
+	a, ok := s.acts[id]
+	if !ok {
+		t.Fatalf("there is no verb %q on the ribbon", id)
 	}
-	return nil
+	return !a.IsEnabled()
 }
 
 func TestAVerbSaysBeforehandWhetherItCanRun(t *testing.T) {
-	// ⛔ Read off Disabled, which is what a person sees. Every one of these
+	// ⛔ Read off Enabled, which is what a person sees. Every one of these
 	// rules already exists inside its handler, where it answers AFTERWARDS
 	// with a sentence in the status line: press Delete on a document of one
-	// page and it tells you it will not. The command says it first, and that
+	// page and it tells you it will not. The Action says it first, and that
 	// is the whole of what this buys.
 	s := newState(surfaceW, surfaceH, &fakeHost{})
 	s.refresh()
-	for _, label := range []string{"Save", "<", ">", "Rotate", "Delete", "Fill in"} {
-		b := named(s, label)
-		if b == nil {
-			t.Fatalf("there is no %q on the strip", label)
-		}
-		if !b.Disabled().Get() {
-			t.Errorf("%q is pressable with no document open", label)
+	for _, id := range []string{"save", "previous", "next", "rotate", "delete", "fill"} {
+		if !greyed(t, s, id) {
+			t.Errorf("%q is pressable with no document open", id)
 		}
 	}
 	// Getting a document is not something a document is needed for.
-	for _, label := range []string{"Open", "Pages", "Marks"} {
-		if b := named(s, label); b != nil && b.Disabled().Get() {
-			t.Errorf("%q cannot be pressed, though it needs no document", label)
-		}
+	if greyed(t, s, "open") {
+		t.Error("Open cannot be pressed, though it needs no document")
 	}
 
 	// A document arrives, and the verbs follow without anybody telling them.
 	s2, _ := opened(t, 3)
-	for _, label := range []string{"Save", "Rotate", "Delete", ">"} {
-		if named(s2, label).Disabled().Get() {
-			t.Errorf("%q is still greyed with a three page document open", label)
+	for _, id := range []string{"save", "rotate", "delete", "next"} {
+		if greyed(t, s2, id) {
+			t.Errorf("%q is still greyed with a three page document open", id)
 		}
 	}
-	if !named(s2, "<").Disabled().Get() {
+	if !greyed(t, s2, "previous") {
 		t.Error("the back arrow is pressable on the first page")
 	}
 	s2.goTo(3)
-	if !named(s2, ">").Disabled().Get() {
+	if !greyed(t, s2, "next") {
 		t.Error("the forward arrow is pressable on the last page")
 	}
-	if named(s2, "<").Disabled().Get() {
+	if greyed(t, s2, "previous") {
 		t.Error("the back arrow is greyed on the last page")
 	}
 }
 
 func TestTheLastPageCannotBeDroppedAndTheControlSaysSo(t *testing.T) {
 	s, _ := opened(t, 2)
-	if named(s, "Delete").Disabled().Get() {
+	if greyed(t, s, "delete") {
 		t.Fatal("Delete is greyed on a document of two pages")
 	}
 	s.deletePage()
 	if n := s.doc.PageCount(); n != 1 {
 		t.Fatalf("dropping one page of two left %d", n)
 	}
-	if !named(s, "Delete").Disabled().Get() {
+	if !greyed(t, s, "delete") {
 		t.Error("Delete is still pressable on the one page that is left, " +
 			"so the only thing stopping it is the sentence it answers with")
 	}
 }
 
 func TestTheArrowsTurnThePagesWhenTheyArePressable(t *testing.T) {
-	// Pressed on the strip, not called: a command sits between the control and
-	// the handler now, and pressing is the only way to find out that it lets
-	// the press through.
+	// Pressed on the ribbon, not called: an Action sits between the control and
+	// the handler, and pressing is the only way to find out that it lets the
+	// press through.
 	s, _ := opened(t, 3)
-	s.draw(buffer())
-	press := func(label string) {
-		b := named(s, label)
-		if b == nil {
-			t.Fatalf("there is no %q on the strip", label)
-		}
-		r := b.Bounds()
-		s.handleClick(r.X+r.W/2, r.Y+r.H/2)
-		s.draw(buffer())
-	}
 
-	press(">")
+	pressVerb(t, s, "next")
 	if s.at != 2 {
 		t.Fatalf("pressing the forward arrow on page 1 of three left page %d", s.at)
 	}
-	press("<")
+	pressVerb(t, s, "previous")
 	if s.at != 1 {
 		t.Errorf("pressing the back arrow on page 2 left page %d", s.at)
 	}
 	// And at the first page it is greyed, so pressing it does nothing at all.
-	press("<")
+	pressVerb(t, s, "previous")
 	if s.at != 1 {
 		t.Errorf("a greyed back arrow still turned the page, to %d", s.at)
 	}

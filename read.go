@@ -34,28 +34,15 @@ const (
 // readGroup is the panel.
 func (s *state) readGroup() *column {
 	box := newColumn()
-	box.add(s.verb("What this page says", toolkit.ButtonDefault,
-		func() { s.read(readingText) }, s.opened), bareH())
-	box.add(s.verb("What this page carries", toolkit.ButtonDefault,
-		func() { s.read(readingImages) }, s.opened), bareH())
-	box.add(s.verb("Show the page again", toolkit.ButtonDefault,
-		func() { s.read("") }, s.opened), bareH())
-	// The chooser sits on the same row as the verb it governs, so that what
-	// the file will be is beside the press that makes it rather than three
-	// rows above. It governs the zip below it as well: both of them draw the
-	// page and write it, and two choosers saying different things about the
-	// same picture would be a question nobody asked.
+	// One chooser, governing both the single page and the zip of all of them:
+	// both draw the page and write it, and two choosers saying different things
+	// about the same picture would be a question nobody asked.
 	formats := toolkit.NewCycleButton(formatNames()...)
 	// The format is held as the position itself, so this is the plain
 	// index-to-index binding rather than the mapping one.
 	tkbind.BindCycle(s.tools.picture, formats, s.repaint)
-	box.add(buttons(formats, s.verb("Hand over this page", toolkit.ButtonDefault,
-		s.pageAsPicture, s.opened)), bareH())
-	box.add(s.verb("Hand over every page, zipped", toolkit.ButtonDefault,
-		s.everyPageZipped, s.opened), bareH())
-	box.add(s.verb("Hand over what this page says", toolkit.ButtonDefault,
-		s.textAsFile, s.opened), bareH())
-	box.add(toolkit.NewLabel("None of these changes the document."), bareH())
+	box.add(toolkit.NewFormField("Hand pictures over as", formats), labelledH())
+	box.add(toolkit.NewLabel("Nothing on this tab changes the document."), bareH())
 	return box
 }
 

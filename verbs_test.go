@@ -24,23 +24,28 @@ import (
 // reason given on pagesRows() in panel_test.go.
 
 func marksRows() []int {
-	return []int{labelledH(), labelledH(), bareH(), labelledH(), bareH(),
-		labelledH(), labelledH(), bareH(), labelledH(), labelledH(), bareH()}
+	return []int{labelledH(), labelledH(), labelledH(), labelledH(), labelledH(),
+		labelledH(), labelledH()}
 }
 
 func fileRows() []int {
-	return []int{bareH(), bareH(), bareH(), bareH(), bareH(), bareH(), labelledH(), labelledH(), bareH()}
+	return []int{labelledH(), labelledH()}
 }
 
+// protectRows() is the password to open with and the note under it, then the
+// two passwords to put on, then one tick per permission.
 func protectRows() []int {
-	return []int{labelledH(), bareH(), labelledH(), labelledH(),
-		bareH(), bareH(), bareH(), bareH(), bareH(), bareH(), bareH(), bareH()}
+	rows := []int{labelledH(), bareH(), labelledH(), labelledH()}
+	for range allowed {
+		rows = append(rows, bareH())
+	}
+	return rows
 }
 
-// readRows() is the Read group: three readings, then the chooser and the verb it
-// governs sharing a row, then the zip, the words, and the note at the bottom.
+// readRows() is the Read group: the format pictures are handed over in, and the
+// note saying that nothing on the tab changes the document.
 func readRows() []int {
-	return []int{bareH(), bareH(), bareH(), bareH(), bareH(), bareH(), bareH()}
+	return []int{labelledH(), bareH()}
 }
 
 // content is the first page of a document as it would be saved.
@@ -90,8 +95,7 @@ func TestTheMarksPanelWritesWhatWasTypedWhereItWasAsked(t *testing.T) {
 	// A range of its own, and a watermark in words somebody chose.
 	typeInto(t, s, marksRows(), 0, "1")
 	typeInto(t, s, marksRows(), 1, "!")
-	x, y := rowAt(t, s, marksRows(), 2, 1)
-	press(s, x, y)
+	pressVerb(t, s, "watermark")
 	if !bytes.Contains(content(t, s.doc), []byte("(DRAFT!) Tj")) {
 		t.Error("the watermark is not on the first page")
 	}
@@ -100,19 +104,18 @@ func TestTheMarksPanelWritesWhatWasTypedWhereItWasAsked(t *testing.T) {
 	}
 
 	// Page numbers, in a shape somebody chose.
-	typeInto(t, s, marksRows(), 3, "!")
-	x, y = rowAt(t, s, marksRows(), 4, 1)
-	press(s, x, y)
+	typeInto(t, s, marksRows(), 2, "!")
+	pressVerb(t, s, "number")
 	if !bytes.Contains(content(t, s.doc), []byte("(1 / 3!) Tj")) {
 		t.Error("the page number is not on the first page")
 	}
 
 	// A Bates number, padded and started where the numbers say.
-	typeInto(t, s, marksRows(), 5, "AB")
+	typeInto(t, s, marksRows(), 3, "AB")
 	// Two numbers share that row: the padding, then where to start.
-	x, y = plusAtNth(t, s, marksRows(), 6, 0)
+	x, y := plusAtNth(t, s, marksRows(), 4, 0)
 	press(s, x, y)
-	x, y = plusAtNth(t, s, marksRows(), 6, 1)
+	x, y = plusAtNth(t, s, marksRows(), 4, 1)
 	press(s, x, y)
 	if s.tools.digits.Get() != 7 {
 		t.Fatalf("the Bates number is padded to %d digits", s.tools.digits.Get())
@@ -121,26 +124,24 @@ func TestTheMarksPanelWritesWhatWasTypedWhereItWasAsked(t *testing.T) {
 	if s.tools.start.Get() != 2 {
 		t.Fatalf("the Bates number starts at %d", s.tools.start.Get())
 	}
-	x, y = rowAt(t, s, marksRows(), 7, 1)
-	press(s, x, y)
+	pressVerb(t, s, "bates")
 	if !bytes.Contains(content(t, s.doc), []byte("(AB000002) Tj")) {
 		t.Errorf("the Bates number is not on the first page: %q", s.note)
 	}
 
 	// A stamp, where the list says.
-	typeInto(t, s, marksRows(), 8, "?")
+	typeInto(t, s, marksRows(), 5, "?")
 	// The + of the point size, which shares its row with the list of places.
-	x, y = plusAt(t, s, marksRows(), 9)
+	x, y = plusAt(t, s, marksRows(), 6)
 	press(s, x, y)
 	if s.tools.size.Get() != 13 {
 		t.Fatalf("the stamp is %d points", s.tools.size.Get())
 	}
-	chooseAt(t, s, marksRows(), 9, 1)
+	chooseAt(t, s, marksRows(), 6, 1)
 	if s.tools.at.Get() == 0 {
 		t.Fatal("no place was chosen from the list")
 	}
-	x, y = rowAt(t, s, marksRows(), 10, 1)
-	press(s, x, y)
+	pressVerb(t, s, "stamp")
 	if !bytes.Contains(content(t, s.doc), []byte("(COPY?) Tj")) {
 		t.Error("the stamp is not on the first page")
 	}
@@ -170,25 +171,23 @@ func TestAMarkOnEveryPageWhenNoRangeIsGiven(t *testing.T) {
 func TestTheFilePanel(t *testing.T) {
 	s, _ := opened(t, 3)
 	openGroup(t, s, groupFile)
-	for _, n := range []int{0, 1, 2, 3, 4} {
-		x, y := rowAt(t, s, fileRows(), n, 1)
-		press(s, x, y)
+	for _, id := range []string{"sanitize", "flatten", "dropAnnots", "dropOutlines", "clearInfo"} {
+		s.note = ""
+		pressVerb(t, s, id)
 		if s.note == "" {
-			t.Errorf("the control on row %d said nothing for itself", n)
+			t.Errorf("%q said nothing for itself", id)
 		}
 	}
 	// Packing says how much smaller the file came out.
-	x, y := rowAt(t, s, fileRows(), 5, 1)
-	press(s, x, y)
+	pressVerb(t, s, "compress")
 	if !strings.Contains(s.note, "rather than") {
 		t.Errorf("packing said %q", s.note)
 	}
 
 	// A title and an author, which are what a file says about itself.
-	typeInto(t, s, fileRows(), 6, "T")
-	typeInto(t, s, fileRows(), 7, "A")
-	x, y = rowAt(t, s, fileRows(), 8, 1)
-	press(s, x, y)
+	typeInto(t, s, fileRows(), 0, "T")
+	typeInto(t, s, fileRows(), 1, "A")
+	pressVerb(t, s, "setInfo")
 	out, err := s.doc.Bytes()
 	if err != nil {
 		t.Fatal(err)
@@ -235,8 +234,7 @@ func TestProtectingAFileAndTakingItOffAgain(t *testing.T) {
 	openGroup(t, s, groupProtect)
 
 	// Nothing to protect it with is said rather than done.
-	x, y := rowAt(t, s, protectRows(), 9, 1)
-	press(s, x, y)
+	pressVerb(t, s, "encrypt")
 	if !strings.Contains(s.note, "needs a user password") {
 		t.Errorf("protecting with no password said %q", s.note)
 	}
@@ -248,14 +246,13 @@ func TestProtectingAFileAndTakingItOffAgain(t *testing.T) {
 		t.Fatalf("the boxes hold %q and %q", s.tools.userPw.Get(), s.tools.ownerPw.Get())
 	}
 	// One of the permissions taken away.
-	x, y = rowAt(t, s, protectRows(), 6, 0)
+	x, y := rowAt(t, s, protectRows(), 6, 0)
 	press(s, x, y)
 	if s.tools.allow["copy text out of it"].Get() {
 		t.Error("the tick did not come off")
 	}
 
-	x, y = rowAt(t, s, protectRows(), 9, 1)
-	press(s, x, y)
+	pressVerb(t, s, "encrypt")
 	if !strings.Contains(s.note, "AES-256") {
 		t.Fatalf("protecting said %q", s.note)
 	}
@@ -281,8 +278,7 @@ func TestProtectingAFileAndTakingItOffAgain(t *testing.T) {
 	}
 
 	// And taken off again.
-	x, y = rowAt(t, s, protectRows(), 10, 1)
-	press(s, x, y)
+	pressVerb(t, s, "decrypt")
 	s.save()
 	if _, err := reader.Open(h.saved); err != nil {
 		t.Errorf("what was saved after the protection came off does not open: %v", err)
@@ -294,8 +290,7 @@ func TestWhatAFileIsProtectedWith(t *testing.T) {
 	// opened from a file that was not says that instead.
 	plain, _ := opened(t, 2)
 	openGroup(t, plain, groupProtect)
-	x, y := rowAt(t, plain, protectRows(), 11, 1)
-	press(plain, x, y)
+	pressVerb(t, plain, "protection")
 	if !strings.Contains(plain.note, "not protected") {
 		t.Errorf("it said %q", plain.note)
 	}
@@ -314,8 +309,7 @@ func TestWhatAFileIsProtectedWith(t *testing.T) {
 	if s.doc == nil {
 		t.Fatalf("the password did not open it: %q", s.note)
 	}
-	x, y = rowAt(t, s, protectRows(), 11, 1)
-	press(s, x, y)
+	pressVerb(t, s, "protection")
 	if !strings.Contains(s.note, "AES") || !strings.Contains(s.note, "the user") {
 		t.Errorf("it said %q", s.note)
 	}
@@ -356,8 +350,7 @@ func TestReadingWhatAPageSaysAndWhatItCarries(t *testing.T) {
 	s.open()
 	openGroup(t, s, groupRead)
 
-	x, y := rowAt(t, s, readRows(), 0, 1)
-	press(s, x, y)
+	pressVerb(t, s, "readText")
 	if s.tools.reading.Get() != readingText {
 		t.Fatalf("the reading is %q", s.tools.reading.Get())
 	}
@@ -365,15 +358,14 @@ func TestReadingWhatAPageSaysAndWhatItCarries(t *testing.T) {
 		t.Error("the picture of the page was drawn as well as the reading of it")
 	}
 	// Pressing it again puts the page back.
-	press(s, x, y)
+	pressVerb(t, s, "readText")
 	if s.tools.reading.Get() != "" {
 		t.Errorf("the reading is %q", s.tools.reading.Get())
 	}
 
 	// What it carries: one picture, handed over under a name that says what
 	// it is.
-	x, y = rowAt(t, s, readRows(), 1, 1)
-	press(s, x, y)
+	pressVerb(t, s, "readImages")
 	if s.tools.reading.Get() != readingImages {
 		t.Fatalf("the reading is %q", s.tools.reading.Get())
 	}
@@ -382,7 +374,7 @@ func TestReadingWhatAPageSaysAndWhatItCarries(t *testing.T) {
 	// panel, and what says the control is wired is that a press finds it.
 	before := s.tools.reading.Get()
 	pressed := false
-	for y := viewTop(); y < viewTop()+s.viewH() && !pressed; y += 4 {
+	for y := s.viewTop(); y < s.viewTop()+s.viewH() && !pressed; y += 4 {
 		for x := s.pageW() - 80; x < s.pageW() && !pressed; x += 8 {
 			s.handleClick(x, y)
 			s.draw(buffer())
@@ -400,8 +392,7 @@ func TestReadingWhatAPageSaysAndWhatItCarries(t *testing.T) {
 	}
 
 	// And the page comes back.
-	x, y = rowAt(t, s, readRows(), 2, 1)
-	press(s, x, y)
+	pressVerb(t, s, "readPage")
 	if s.tools.reading.Get() != "" || s.page == nil {
 		t.Errorf("the reading is %q and the page %v", s.tools.reading.Get(), s.page != nil)
 	}
@@ -545,8 +536,7 @@ func TestAPageIsHandedOverInEveryFormatTheChooserOffers(t *testing.T) {
 	// that does not match the bytes under it is a file nothing opens.
 	s, h := opened(t, 1)
 	openGroup(t, s, groupRead)
-	cx, cy := rowAt(t, s, readRows(), 3, 0) // the chooser
-	bx, by := rowAt(t, s, readRows(), 3, 1) // the verb beside it
+	cx, cy := rowAt(t, s, readRows(), 0, 1) // the chooser, in the panel
 	if len(pictureFormats) < 5 {
 		t.Fatalf("only %d formats are offered", len(pictureFormats))
 	}
@@ -555,7 +545,7 @@ func TestAPageIsHandedOverInEveryFormatTheChooserOffers(t *testing.T) {
 			t.Fatalf("the chooser is on %d and the list on %d", s.tools.picture.Get(), i)
 		}
 		h.as, h.saved = "", nil
-		press(s, bx, by)
+		pressVerb(t, s, "pagePicture")
 		if h.as != "page001"+pic.suffix {
 			t.Fatalf("%s was handed over as %q", pic.format, h.as)
 		}

@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/go-pdfkit/ops"
-	"github.com/go-widgets/toolkit"
 )
 
 // places is where a stamp can sit, in the words somebody would use, and in the
@@ -47,24 +46,19 @@ func (s *state) marksGroup() *column {
 	box.add(s.entryRow("Which pages", "1-3,7 — empty means all of them", s.tools.markSpec), labelledH())
 
 	box.add(s.entryRow("Watermark", "what it says", s.tools.mark), labelledH())
-	box.add(s.verb("Write it across them", toolkit.ButtonDefault, s.watermark, s.opened), bareH())
-
 	box.add(s.entryRow("Page numbers", "{page} and {pages} are filled in", s.tools.numbers), labelledH())
-	box.add(s.verb("Number them", toolkit.ButtonDefault, s.number, s.opened), bareH())
 
 	box.add(s.entryRow("Bates prefix", "what comes before the number", s.tools.prefix), labelledH())
 	box.add(buttons(
 		s.spinRow("Starting at", 1, s.tools.start),
 		s.spinRow("Padded to", 1, s.tools.digits),
 	), labelledH())
-	box.add(s.verb("Stamp the numbers on", toolkit.ButtonDefault, s.bates, s.opened), bareH())
 
 	box.add(s.entryRow("Stamp", "what it says", s.tools.stamp), labelledH())
 	box.add(buttons(
 		s.chooseRow("Where it goes", placeNames(), s.tools.at),
 		s.spinRow("Points", 4, s.tools.size),
 	), labelledH())
-	box.add(s.verb("Stamp them", toolkit.ButtonDefault, s.stamp, s.opened), bareH())
 	return box
 }
 

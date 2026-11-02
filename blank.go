@@ -13,7 +13,6 @@ import (
 	"github.com/go-pdfkit/ops"
 	"github.com/go-pdfkit/reader"
 	"github.com/go-pdfkit/render"
-	"github.com/go-widgets/toolkit"
 )
 
 // blankInk is how little a page may carry and still be blank.
@@ -122,9 +121,4 @@ func rangeOf(pages []int) string {
 		i = j + 1
 	}
 	return out
-}
-
-// blankButton is the control, put with the other things that remove pages.
-func blankButton(s *state) toolkit.Widget {
-	return s.verb("Drop the blank pages", toolkit.ButtonDanger, s.dropBlank, s.opened)
 }
