@@ -37,9 +37,16 @@ the browser, reloads, and fails if the tab is still served the old one.
 ## What is on the ribbon, and what is beside the page
 
 Seven tabs: **Home** · **Pages** · **Sheet** · **Marks** · **File** ·
-**Protect** · **Read**. Home carries the document itself — **Open**, **Save**,
-**Rotate**, **Previous**, **Next**, **Delete**, and **Fill in** for a document
-that carries a form. The arrow keys turn pages too.
+**Protect** · **Read**. Home carries the page itself — **Rotate**,
+**Previous**, **Next**, **Delete**, and **Fill in** for a document that carries
+a form. The arrow keys turn pages too.
+
+**Open** and **Save** are on the ribbon's quick access bar, at the right of the
+tab row, and on no tab at all. A ribbon puts each command on one tab, so Open
+and Save on *Home* meant leaving whatever tab you were working in to save — the
+browser check had to walk back to Home for it, which is the clearest possible
+statement that a reader would have had to as well. The bar is there on every
+tab and on a collapsed ribbon, and answers to **Alt** then **1** or **2**.
 
 **The ribbon carries the verbs; the panel carries what they are told.** That
 one sentence decides where every control goes. *Turn them* is a verb and sits

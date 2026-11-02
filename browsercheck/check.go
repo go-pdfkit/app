@@ -222,22 +222,17 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 		say(c)
 		return fmt.Errorf("the watermark verb redrew nothing where the page is")
 	}
-	// Back to Home to save it. Open and Save live on one tab, the way a
-	// ribbon's file commands do, so this is also the press that says a tab can
-	// be left and come back to.
+	// ⛔ SAVED FROM THE MARKS TAB, without going back to Home first. Open and
+	// Save are on the ribbon's quick access bar and on no tab at all, so they
+	// are reachable from wherever the reader is. This check had to walk back to
+	// Home for Save before that bar existed, which was the clearest possible
+	// statement that a reader would have had to as well.
 	at, err = controls(ctx, c, sid)
 	if err != nil {
 		return err
 	}
-	if err := pressControl(ctx, c, sid, at, tabHome); err != nil {
-		return err
-	}
-	at, err = controls(ctx, c, sid)
-	if err != nil {
-		return err
-	}
-	if _, ok := at[bandPanel]; ok {
-		return fmt.Errorf("going back to %s left a panel of settings beside the page", tabHome)
+	if _, ok := at[bandPanel]; !ok {
+		return fmt.Errorf("the Marks panel went away before the document was saved")
 	}
 	if err := pressControl(ctx, c, sid, at, "save"); err != nil {
 		return err
@@ -403,10 +398,6 @@ func fetched(ctx context.Context, c *conn, sid, url string) (string, error) {
 const (
 	bandPage  = "#page"
 	bandPanel = "#panel"
-	// tabHome is the tab the file commands are on, as the workbench publishes
-	// it. Open and Save are there and nowhere else, which is where a ribbon
-	// puts them.
-	tabHome = "Home"
 )
 
 // A spot is one named control and where the workbench says it is, in the

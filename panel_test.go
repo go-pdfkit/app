@@ -75,29 +75,34 @@ func pressVerb(t *testing.T, s *state, id string) {
 	if !ok {
 		t.Fatalf("there is no verb %q", id)
 	}
-	s.ribbon.ActiveTab().Set(tabHolding(t, id))
+	// A verb on the quick access bar is reached from wherever the ribbon
+	// already is: that is what the bar is for, so the test does not change
+	// tabs to press one.
+	if tab, onATab := tabHolding(id); onATab {
+		s.ribbon.ActiveTab().Set(tab)
+	}
 	s.draw(buffer())
 	r, shown := s.ribbon.ControlRect(v.label)
 	if !shown {
-		t.Fatalf("%q is not shown on the ribbon", v.label)
+		if r, shown = s.ribbon.QuickRect(v.label); !shown {
+			t.Fatalf("%q is neither on the ribbon nor on its quick access bar", v.label)
+		}
 	}
 	press(s, r.X+r.W/2, r.Y+r.H/2)
 }
 
-// tabHolding is the tab a verb is on.
-func tabHolding(t *testing.T, id string) int {
-	t.Helper()
+// tabHolding is the tab a verb is on, and whether it is on one at all.
+func tabHolding(id string) (int, bool) {
 	for i, tab := range ribbonTabs {
 		for _, g := range tab.groups {
 			for _, have := range g.ids {
 				if have == id {
-					return i
+					return i, true
 				}
 			}
 		}
 	}
-	t.Fatalf("the verb %q is on no tab", id)
-	return 0
+	return 0, false
 }
 
 // rowAt is a point inside the nth row of the panel now open, across is where
@@ -342,6 +347,14 @@ func TestEveryVerbIsOnTheRibbonExactlyOnce(t *testing.T) {
 				seen[id]++
 			}
 		}
+	}
+	// The quick access bar counts as a place a verb is: its commands are on no
+	// tab, which is the point of putting them there.
+	for _, id := range quickIDs {
+		if _, ok := verbs[id]; !ok {
+			t.Errorf("the quick access bar names %q, which is no verb", id)
+		}
+		seen[id]++
 	}
 	for id := range verbs {
 		switch seen[id] {
