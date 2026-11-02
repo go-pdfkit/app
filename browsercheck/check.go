@@ -65,73 +65,102 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 	}
 	fmt.Println("the program is running in the tab")
 
-	empty, err := look(ctx, c, sid)
+	whole, err := look(ctx, c, sid)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("empty workbench: %d pixels drawn, %d of them dark\n", empty.N, empty.Dark)
-	if empty.N == 0 {
+	fmt.Printf("empty workbench: %d pixels drawn, %d of them dark\n", whole.N, whole.Dark)
+	if whole.N == 0 {
 		return fmt.Errorf("the canvas is blank with nothing open")
 	}
 
-	// Press along the strip until the file picker is asked for: that press is
-	// the Open control, and nothing else on the strip asks for a file.
-	openedAt, err := sweep(ctx, c, sid, 0, func() (bool, error) {
-		ev, ok := waitEvent(c, "Page.fileChooserOpened", 250*time.Millisecond)
-		if !ok {
-			return false, nil
-		}
-		var p struct {
-			BackendNodeID int `json:"backendNodeId"`
-		}
-		json.Unmarshal(ev.Params, &p)
-		abs, _ := filepath.Abs(sample)
-		_, err := c.call(ctx, "DOM.setFileInputFiles", map[string]any{
-			"files": []string{abs}, "backendNodeId": p.BackendNodeID}, sid)
-		return true, err
-	})
+	// ⛔ THE CONTROLS ARE ASKED FOR BY NAME. This used to press along the strip
+	// from x=0 to x=1000 and call whichever press opened a file picker "Open",
+	// then sweep the panel downwards pressing everything until the document
+	// changed. That read as a test of the workbench and was mostly a test of
+	// the sweep: it could never say WHICH verb it had run, and a ribbon, whose
+	// controls sit on several rows of several tabs, puts it out of reach
+	// altogether. The workbench publishes where its controls are now.
+	at, err := controls(ctx, c, sid)
 	if err != nil {
-		return fmt.Errorf("no press on the strip asked for a file: %w", err)
+		return err
 	}
-	fmt.Printf("the file picker opened from x=%d, and was handed %s\n", openedAt, filepath.Base(sample))
+	fmt.Printf("the workbench says where %d controls are\n", len(at))
+	empty, err := lookAt(ctx, c, sid, at[bandPage])
+	if err != nil {
+		return err
+	}
+	fmt.Printf("the page band holds %d pixels of ink with nothing open\n", empty.Ink)
 
+	drain(c)
+	if err := pressControl(ctx, c, sid, at, "open"); err != nil {
+		return err
+	}
+	ev, ok := waitEvent(c, "Page.fileChooserOpened", 5*time.Second)
+	if !ok {
+		say(c)
+		return fmt.Errorf("pressing Open where the workbench says it is asked for no file")
+	}
+	var p struct {
+		BackendNodeID int `json:"backendNodeId"`
+	}
+	json.Unmarshal(ev.Params, &p)
+	abs, _ := filepath.Abs(sample)
+	if _, err := c.call(ctx, "DOM.setFileInputFiles", map[string]any{
+		"files": []string{abs}, "backendNodeId": p.BackendNodeID}, sid); err != nil {
+		return err
+	}
+	fmt.Printf("the file picker opened from Open, and was handed %s\n", filepath.Base(sample))
+
+	// ⛔ Measured IN THE PAGE BAND, which the workbench says where to find.
+	// The whole canvas was measured here before, and the comparison was "more
+	// pixels differ from the top-left one than did before" -- which stopped
+	// being about the document the moment the band above the page changed
+	// height, since the top-left pixel it compares everything to is then a
+	// pixel of the ribbon.
+	//
+	// Ink, as opposed to nearly black: a scanned page's ink is grey once it has
+	// been scaled to fit, so counting nearly black pixels read a real scanned
+	// document as never having arrived, on a page that was drawn correctly.
 	if err := until(ctx, 30*time.Second, func() (bool, error) {
-		v, err := look(ctx, c, sid)
+		where, err := controls(ctx, c, sid)
 		if err != nil {
 			return false, err
 		}
-		// The canvas changed, more of it is drawn on than before, and there is
-		// more ink than the empty workbench's own furniture.
-		//
-		// It used to ask for more NEARLY BLACK pixels, and a scanned page has
-		// almost none: its ink is grey once it has been scaled to fit, and it
-		// covers the strip and the borders that were the dark pixels being
-		// counted. A real scanned document therefore read as never having
-		// arrived, on a page that was drawn correctly.
-		return v.Hash != empty.Hash && v.N > empty.N && v.Ink > empty.Ink, nil
+		v, err := lookAt(ctx, c, sid, where[bandPage])
+		if err != nil {
+			return false, err
+		}
+		return where[bandPage].On && v.Hash != empty.Hash && v.Ink > empty.Ink, nil
 	}); err != nil {
 		say(c)
-		return fmt.Errorf("the document never appeared on the canvas: %w", err)
+		return fmt.Errorf("the document never appeared where the page is drawn: %w", err)
 	}
-	withDoc, _ := look(ctx, c, sid)
-	fmt.Printf("document shown: %d pixels drawn, %d of them ink\n", withDoc.N, withDoc.Ink)
+	at, err = controls(ctx, c, sid)
+	if err != nil {
+		return err
+	}
+	withDoc, _ := lookAt(ctx, c, sid, at[bandPage])
+	fmt.Printf("document shown: %d pixels drawn in the page band, %d of them ink\n", withDoc.N, withDoc.Ink)
 
 	if err := screenshot(ctx, c, sid, shot); err != nil {
 		return err
 	}
 	fmt.Println("what the tab looks like is in", shot)
 
-	// Now press on until something is downloaded: that is the Save control,
-	// and what lands on disk is the document as it now stands.
+	// Save, which hands back the document as it now stands.
 	drain(c)
-	savedAt, err := sweep(ctx, c, sid, openedAt+4, func() (bool, error) {
-		_, ok := waitEvent(c, "Browser.downloadWillBegin", 250*time.Millisecond)
-		return ok, nil
-	})
+	at, err = controls(ctx, c, sid)
 	if err != nil {
-		return fmt.Errorf("no press on the strip saved anything: %w", err)
+		return err
 	}
-	fmt.Printf("a download began from x=%d\n", savedAt)
+	if err := pressControl(ctx, c, sid, at, "save"); err != nil {
+		return err
+	}
+	if _, ok := waitEvent(c, "Browser.downloadWillBegin", 10*time.Second); !ok {
+		say(c)
+		return fmt.Errorf("pressing Save where the workbench says it is handed nothing back")
+	}
 
 	var out []byte
 	if err := until(ctx, 30*time.Second, func() (bool, error) {
@@ -152,35 +181,73 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 		return err
 	}
 
-	// The strip is no longer the whole workbench: most of the verbs now live
-	// in a panel that a group opens beside the page. That panel has to be
-	// driven here too, because a panel that is drawn and gets no events looks
-	// exactly like one that works — which is what it was until the toolkit
-	// underneath learned to hand a press to what is inside a scroll view.
-	// What counts as a verb having run is that the file the tab hands back is
-	// a DIFFERENT file. Some of the panels change what is on the screen
-	// without changing the document at all — the Read group replaces the
-	// picture of the page with what the page says — and a check that stopped
-	// at the first press to redraw the canvas would call that a verb.
-	var again []byte
-	marked, err := drivePanel(ctx, c, sid, func() (bool, error) {
-		drain(c)
-		if err := click(ctx, c, sid, savedAt, stripY); err != nil {
-			return false, err
-		}
-		got, err := waitForPDF(ctx, dl, out, 6*time.Second)
-		if err != nil {
-			return false, nil // the same file back: nothing was changed
-		}
-		again = got
-		return true, nil
-	})
-	if err != nil {
-		say(c)
+	// Home is not the whole workbench: the other tabs carry the twenty-five
+	// verbs that need telling something, and the panel beside the page carries
+	// what they are told. Both have to be driven here, because a tab that is
+	// drawn and gets no events looks exactly like one that works — which is
+	// what the panel was until the toolkit underneath learned to hand a press
+	// to what is inside a scroll view.
+	//
+	// What counts as a verb having run is that the file the tab hands back is a
+	// DIFFERENT file. Some tabs change what is on the screen without changing
+	// the document at all — Read replaces the picture of the page with what the
+	// page says — so a check that stopped at the first press to redraw the
+	// canvas would call that a verb.
+	if err := pressControl(ctx, c, sid, at, "Marks"); err != nil {
 		return err
 	}
-	fmt.Println("a verb pressed in the panel changed the document:", marked)
-	fmt.Printf("the tab handed back a %d byte PDF after the panel was used\n", len(again))
+	at, err = controls(ctx, c, sid)
+	if err != nil {
+		return err
+	}
+	// ⛔ The panel is only published when one is open, so this is the
+	// workbench's own answer rather than a guess from the pixels in a band
+	// that may have changed for some other reason.
+	if _, ok := at[bandPanel]; !ok {
+		return fmt.Errorf("choosing the Marks tab opened no panel of settings beside the page")
+	}
+	fmt.Println("the Marks tab opened its panel of settings beside the page")
+
+	pageWas, err := lookAt(ctx, c, sid, at[bandPage])
+	if err != nil {
+		return err
+	}
+	drain(c)
+	if err := pressControl(ctx, c, sid, at, "watermark"); err != nil {
+		return err
+	}
+	if changed, err := changedIn(ctx, c, sid, at[bandPage], pageWas.Hash); err != nil {
+		return err
+	} else if !changed {
+		say(c)
+		return fmt.Errorf("the watermark verb redrew nothing where the page is")
+	}
+	// Back to Home to save it. Open and Save live on one tab, the way a
+	// ribbon's file commands do, so this is also the press that says a tab can
+	// be left and come back to.
+	at, err = controls(ctx, c, sid)
+	if err != nil {
+		return err
+	}
+	if err := pressControl(ctx, c, sid, at, tabHome); err != nil {
+		return err
+	}
+	at, err = controls(ctx, c, sid)
+	if err != nil {
+		return err
+	}
+	if _, ok := at[bandPanel]; ok {
+		return fmt.Errorf("going back to %s left a panel of settings beside the page", tabHome)
+	}
+	if err := pressControl(ctx, c, sid, at, "save"); err != nil {
+		return err
+	}
+	again, err := waitForPDF(ctx, dl, out, 20*time.Second)
+	if err != nil {
+		say(c)
+		return fmt.Errorf("the watermark verb changed the screen and not the document: %w", err)
+	}
+	fmt.Printf("the tab handed back a %d byte PDF after the watermark verb ran\n", len(again))
 	doc, err := reader.Open(again)
 	if err != nil {
 		return fmt.Errorf("what the tab saved after the panel was used does not open: %w", err)
@@ -190,9 +257,9 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 		return fmt.Errorf("the first page of it cannot be read: %w", err)
 	}
 	if !bytes.Contains(content, []byte("(DRAFT) Tj")) {
-		return fmt.Errorf("the mark the panel wrote is not in the file the tab handed back")
+		return fmt.Errorf("the mark the Marks tab wrote is not in the file the tab handed back")
 	}
-	fmt.Println("the mark written from the panel is in the saved file")
+	fmt.Println("the mark written from the ribbon is in the saved file")
 
 	return shellReaches(ctx, c, sid, page)
 }
@@ -329,126 +396,86 @@ func fetched(ctx context.Context, c *conn, sid, url string) (string, error) {
 	return s, nil
 }
 
-// Where the panel and the page are on the canvas, and how far apart the
-// presses that look for them are. The panel is three hundred of the canvas's
-// thousand pixels wide, at the right hand end.
+// The two bands the workbench publishes alongside its controls: where the
+// document is drawn, and where the settings the verbs read are. They are named
+// rather than measured, because a band worked out here from fractions of the
+// canvas goes stale, silently, the moment the layout above it changes.
 const (
-	pageBand  = 0.66
-	panelMid  = 840
-	panelTop  = 55
-	panelFoot = 690
-	stripY    = 8 + 15
-	// The leftmost control worth pressing from this end: everything to the
-	// left of it is Open, Save, the arrows and the two that change the
-	// document without being asked anything, and none of those opens a panel.
-	stripStop = 306
+	bandPage  = "#page"
+	bandPanel = "#panel"
+	// tabHome is the tab the file commands are on, as the workbench publishes
+	// it. Open and Save are there and nowhere else, which is where a ribbon
+	// puts them.
+	tabHome = "Home"
 )
 
-// drivePanel opens a group of verbs from the strip and presses the verbs in it
-// until one of them changes the page, which is what says the panel is wired to
-// the document rather than merely painted next to it.
+// A spot is one named control and where the workbench says it is, in the
+// canvas's own pixels. It is the same shape the workbench publishes.
+type spot struct {
+	Label string `json:"label"`
+	X     int    `json:"x"`
+	Y     int    `json:"y"`
+	W     int    `json:"w"`
+	H     int    `json:"h"`
+	On    bool   `json:"on"`
+}
+
+// controls asks the workbench where its named controls are.
 //
-// It works from the right hand end of the strip, so that the sweep never
-// presses the controls that drop a page.
-func drivePanel(ctx context.Context, c *conn, sid string, confirm func() (bool, error)) (string, error) {
-	quiet, err := lookIn(ctx, c, sid, pageBand, 1)
+// ⛔ ASKED EVERY TIME rather than kept. A tab holds its own verbs, so the
+// answer changes the moment one is chosen; a map read once would have the
+// check pressing where the last tab's controls used to be.
+func controls(ctx context.Context, c *conn, sid string) (map[string]spot, error) {
+	v, err := eval(ctx, c, sid, `(() => {
+		if (typeof window.pdfkitControls !== 'function') return '[]';
+		return window.pdfkitControls();
+	})()`)
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("asking the workbench where its controls are: %w", err)
 	}
-	// A control is wider than the step, so the same group opens several times
-	// running. Its panel is told apart by what it looks like, and one that has
-	// already been pressed all the way down is not pressed again.
-	tried := map[int]bool{}
-	for x := 996; x > stripStop; x -= 8 {
-		if err := click(ctx, c, sid, x, stripY); err != nil {
-			return "", err
-		}
-		opened, err := changedIn(ctx, c, sid, pageBand, 1, quiet.Hash)
-		if err != nil {
-			return "", err
-		}
-		if !opened {
-			continue
-		}
-		panel, err := lookIn(ctx, c, sid, pageBand, 1)
-		if err != nil {
-			return "", err
-		}
-		if tried[panel.Hash] {
-			if err := click(ctx, c, sid, x, stripY); err != nil {
-				return "", err
-			}
-			if _, err := changedIn(ctx, c, sid, pageBand, 1, quiet.Hash); err != nil {
-				return "", err
-			}
-			continue
-		}
-		tried[panel.Hash] = true
-		fmt.Printf("a panel opened from x=%d\n", x)
-		hit, err := pressDownPanel(ctx, c, sid, confirm)
-		if err != nil {
-			return "", err
-		}
-		if hit != "" {
-			return hit, nil
-		}
-		// Nothing in this group changes what is drawn. Put it away and carry
-		// on along the strip.
-		if err := click(ctx, c, sid, x, stripY); err != nil {
-			return "", err
-		}
-		if _, err := changedIn(ctx, c, sid, pageBand, 1, quiet.Hash); err != nil {
-			return "", err
-		}
+	var quoted string
+	if json.Unmarshal([]byte(v), &quoted) == nil {
+		v = quoted
 	}
-	return "", fmt.Errorf("no group on the strip opened a panel with a verb in it")
+	var list []spot
+	if err := json.Unmarshal([]byte(v), &list); err != nil {
+		return nil, fmt.Errorf("the workbench answered %s, which is not a list of controls: %w", v, err)
+	}
+	if len(list) == 0 {
+		return nil, fmt.Errorf("the workbench published no controls at all")
+	}
+	out := map[string]spot{}
+	for _, sp := range list {
+		out[sp.Label] = sp
+	}
+	return out, nil
 }
 
-// pressDownPanel presses down the open panel until a press both changes the
-// page beside it and changes the document, and says where that press was.
-func pressDownPanel(ctx context.Context, c *conn, sid string, confirm func() (bool, error)) (string, error) {
-	page, err := lookIn(ctx, c, sid, 0, pageBand)
-	if err != nil {
-		return "", err
+// pressControl presses the named control where the workbench says it is.
+func pressControl(ctx context.Context, c *conn, sid string, at map[string]spot, name string) error {
+	sp, ok := at[name]
+	if !ok {
+		return fmt.Errorf("the workbench is not showing a control called %q", name)
 	}
-	for y := panelTop; y < panelFoot; y += 16 {
-		if err := click(ctx, c, sid, panelMid, y); err != nil {
-			return "", err
-		}
-		changed, err := changedIn(ctx, c, sid, 0, pageBand, page.Hash)
-		if err != nil {
-			return "", err
-		}
-		if !changed {
-			continue
-		}
-		did, err := confirm()
-		if err != nil {
-			return "", err
-		}
-		if did {
-			return fmt.Sprintf("pressed at y=%d", y), nil
-		}
-		// It redrew and changed nothing that would be saved. Take the page as
-		// it now stands as the new baseline and carry on down the panel.
-		page, err = lookIn(ctx, c, sid, 0, pageBand)
-		if err != nil {
-			return "", err
-		}
+	if !sp.On {
+		// ⛔ Said rather than pressed. A greyed verb does nothing, and a check
+		// that pressed one and then waited for the document to change would
+		// wait out its whole timeout and report the verb as broken.
+		return fmt.Errorf("%q is there but greyed, so pressing it would do nothing", name)
 	}
-	return "", nil
+	return click(ctx, c, sid, sp.X+sp.W/2, sp.Y+sp.H/2)
 }
 
-// changedIn waits a moment for the canvas to catch up and reports whether the
-// band changed.
+// changedIn waits a moment for a band to catch up and reports whether it
+// changed.
 //
 // The wait is the point: the canvas is repainted on an animation frame rather
 // than on the press itself, so a look taken straight after a click is a look
 // at what was on the screen before it.
-func changedIn(ctx context.Context, c *conn, sid string, from, to float64, was int) (bool, error) {
-	deadline := time.Now().Add(250 * time.Millisecond)
+func changedIn(ctx context.Context, c *conn, sid string, at spot, was int) (bool, error) {
+	deadline := time.Now().Add(2 * time.Second)
 	for {
-		v, err := lookIn(ctx, c, sid, from, to)
+		v, err := lookAt(ctx, c, sid, at)
 		if err != nil {
 			return false, err
 		}
@@ -513,22 +540,28 @@ type canvas struct {
 
 // look reads the pixels out of the whole canvas in the tab.
 func look(ctx context.Context, c *conn, sid string) (canvas, error) {
-	return lookIn(ctx, c, sid, 0, 1)
+	return lookAt(ctx, c, sid, spot{W: -1})
 }
 
-// lookIn reads the pixels out of a band of the canvas, given as fractions of
-// its width. It is how the two halves of the workbench are told apart with
-// nothing eyeballed: opening a group of verbs lights up the right hand band,
-// and pressing one of them changes the left hand one, where the page is.
-func lookIn(ctx context.Context, c *conn, sid string, from, to float64) (canvas, error) {
-	// The band runs from under the strip to above the status line. Both of
-	// those change for reasons that are not what is being asked about — a
-	// control lights up under the pointer, a message is written at the bottom
-	// — and counting them would answer a different question.
+// lookAt reads the pixels out of one band of the canvas — the page, or the
+// panel of settings beside it — AS THE WORKBENCH PUBLISHES IT. A W of -1 is
+// the whole canvas.
+//
+// ⛔ The band used to be written here as fractions of the canvas: from 7% down
+// to 95%, left of 66%. Those were right for a strip of buttons along the top
+// and wrong the moment the band above the page grew — a baseline pixel taken
+// inside the ribbon measures the ribbon, and the check then reports that the
+// document never arrived on a canvas it is drawn on perfectly well.
+func lookAt(ctx context.Context, c *conn, sid string, at spot) (canvas, error) {
+	box := fmt.Sprintf("{x: %d, y: %d, w: %d, h: %d}", at.X, at.Y, at.W, at.H)
+	if at.W < 0 {
+		box = "null"
+	}
 	js := fmt.Sprintf(`(() => {
 	  const c = document.getElementById('screen');
-	  const x0 = Math.floor(c.width * %g), x1 = Math.ceil(c.width * %g);
-	  const y0 = Math.floor(c.height * 0.07), y1 = Math.floor(c.height * 0.95);
+	  const b = %s;
+	  const x0 = b ? b.x : 0, y0 = b ? b.y : 0;
+	  const x1 = b ? b.x + b.w : c.width, y1 = b ? b.y + b.h : c.height;
 	  const d = c.getContext('2d').getImageData(x0, y0, x1 - x0, y1 - y0).data;
 	  const r0 = d[0], g0 = d[1], b0 = d[2];
 	  let n = 0, dark = 0, ink = 0, hash = 0;
@@ -543,7 +576,7 @@ func lookIn(ctx context.Context, c *conn, sid string, from, to float64) (canvas,
 	    hash = (hash * 31 + d[i] + d[i+1] * 3 + d[i+2] * 7) | 0;
 	  }
 	  return JSON.stringify({n, dark, ink, hash});
-	})()`, from, to)
+	})()`, box)
 	var out canvas
 	s, err := eval(ctx, c, sid, js)
 	if err != nil {
@@ -554,24 +587,6 @@ func lookIn(ctx context.Context, c *conn, sid string, from, to float64) (canvas,
 		s = quoted
 	}
 	return out, json.Unmarshal([]byte(s), &out)
-}
-
-// sweep presses along the toolbar from left to right until what is pressed
-// does the thing being waited for.
-func sweep(ctx context.Context, c *conn, sid string, from int, happened func() (bool, error)) (int, error) {
-	for x := from; x < 1000; x += 4 {
-		if err := click(ctx, c, sid, x, 8+15); err != nil {
-			return 0, err
-		}
-		ok, err := happened()
-		if err != nil {
-			return 0, err
-		}
-		if ok {
-			return x, nil
-		}
-	}
-	return 0, fmt.Errorf("pressed the whole strip and nothing happened")
 }
 
 // click presses the canvas at a point in its own pixels, which is not the same

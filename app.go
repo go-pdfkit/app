@@ -165,7 +165,7 @@ func (a workbench) KeyDown(key string) bool { return a.s.handleKeyDown(key) }
 // Nothing on this canvas moves by itself, so most frames change nothing and ask
 // for nothing; what this is for is the file the browser hands over long after
 // the press that asked for it, which no event follows.
-func (a workbench) AnimationStep(float64) bool { return a.s.tick() }
+func (a workbench) AnimationStep(dt float64) bool { return a.s.tick(dt) }
 
 // the workbench satisfies the harness contract, and asks for a clock so that a
 // document that arrives on its own is shown.

@@ -202,7 +202,7 @@ func TestTheMinipagesTheBudgetStopsAreDrawnOnTheNextFrame(t *testing.T) {
 	// dirty -- until there is nothing left, when it stops asking.
 	for i := 0; i < 20 && s.railMore; i++ {
 		s.takeDirty()
-		if !s.tick() {
+		if !s.tick(frame) {
 			t.Fatalf("the rail still has %d minipages to draw and asked for no repaint", 6-len(s.thumbs.pix))
 		}
 	}
@@ -213,8 +213,43 @@ func TestTheMinipagesTheBudgetStopsAreDrawnOnTheNextFrame(t *testing.T) {
 		t.Errorf("%d minipages were drawn for a document of 6 pages", n)
 	}
 	s.takeDirty()
-	if s.tick() {
+	if s.tick(frame) {
 		t.Error("the rail asked for another repaint with everything drawn")
+	}
+}
+
+// frame is how long a frame lasts at sixty to the second, which is what the
+// harness hands the tick.
+const frame = 1.0 / 60
+
+// TestTheRibbonsClockRunsWhileThePointerIsOnIt is the control over the hover:
+// a control lights up under the pointer and a tooltip appears after a delay,
+// and both need the band repainted for anybody to see them.
+func TestTheRibbonsClockRunsWhileThePointerIsOnIt(t *testing.T) {
+	s, _ := opened(t, 2)
+	s.draw(buffer())
+
+	// With the pointer over the page, a frame that changes nothing asks for
+	// nothing: this canvas is still between events most of the time.
+	s.handleMove(surfaceW/2, s.viewTop()+40)
+	s.takeDirty()
+	if s.tick(frame) {
+		t.Error("a frame with the pointer on the page asked for a repaint")
+	}
+
+	// On the band, every frame repaints, because the ribbon is drawing a
+	// highlight and counting out a tooltip.
+	s.handleMove(surfaceW/2, s.toolbarH()/2)
+	s.takeDirty()
+	if !s.tick(frame) {
+		t.Error("a frame with the pointer on the ribbon asked for no repaint, " +
+			"so nothing under it ever lights up")
+	}
+	// And moving off it stops again.
+	s.handleMove(surfaceW/2, s.viewTop()+40)
+	s.takeDirty()
+	if s.tick(frame) {
+		t.Error("the band went on repainting after the pointer left it")
 	}
 }
 

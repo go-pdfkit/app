@@ -263,7 +263,18 @@ func (s *state) fillRail() {
 
 // tick is what the harness calls once an animation frame: it lets the rail
 // catch up and then says whether anything needs painting.
-func (s *state) tick() bool {
+//
+// ⛔ It takes the frame's own length now, because the ribbon is an Animator:
+// the delay before a verb's tooltip appears is counted in THIS clock, and a
+// ribbon that is never ticked never says what any of its verbs do. The clock
+// only runs while the pointer is over the band, and the band is asked to
+// repaint while it is -- a control lights up under the pointer, and a highlight
+// nothing repaints for is a control that does not react at all.
+func (s *state) tick(dt float64) bool {
 	s.fillRail()
+	if s.overRibbon {
+		s.ribbon.Tick(dt)
+		s.dirty = true
+	}
 	return s.takeDirty()
 }

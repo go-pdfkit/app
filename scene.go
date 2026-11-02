@@ -146,6 +146,10 @@ type state struct {
 	// file arrives from the browser long after the press that asked for it,
 	// so there is no event left to repaint on; the harness asks here instead.
 	dirty bool
+	// overRibbon says the pointer is on the command band, which is what runs
+	// the ribbon's own clock: it lights a control under the pointer and counts
+	// out the delay before that control's tooltip.
+	overRibbon bool
 }
 
 // newState builds the workbench.
@@ -699,6 +703,9 @@ func (s *state) pointer(kind toolkit.EventKind, x, y int) bool {
 		// goes into the first. Clearing them all first leaves exactly the one
 		// this press lands in.
 		s.settle()
+	}
+	if kind == toolkit.EventMouseMove {
+		s.overRibbon = y < s.toolbarH()
 	}
 	view := s.view // a control may put another view in its place
 	hit(s.ribbon, kind, x, y)
