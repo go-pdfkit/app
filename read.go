@@ -66,7 +66,7 @@ func (s *state) readingView(src *reader.Document) toolkit.Widget {
 }
 
 // lineH is how tall one line of a reading is.
-const lineH = 16
+var lineH = 16
 
 // textView is everything the page says, in reading order.
 func (s *state) textView(src *reader.Document) toolkit.Widget {

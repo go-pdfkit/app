@@ -12,15 +12,22 @@ import (
 	"github.com/go-widgets/toolkit"
 )
 
-const (
-	// railW is the whole rail and thumbPicW the picture inside it: the
-	// scrollbar down its edge and the frame around each tile take the rest.
-	railW     = 132
-	thumbPicW = 94
-	// thumbTallest caps a tile, because a tile's height follows its page's
-	// shape and a page may be any shape at all: a cutting plan 50 times taller
-	// than it is wide would otherwise make one tile the length of the rail.
+// railW is the whole rail and thumbPicW the picture inside it: the scrollbar
+// down its edge and the frame around each tile take the rest. Logical lengths,
+// re-derived by rescaleLayout — and the picture is therefore MADE at the
+// display's own resolution, which is what keeps a tile from being a 1x bitmap
+// stretched over a 2x tile.
+//
+// thumbTallest caps a tile, because a tile's height follows its page's shape
+// and a page may be any shape at all: a cutting plan 50 times taller than it
+// is wide would otherwise make one tile the length of the rail.
+var (
+	railW        = 132
+	thumbPicW    = 94
 	thumbTallest = thumbPicW * 5 / 2
+)
+
+const (
 
 	// thumbWindow is how many pages either side of the one being shown are
 	// drawn and kept.
@@ -144,7 +151,7 @@ func (s *state) tileH(src *reader.Document, i int) int {
 
 // thumbGap is the space between two tiles, and scrollbarW what the bar down
 // the rail's edge takes from the tiles' width.
-const (
+var (
 	thumbGap   = 6
 	scrollbarW = 14
 )

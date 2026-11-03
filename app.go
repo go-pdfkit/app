@@ -14,16 +14,12 @@ import (
 // rewrite.
 type workbench struct {
 	s *state
-	// ratio is the screen's device pixels per CSS pixel. The harness hands
-	// Resize a box in CSS pixels; what we draw into is a framebuffer, and a
-	// framebuffer smaller than the screen is one the browser stretches. That
-	// stretch is what made the text look soft on a high-density display.
-	ratio float64
 }
 
-// maxRatio bounds the framebuffer. A ratio is 1, 2 or 3 on every screen anyone
-// has; a page can set it to anything through zoom, and 4 bytes a pixel over a
-// large window adds up.
+// maxRatio bounds how large the WIDGETS are drawn. A ratio is 1, 2 or 3 on
+// every screen anyone has; a page can set it to anything through zoom, and a
+// metric scale of 40 would be one control filling the window. The framebuffer
+// is webcanvas's to size, and it bounds that itself.
 const maxRatio = 3
 
 // uiFontPx is the size the workbench sets its text at. Large enough to read on
@@ -41,7 +37,8 @@ const uiFontPx = 13
 // the shipped layout.
 func init() { useVectorText() }
 
-// useVectorText installs an anti-aliased, shaped face for every widget.
+// useVectorText installs an anti-aliased, shaped face for every widget, at the
+// metric scale currently installed.
 //
 // ⛔ The toolkit's compiled-in default is a 5x7 BITMAP font, and anti-aliased
 // text is an explicit opt-in -- which this app had never made. So every label
@@ -88,7 +85,7 @@ func init() { useVectorText() }
 // A parse failure leaves the bitmap in place rather than failing to start: a
 // workbench that opens with plain text beats one that does not open.
 func useVectorText() {
-	f, err := toolkit.NewTrueTypeFont(uiFace, uiFontPx)
+	f, err := toolkit.NewTrueTypeFont(uiFace, toolkit.Scaled(uiFontPx))
 	if err != nil {
 		return
 	}
@@ -99,10 +96,14 @@ func useVectorText() {
 // that is not one and watch the workbench carry on.
 var uiFace = ibmplexsans.TTF
 
-// newWorkbench builds the scene and wraps it. ratio is the screen's device
-// pixels per CSS pixel; a native caller passes 1.
-func newWorkbench(h host, ratio float64) workbench {
-	return workbench{s: newState(surfaceW, surfaceH, h), ratio: clampRatio(ratio)}
+// newWorkbench builds the scene and wraps it.
+//
+// ⛔ It takes no pixel ratio any more. The ratio is the DISPLAY's, not the
+// workbench's, and reading it here read it once — at startup, before the
+// window had been dragged to another screen or the page zoomed. webcanvas
+// tells the workbench through SetPixelRatio instead, and tells it again.
+func newWorkbench(h host) workbench {
+	return workbench{s: newState(surfaceW, surfaceH, h)}
 }
 
 // clampRatio keeps a ratio usable. A browser that reports nothing gives 0, and
@@ -121,22 +122,52 @@ func clampRatio(r float64) float64 {
 // said how big it is.
 func (a workbench) Size() (int, int) { return surfaceW, surfaceH }
 
-// Resize lays the workbench out on the box the page gave it, at the screen's
-// own pixels, and reports the framebuffer size to allocate.
+// SetPixelRatio tells the workbench how many device pixels the display puts in
+// a CSS pixel, and is webcanvas's [webcanvas.PixelRatioAware] contract.
 //
-// The box arrives in CSS pixels. Multiplying by the ratio is the whole of the
-// difference between text the browser stretches and text drawn where it is
-// shown.
+// ⛔ IT SCALES THE WIDGETS, WHICH IS WHAT THIS DID NOT DO. The workbench read
+// the ratio itself and multiplied its FRAMEBUFFER by it, and stopped there:
+// the surface doubled on a Retina display and every widget on it stayed the
+// size it was, so the whole interface came out sharp and half as large as it
+// should be. Its sibling playground had the complementary half of the same
+// mistake — it scaled the widgets and not the surface, and showed nothing at
+// all — which is how both were found.
+//
+// Saying so through the interface also gets the ratio CHANGING for free: a
+// browser zoom, or a window dragged to a display of another density. The
+// number this used to read at startup could never follow that.
+func (a workbench) SetPixelRatio(ratio float64) {
+	r := clampRatio(ratio)
+	if r == toolkit.MetricScale() {
+		return
+	}
+	toolkit.SetMetricScale(r)
+	// The face is part of the scale, or the type is the one thing on the
+	// surface that does not grow.
+	useVectorText()
+	rescaleLayout()
+	// Every minipage already drawn was made for a card of the old size, so the
+	// rail starts again rather than stretching bitmaps over bigger tiles.
+	a.s.thumbs = nil
+	a.s.refresh()
+}
+
+// Resize lays the workbench out on the box the page gave it and reports the
+// framebuffer size to allocate.
+//
+// ⛔ The box arrives in DEVICE pixels now, because the scene claims
+// [webcanvas.PixelRatioAware]: webcanvas sizes the backing store to the CSS box
+// times the ratio and hands that on. This used to multiply by a ratio of its
+// own, which was the right arithmetic reached the wrong way — nothing told the
+// widgets about it.
 func (a workbench) Resize(w, h int) (int, int) {
-	pw := int(float64(w) * a.ratio)
-	ph := int(float64(h) * a.ratio)
-	if !a.s.resize(pw, ph) {
+	if !a.s.resize(w, h) {
 		// Refused, or already that size: keep what is laid out, and report it
 		// so the harness allocates a framebuffer that matches the layout
 		// rather than one the scene is not drawing into.
 		return a.s.w, a.s.h
 	}
-	return pw, ph
+	return w, h
 }
 
 // Draw paints the whole workbench.
@@ -170,7 +201,8 @@ func (a workbench) AnimationStep(dt float64) bool { return a.s.tick(dt) }
 // the workbench satisfies the harness contract, and asks for a clock so that a
 // document that arrives on its own is shown.
 var (
-	_ webcanvas.App      = workbench{}
-	_ webcanvas.Animator = workbench{}
-	_ webcanvas.Resizer  = workbench{}
+	_ webcanvas.App             = workbench{}
+	_ webcanvas.Animator        = workbench{}
+	_ webcanvas.Resizer         = workbench{}
+	_ webcanvas.PixelRatioAware = workbench{}
 )
