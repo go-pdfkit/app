@@ -33,12 +33,13 @@ type host interface {
 const (
 	surfaceW = 1000
 	surfaceH = 720
-
-	// The smallest surface the bands still fit on. Below this the page band
-	// would be zero or negative, so a resize to it is refused and the last
-	// good layout stands.
-	minSurfaceW = 2*margin + 1
 )
+
+// The smallest surface the bands still fit on. Below this the page band would
+// be zero or negative, so a resize to it is refused and the last good layout
+// stands. In DEVICE pixels, so it follows the display: a fixed floor would
+// refuse a window a Retina screen draws perfectly well.
+func minSurfaceW() int { return 2*margin + 1 }
 
 // minSurfaceH is the smallest height the three bands still fit in. It follows
 // the installed face, because every one of those bands is sized by its text.
@@ -58,15 +59,49 @@ func (s *state) minSurfaceH() int { return s.viewTop() + statusH() + margin + 1 
 // padding a 5x7 bitmap happened to be given. TestNoPanelOverflowsTheRoomItIsGiven
 // is the control -- it measures the laid-out panels against their own box, so
 // it fails for any face that does not fit rather than for a number that changed.
-const (
-	margin = 8
-
+// ⛔ EVERY LENGTH HERE IS LOGICAL AND GOES THROUGH toolkit.Scaled. On a
+// display that puts two device pixels in a CSS pixel the toolkit's metric
+// scale is 2, so every widget draws twice as large; a margin or a panel width
+// that stayed a raw number would then be half the room its contents need.
+// This workbench had the complementary half of that defect — it sized its
+// FRAMEBUFFER by the ratio and scaled nothing else — so the whole interface
+// came out sharp and half the size it should be.
+//
+// ⛔ They are VARIABLES, and rescaleLayout is the ONE place that writes them.
+// They are not constants because the scale arrives when the page says what
+// display it is on, and not functions because that would put a call at forty
+// use sites for a number that changes once a session. Every one of them is
+// derived from a single input, so there is one assignment each and nothing to
+// keep in step by hand. A test that moves the scale restores it, the way one
+// that installs a face does: the scale is process-wide.
+var (
+	margin       = 8
 	statusChrome = 10 // padding around the status line's text
-	// ⛔ viewW and viewH are NOT constants any more: they were
-	// surfaceW/surfaceH minus the bands, computed once at compile time, which
-	// is what kept the workbench at its design size however big the window
-	// was. They are methods on state now, over s.w and s.h.
 )
+
+// rescaleLayout re-derives every logical length for a display of the given
+// ratio. It is called from SetPixelRatio and from nowhere else.
+func rescaleLayout() {
+	margin = toolkit.Scaled(8)
+	statusChrome = toolkit.Scaled(10)
+	panelW = toolkit.Scaled(300)
+	gap = toolkit.Scaled(toolkit.DefaultBoxSpacing)
+	rowGap = toolkit.Scaled(6)
+	rowsW = panelW - toolkit.Scaled(34)
+	bareChrome = toolkit.Scaled(15)
+	labelGap = toolkit.Scaled(10)
+	railW = toolkit.Scaled(132)
+	thumbPicW = toolkit.Scaled(94)
+	thumbTallest = thumbPicW * 5 / 2
+	thumbGap = toolkit.Scaled(6)
+	scrollbarW = toolkit.Scaled(14)
+	lineH = toolkit.Scaled(16)
+}
+
+// ⛔ viewW and viewH are NOT constants any more: they were surfaceW/surfaceH
+// minus the bands, computed once at compile time, which is what kept the
+// workbench at its design size however big the window was. They are methods on
+// state now, over s.w and s.h.
 
 // textH is the height of one line of text in the face currently installed.
 func textH() int { return toolkit.CurrentFont().Height() }
@@ -559,7 +594,7 @@ func (s *state) viewH() int { return s.h - s.viewTop() - statusH() - margin }
 // negative: a window dragged to nothing should leave the last good layout
 // standing, not a frame of arithmetic errors.
 func (s *state) resize(w, h int) bool {
-	if w < minSurfaceW || h < s.minSurfaceH() {
+	if w < minSurfaceW() || h < s.minSurfaceH() {
 		return false
 	}
 	if w == s.w && h == s.h {

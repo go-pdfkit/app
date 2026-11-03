@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -68,6 +69,19 @@ func run() error {
 	if len(os.Args) > 3 {
 		shot = os.Args[3]
 	}
+	// ⛔ THE DISPLAY'S PIXEL RATIO, AND IT WAS 1 FOREVER. Headless Chrome runs
+	// at 1 unless told otherwise, so for as long as this check ran once it
+	// could only ever see the display nobody has a problem with. The sibling
+	// playground came up unreadable on every Retina screen while its own
+	// browser check stayed green for exactly this reason.
+	dpr := 1.0
+	if len(os.Args) > 4 {
+		v, err := strconv.ParseFloat(os.Args[4], 64)
+		if err != nil || !(v > 0) {
+			return fmt.Errorf("%q is not a pixel ratio a display has", os.Args[4])
+		}
+		dpr = v
+	}
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -105,7 +119,9 @@ func run() error {
 		"--no-default-browser-check", "--disable-gpu",
 		"--user-data-dir=" + profile,
 		"--window-size=1060,1040",
+		"--force-device-scale-factor=" + strconv.FormatFloat(dpr, 'g', -1, 64),
 	}
+	fmt.Printf("driving the workbench at a pixel ratio of %g\n", dpr)
 	if os.Getenv("CHROME_NO_SANDBOX") != "" {
 		// A build runner has no user namespaces to put the renderer in, so
 		// Chrome refuses to start at all. Turning its sandbox off is safe

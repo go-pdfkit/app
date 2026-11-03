@@ -3,11 +3,13 @@ package main
 import (
 	"math"
 	"testing"
+
+	"github.com/go-widgets/toolkit"
 )
 
 func TestTheAdapterForwardsEveryEvent(t *testing.T) {
 	h := &fakeHost{name: "sample.pdf", file: samplePDF(t, 2)}
-	a := newWorkbench(h, 1)
+	a := newWorkbench(h)
 	if w, hgt := a.Size(); w != surfaceW || hgt != surfaceH {
 		t.Errorf("Size() = %dx%d", w, hgt)
 	}
@@ -41,7 +43,7 @@ func TestAFileThatArrivesOnItsOwnIsShown(t *testing.T) {
 	// the workbench has to say that something changed — once, and not again
 	// while nothing does.
 	h := &fakeHost{name: "sample.pdf", file: samplePDF(t, 2)}
-	a := newWorkbench(h, 1)
+	a := newWorkbench(h)
 	a.AnimationStep(0.016) // whatever building it changed
 	if a.AnimationStep(0.016) {
 		t.Error("a still workbench asked to be repainted")
@@ -55,17 +57,15 @@ func TestAFileThatArrivesOnItsOwnIsShown(t *testing.T) {
 	}
 }
 
-// ⛔ The box arrives in CSS pixels and the framebuffer is in DEVICE pixels.
-// Drawing at one device pixel per CSS pixel on a 2x screen means the browser
-// stretches every glyph, which is what made the text look soft; multiplying by
-// the ratio is the whole of the fix.
-func TestResizeDrawsAtTheScreensOwnPixels(t *testing.T) {
-	h := &fakeHost{}
-	a := newWorkbench(h, 2)
+// ⛔ The box arrives in DEVICE pixels, because the workbench claims
+// webcanvas.PixelRatioAware: webcanvas sizes the backing store to the CSS box
+// times the ratio and hands that on. It is laid out exactly as given.
+func TestResizeIsTheBoxItWasGiven(t *testing.T) {
+	a := newWorkbench(&fakeHost{})
 
-	w, hh := a.Resize(600, 500)
+	w, hh := a.Resize(1200, 1000)
 	if w != 1200 || hh != 1000 {
-		t.Errorf("Resize(600,500) at ratio 2 = %d x %d, want 1200 x 1000", w, hh)
+		t.Errorf("Resize(1200,1000) = %d x %d", w, hh)
 	}
 	if a.s.w != 1200 || a.s.h != 1000 {
 		t.Errorf("the scene was laid out on %d x %d", a.s.w, a.s.h)
@@ -79,22 +79,13 @@ func TestResizeDrawsAtTheScreensOwnPixels(t *testing.T) {
 	}
 }
 
-// A ratio of one changes nothing, which is what a native caller and an old
-// display both get.
-func TestResizeAtRatioOneIsTheBoxItself(t *testing.T) {
-	a := newWorkbench(&fakeHost{}, 1)
-	if w, h := a.Resize(820, 640); w != 820 || h != 640 {
-		t.Errorf("= %d x %d, want 820 x 640", w, h)
-	}
-}
-
 // ⛔ A surface too small to hold the bands is REFUSED, and the size reported
 // back is the one the scene is still laid out on -- not the one that was
 // asked for. Reporting the asked-for size would have the harness allocate a
 // framebuffer the scene never draws into, which is a window of uninitialised
 // pixels.
 func TestASurfaceTooSmallLeavesTheLastGoodLayoutStanding(t *testing.T) {
-	a := newWorkbench(&fakeHost{}, 1)
+	a := newWorkbench(&fakeHost{})
 	a.Resize(900, 700)
 
 	for _, c := range []struct{ w, h int }{{1, 700}, {900, 1}, {0, 0}} {
@@ -112,7 +103,7 @@ func TestASurfaceTooSmallLeavesTheLastGoodLayoutStanding(t *testing.T) {
 // reallocate the framebuffer and repaint for nothing on every resize event a
 // browser fires while a window is being dragged.
 func TestResizingToTheSameSizeChangesNothing(t *testing.T) {
-	a := newWorkbench(&fakeHost{}, 1)
+	a := newWorkbench(&fakeHost{})
 	a.Resize(900, 700)
 	if a.s.resize(900, 700) {
 		t.Error("the same size was reported as a change")
@@ -135,11 +126,32 @@ func TestTheRatioIsKeptUsable(t *testing.T) {
 			t.Errorf("clampRatio(%v) = %v, want %v", c.in, got, c.want)
 		}
 	}
-	// and it reaches the workbench
-	if a := newWorkbench(&fakeHost{}, 0); a.ratio != 1 {
-		t.Errorf("ratio = %v, want 1", a.ratio)
+	// and it reaches the toolkit, which is what the workbench is laid out from
+	a := newWorkbench(&fakeHost{})
+	defer restoreScale(t)()
+	a.SetPixelRatio(0)
+	if got := toolkit.MetricScale(); got != 1 {
+		t.Errorf("a reported ratio of 0 installed a scale of %v", got)
 	}
-	if a := newWorkbench(&fakeHost{}, 99); a.ratio != maxRatio {
-		t.Errorf("ratio = %v, want %v", a.ratio, maxRatio)
+	a.SetPixelRatio(99)
+	if got := toolkit.MetricScale(); got != maxRatio {
+		t.Errorf("a reported ratio of 99 installed a scale of %v", got)
+	}
+}
+
+// restoreScale puts the toolkit's process-wide metric scale, face and the
+// layout derived from them back when the test is done.
+//
+// ⛔ THE SCALE IS ONE NUMBER FOR THE WHOLE PROCESS, like toolkit.SetFont. A
+// test that moved it and walked away would leave every test after it measuring
+// a workbench built for another display, and the suite's result would depend
+// on its order.
+func restoreScale(t *testing.T) func() {
+	t.Helper()
+	was, wasFont := toolkit.MetricScale(), toolkit.CurrentFont()
+	return func() {
+		toolkit.SetMetricScale(was)
+		toolkit.SetFont(wasFont)
+		rescaleLayout()
 	}
 }

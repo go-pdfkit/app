@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	a := newWorkbench(browser{}, pixelRatio())
+	a := newWorkbench(browser{})
 	publishControls(a.s)
 	webcanvas.Run("screen", a)
 }
@@ -34,15 +34,10 @@ func publishControls(s *state) {
 	}))
 }
 
-// pixelRatio is how many device pixels the screen puts in a CSS pixel. A
-// browser that does not say is taken as one.
-func pixelRatio() float64 {
-	v := js.Global().Get("devicePixelRatio")
-	if v.IsUndefined() || v.IsNull() {
-		return 1
-	}
-	return v.Float()
-}
+// ⛔ pixelRatio USED TO BE HERE, reading window.devicePixelRatio once at
+// startup and handing it to newWorkbench. webcanvas reads it instead, tells
+// the workbench through SetPixelRatio, and tells it AGAIN when a browser zoom
+// or another display changes it — which a number read once could not do.
 
 // browser is the page this runs in: it opens the file picker and hands a
 // finished document back through a download.

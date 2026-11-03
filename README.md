@@ -126,6 +126,22 @@ be. It caught two the first time it ran. Each group leads with exactly one
 large control, its primary command, which is what makes a ribbon readable at a
 glance rather than a wall of equal buttons.
 
+## It follows the display
+
+The workbench implements webcanvas's `PixelRatioAware`, so on a screen that
+puts two device pixels in a CSS pixel it is drawn at the screen's own
+resolution **and** every widget, band, margin and minipage is laid out twice as
+large. Both halves, and a browser zoom or a window dragged to another display
+says so again.
+
+⛔ It used to do only the first half — size its framebuffer by the ratio and
+scale nothing else — so the whole interface came out sharp and half the size it
+should be. Its sibling, the [playground](https://go-pdfkit.github.io/playground/),
+had the complementary half, scaling the widgets and not the surface, and showed
+nothing at all. Neither failed anything: headless Chrome runs at ratio 1 unless
+told otherwise, so the one condition both defects needed was the one condition
+CI never produced. The browser check takes a ratio now and runs at **1 and 2**.
+
 Text is set in [IBM Plex Sans](https://github.com/go-opentype/fonts) through
 the toolkit's TrueType path. It replaced Inter because a reader said the
 lowercase `g` read as a `9`, and that turned out to be measurable: rendering
