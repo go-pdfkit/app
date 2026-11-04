@@ -385,8 +385,35 @@ func (s *state) buildRibbon() *toolkit.Ribbon {
 			Tip:    v.tip,
 		})
 	}
-	r.Quick = append(r.Quick, s.themeControl())
+	r.Quick = append(r.Quick, s.contentsControl(), s.themeControl())
 	return r
+}
+
+// contentsControl switches the rail between the minipages and the document's
+// own table of contents.
+//
+// ⛔ Not in the verbs table, for the same reason the theme switch is not: it
+// changes what the workbench SHOWS and not what the document says. It is
+// greyed when no document is open, though, which the theme switch is not —
+// there is no rail to switch without one.
+func (s *state) contentsControl() *toolkit.RibbonControl {
+	a := &toolkit.Action{
+		ID: "contents",
+		// One label, as with the theme switch: Ribbon.ControlRect finds a
+		// control by it, so a label that moved with the state would move the
+		// control out from under the press that moved it.
+		Label: "Contents",
+		Icon: func(p painter.Painter, r toolkit.Rect, ink toolkit.RGBA) {
+			toolkit.DrawIconoir(p, r, s.contentsIcon(), ink)
+		},
+		Run:     s.toggleContents,
+		Enabled: mvvm.NewObservable(false),
+		Visible: mvvm.NewObservable(true),
+	}
+	s.acts["contents"] = a
+	s.rules["contents"] = func(s *state) bool { return s.opened() }
+	s.contentsCtl = &toolkit.RibbonControl{Kind: toolkit.RibbonButton, Action: a, Tip: s.contentsTip()}
+	return s.contentsCtl
 }
 
 // themeControl is the light / dark / system switch.

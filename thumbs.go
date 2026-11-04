@@ -133,6 +133,13 @@ func (s *state) rail(src *reader.Document, stamp [2]uint64) (toolkit.Widget, boo
 	if n < 2 {
 		return nil, false
 	}
+	// ⛔ The contents go in the SAME column as the minipages, switched between,
+	// rather than beside them. They answer one question — "where in this
+	// document am I, and how do I get to the part I want" — and two columns
+	// both answering it would take the page's width twice to say it once.
+	if s.railContents {
+		return s.contentsRail(src), false
+	}
 	if s.thumbs == nil {
 		s.thumbs = &thumbs{}
 	}

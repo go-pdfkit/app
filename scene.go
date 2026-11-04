@@ -219,6 +219,14 @@ type state struct {
 	// observable and writes to it as the divider moves. Everything that needs
 	// device pixels goes through railPx().
 	railWidth *mvvm.Observable[int]
+	// railContents switches the rail between the minipages and the document's
+	// own table of contents. They answer the same question — where am I, and
+	// how do I get where I want — so they share one column rather than taking
+	// the page's width twice to say it once.
+	railContents bool
+	// contentsCtl is the switch, kept because its tooltip is the one part of
+	// it that says which view is on in words.
+	contentsCtl *toolkit.RibbonControl
 
 	themeMode  themeMode
 	systemDark bool
