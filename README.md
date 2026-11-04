@@ -142,6 +142,24 @@ nothing at all. Neither failed anything: headless Chrome runs at ratio 1 unless
 told otherwise, so the one condition both defects needed was the one condition
 CI never produced. The browser check takes a ratio now and runs at **1 and 2**.
 
+### A secondary press names the page it will act on
+
+Right-clicking a minipage or the page itself opens a menu of the verbs that act
+on **one page** — turn it, drop it, put a blank before it, hand it over as a
+picture, read its words.
+
+⛔ **It names the page, and it goes there first.** Every verb in it already
+exists on the ribbon, where it acts on *the page being read*. A menu opened
+over minipage 7 that then turned whatever page the viewer happened to be
+showing would be worse than no menu at all — so opening it moves the workbench
+to the page under the pointer, and the first row says which page that is.
+Nothing in the menu is a verb the ribbon lacks; what it adds is **the page**.
+
+The rows are read from the ribbon's own verb table by id, never restated, so a
+rename cannot leave the menu calling something by its old name — and there is
+no "skip an unknown id", because that would let a renamed verb drop out of the
+menu in silence.
+
 ### The rail is resizable, and the minipages follow
 
 The band is a `toolkit.Splitter` rather than a fixed row: the divider between

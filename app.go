@@ -182,9 +182,15 @@ func (a workbench) Move(x, y int) bool { return a.s.handleMove(x, y) }
 // Release forwards a release.
 func (a workbench) Release(x, y int) bool { return a.s.handleRelease(x, y) }
 
-// Context forwards a secondary press, which the workbench treats as a primary
-// one: nothing here has a second meaning.
-func (a workbench) Context(x, y int) bool { return a.s.handleClick(x, y) }
+// Context forwards a secondary press, which opens the menu of the verbs that
+// act on the page under it.
+//
+// ⛔ It used to forward to handleClick — a right-click did whatever a
+// left-click would, which on a minipage means it TURNED THE PAGE. The seam was
+// here and wired to the wrong thing, which is worse than absent: the browser
+// had already been told not to show its own menu, so the gesture did something
+// surprising instead of nothing.
+func (a workbench) Context(x, y int) bool { return a.s.handleContext(x, y) }
 
 // Char forwards a printable character to whatever box is being typed into.
 func (a workbench) Char(text string) bool { return a.s.handleChar(text) }
