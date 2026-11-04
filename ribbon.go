@@ -385,7 +385,44 @@ func (s *state) buildRibbon() *toolkit.Ribbon {
 			Tip:    v.tip,
 		})
 	}
+	r.Quick = append(r.Quick, s.themeControl())
 	return r
+}
+
+// themeControl is the light / dark / system switch.
+//
+// ⛔ IT IS NOT IN THE VERBS TABLE, and that is deliberate rather than an
+// oversight. Everything in that table is something done TO THE DOCUMENT: it
+// has a rule about whether a document is open, it marks the file dirty, and
+// the test that presses all of them expects a document to press them against.
+// A colour scheme is none of those — it is as available with nothing open as
+// with a hundred pages, and pressing it changes no byte that would be saved.
+//
+// It sits on the quick bar for the same reason Open and Save do: it is wanted
+// whatever tab is being worked in.
+func (s *state) themeControl() *toolkit.RibbonControl {
+	a := &toolkit.Action{
+		ID: "theme",
+		// ⛔ The label does NOT cycle with the mode, though the mode is what the
+		// button is for. Ribbon.ControlRect finds a control BY ITS LABEL, so a
+		// label that changed with the state would move the control out from
+		// under every test and every browser check that reaches for it — and it
+		// would be the press itself that moved it. The mark carries the state
+		// instead, and the tooltip says it in words.
+		Label: "Theme",
+		Icon: func(p painter.Painter, r toolkit.Rect, ink toolkit.RGBA) {
+			toolkit.DrawIconoir(p, r, s.themeMode.icon(), ink)
+		},
+		Run:     s.cycleTheme,
+		Enabled: mvvm.NewObservable(true),
+		Visible: mvvm.NewObservable(true),
+	}
+	s.acts["theme"] = a
+	// No rule: reconsider greys a verb when no document is open, and this is
+	// not a verb. Registering nil would make it grey with the rest.
+	s.rules["theme"] = func(*state) bool { return true }
+	s.themeCtl = &toolkit.RibbonControl{Kind: toolkit.RibbonButton, Action: a, Tip: s.themeMode.tip()}
+	return s.themeCtl
 }
 
 // action builds one verb's Action, bound to this workbench.
