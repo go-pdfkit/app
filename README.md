@@ -142,6 +142,27 @@ nothing at all. Neither failed anything: headless Chrome runs at ratio 1 unless
 told otherwise, so the one condition both defects needed was the one condition
 CI never produced. The browser check takes a ratio now and runs at **1 and 2**.
 
+### The rail also shows the document's own contents
+
+A switch on the quick bar swaps the rail between the minipages and the
+document's table of contents — its `/Outlines` tree — each row indented by its
+depth and pressable to go to its page. They share one column because they
+answer the same question, *where am I and how do I get where I want*, and two
+columns both answering it would take the page's width twice to say it once.
+
+⛔ **Every link in an outline comes out of the file.** It is a tree of indirect
+references, and nothing in the format stops a file pointing `/Next` at an item
+already visited, nesting a thousand deep, or carrying a hundred thousand
+entries. The walk is bounded on all three axes, and the three bounds do
+different work: the count stops a cycle *spinning*, the visited set stops it
+coming back as a thousand copies of the same two rows, and the depth bound
+bounds the recursion itself — the only one of the three that would otherwise
+end the process rather than merely waste it.
+
+A bookmark whose destination this document cannot resolve **keeps its row** and
+loses its press: the row is still what the document says about itself, and
+dropping it would renumber everything under it.
+
 ### A secondary press names the page it will act on
 
 Right-clicking a minipage or the page itself opens a menu of the verbs that act

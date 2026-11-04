@@ -1,0 +1,284 @@
+// The document's own table of contents: the /Outlines tree a PDF carries so a
+// viewer can offer bookmarks.
+//
+// ⛔ EVERY LINK IN IT COMES OUT OF THE FILE. An outline is a doubly-linked tree
+// of indirect references — /First and /Next and /Parent — and nothing in the
+// format stops a file pointing /Next back at an item already visited, or
+// nesting a thousand deep, or carrying a hundred thousand entries. A walk that
+// trusted them would hang the tab on a document somebody was handed, which is
+// the whole threat model of a workbench whose point is that nothing leaves it.
+// Hence seen, maxBookmarks and maxOutlineDepth below: bounded on all three
+// axes, and the bound is reported rather than hidden.
+//
+// The structure is the one go-pdfkit/pdfkit writes (document.go:563-581): an
+// item is a /Title and a /Dest of [pageRef /Fit] or [pageRef /XYZ x y null],
+// with /Parent, /Prev, /Next, /First, /Last and /Count links. A destination may
+// also arrive as an /A action dictionary, which is what most other producers
+// emit.
+
+package main
+
+import (
+	"github.com/go-pdfkit/reader"
+	"github.com/go-widgets/toolkit"
+)
+
+// A bookmark is one row of the contents: what it says, which page it goes to,
+// and how deeply it is nested.
+type bookmark struct {
+	title string
+	page  int
+	depth int
+}
+
+// The bounds on what a file may ask this walk to do.
+//
+// A thousand entries is more than any table of contents a person reads, and
+// twenty levels is deeper than any document is structured; both are here to
+// stop a file, not a book. maxOutlineDepth also bounds the recursion itself,
+// which is the one of the three that would otherwise end the process rather
+// than merely waste it.
+const (
+	maxBookmarks = 1000
+	// maxOutlineDepth bounds the recursion as well as the nesting, which is
+	// the one of the three bounds that would otherwise end the process rather
+	// than merely waste it.
+	maxOutlineDepth = 20
+	// outlineTitleMax is counted in RUNES, the ellipsis included.
+	outlineTitleMax = 200
+	outlineEllipsis = "…"
+	outlineUntitled = "(untitled)"
+)
+
+// toggleContents swaps the rail between the minipages and the contents.
+//
+// ⛔ It rebuilds the rail rather than refreshing: refresh re-reads the whole
+// document and redraws every page, and nothing about the document has changed
+// — only which of two views of it is being shown.
+func (s *state) toggleContents() {
+	s.railContents = !s.railContents
+	s.contentsCtl.Tip = s.contentsTip()
+	s.railView, s.railMore = nil, false
+	s.dirty = true
+}
+
+// contentsIcon and contentsTip say which view is on and what the next press
+// does, which is the whole of what the switch's fixed label cannot.
+func (s *state) contentsIcon() string {
+	if s.railContents {
+		return "media-image-list"
+	}
+	return "list"
+}
+
+func (s *state) contentsTip() string {
+	if s.railContents {
+		return "The contents. Press for the minipages."
+	}
+	return "The minipages. Press for the document's contents."
+}
+
+// contentsRail is the rail showing the document's own table of contents: one
+// row per bookmark, indented by its depth, each a press that goes to its page.
+//
+// ⛔ A document with no outline still gets the view, saying so. Offering a
+// switch that silently shows an empty column would leave a reader unable to
+// tell "this document has no contents" from "the switch is broken".
+func (s *state) contentsRail(src *reader.Document) toolkit.Widget {
+	marks := s.bookmarks(src)
+	col := toolkit.NewVBox()
+	col.Spacing = thumbGap
+	h := 0
+	add := func(w toolkit.Widget) {
+		col.AddFixed(w, lineH)
+		h += lineH + thumbGap
+	}
+	if len(marks) == 0 {
+		add(toolkit.NewLabel("no contents"))
+	}
+	for _, m := range marks {
+		add(s.contentsRow(m))
+	}
+	if h > 0 {
+		h -= thumbGap
+	}
+	w := s.railPx() - scrollbarW
+	col.SetBounds(toolkit.Rect{W: w, H: h})
+	sv := toolkit.NewScrollView(col)
+	sv.SetContentSize(w, h)
+	return sv
+}
+
+// contentsRow is one line of the contents.
+//
+// ⛔ A bookmark whose destination this document cannot resolve keeps its row
+// and loses its press. The row is still what the document says about itself,
+// and dropping it would renumber everything under it; but a press that went
+// nowhere would be a control that does not work rather than one that is off.
+func (s *state) contentsRow(m bookmark) toolkit.Widget {
+	label := m.title
+	for range m.depth {
+		label = "  " + label
+	}
+	if m.page == 0 {
+		l := toolkit.NewLabel(label)
+		l.Disabled().Set(true)
+		return l
+	}
+	// ButtonSecondary rather than the default: a contents row is a place to go,
+	// not a command, and a column of default-faced buttons reads as a column of
+	// commands. Selected marks the row whose page is being read, the way a
+	// minipage is marked in the other view.
+	b := toolkit.NewButton(label, func() { s.goTo(m.page) })
+	b.Style = toolkit.ButtonSecondary
+	b.Selected().Set(m.page == s.at)
+	return b
+}
+
+// bookmarks is the document's contents, flattened in reading order with each
+// row's depth kept. It is empty when the document carries no outline, which is
+// most of them.
+func (s *state) bookmarks(src *reader.Document) []bookmark {
+	// ⛔ The errors are dropped rather than branched on, and that is the whole
+	// of what this function has to say about them: it answers "the document's
+	// contents, or none", and a catalog that cannot be read is none. A branch
+	// that returned early would be a second way of saying the same thing, and
+	// one no test could reach — a document that did not open never gets here,
+	// and a document that did has a catalog.
+	cat, _ := src.Catalog()
+	root, ok := src.GetDict(cat, "Outlines")
+	if !ok {
+		return nil
+	}
+	pages := pageNumbers(src)
+	var out []bookmark
+	seen := map[reader.Ref]bool{}
+	walkOutline(src, root, pages, seen, 0, &out)
+	return out
+}
+
+// pageNumbers maps each page's object reference to its 1-based number, which is
+// what turns a destination into somewhere to go. PageRef is the inverse of
+// Page, and the only way back from the reference a /Dest carries.
+func pageNumbers(src *reader.Document) map[reader.Ref]int {
+	out := make(map[reader.Ref]int, src.PageCount())
+	for i := 1; i <= src.PageCount(); i++ {
+		if ref, ok := src.PageRef(i); ok {
+			out[ref] = i
+		}
+	}
+	return out
+}
+
+// walkOutline follows one level's /First … /Next chain, recursing into each
+// item's own children.
+//
+// ⛔ seen is keyed on the REFERENCE, not on the item, and it is shared across
+// the whole walk rather than per level. A file can point /Next at an item from
+// another branch just as easily as at one from this one, and a per-level guard
+// would follow that for ever.
+func walkOutline(src *reader.Document, parent reader.Dict, pages map[reader.Ref]int,
+	seen map[reader.Ref]bool, depth int, out *[]bookmark) {
+	if depth >= maxOutlineDepth {
+		return
+	}
+	ref, ok := refOf(parent.Get("First"))
+	for ok && len(*out) < maxBookmarks {
+		if seen[ref] {
+			return // the chain has come back on itself
+		}
+		seen[ref] = true
+		item, got := dictAt(src, ref)
+		if !got {
+			return
+		}
+		*out = append(*out, bookmark{
+			title: outlineTitle(item),
+			page:  destPage(src, item, pages),
+			depth: depth,
+		})
+		walkOutline(src, item, pages, seen, depth+1, out)
+		ref, ok = refOf(item.Get("Next"))
+	}
+}
+
+// refOf is the object reference an outline link carries, if it carries one.
+// ⛔ A link that is not a reference is not a link: the tree is built out of
+// indirect references, and anything else in that slot is a file saying
+// something this walk has no way to follow.
+func refOf(o reader.Object) (reader.Ref, bool) {
+	r, ok := o.(reader.Ref)
+	return r, ok
+}
+
+// dictAt fetches the dictionary an outline link points at.
+// A link to an object that is not there and a link to one that is not a
+// dictionary are the same answer here, so there is one path for both: Get
+// returns nothing for a missing object and ToDict refuses it.
+func dictAt(src *reader.Document, ref reader.Ref) (reader.Dict, bool) {
+	o, _ := src.Get(ref)
+	return reader.ToDict(o)
+}
+
+// outlineTitle is what the row says. A title is a PDF text string, which is to
+// say bytes a file chose: it is clipped, and an item with none is still a row,
+// because a row missing from the contents would make every row after it point
+// at the wrong line of a reader's own mental list.
+func outlineTitle(item reader.Dict) string {
+	s, ok := reader.TextString(item.Get("Title"))
+	if !ok || s == "" {
+		return outlineUntitled
+	}
+	// ⛔ Clipped by RUNES, not bytes. A PDF text string is commonly UTF-16BE,
+	// so a title is as likely to be Cyrillic or Japanese as ASCII, and cutting
+	// it at a byte offset would split a character in half — leaving the row to
+	// draw a replacement glyph that the document never contained. Counting in
+	// bytes also made the bound a lie: the first version of this cut at
+	// outlineTitleMax-1 bytes and then appended a three-byte ellipsis, so a
+	// "200" limit returned 202.
+	r := []rune(s)
+	if len(r) > outlineTitleMax {
+		return string(r[:outlineTitleMax-1]) + outlineEllipsis
+	}
+	return s
+}
+
+// destPage is the page an item goes to, or 0 when it does not say or says
+// something this document cannot resolve.
+//
+// Two spellings, because producers differ: /Dest carries the destination
+// itself, and /A carries an action that carries it. go-pdfkit/pdfkit writes
+// the first (document.go:569); most other producers write the second.
+func destPage(src *reader.Document, item reader.Dict, pages map[reader.Ref]int) int {
+	if n := destArrayPage(src, item.Get("Dest"), pages); n != 0 {
+		return n
+	}
+	action, ok := src.GetDict(item, "A")
+	if !ok {
+		return 0
+	}
+	// Only /GoTo. An action that opens a URL or runs a file is not a place in
+	// this document, and a row that silently did nothing would be worse than a
+	// row that says where it goes and goes nowhere.
+	if name, ok := reader.ToName(mustResolve(src, action.Get("S"))); !ok || name != "GoTo" {
+		return 0
+	}
+	return destArrayPage(src, action.Get("D"), pages)
+}
+
+// destArrayPage reads an explicit destination: an array whose FIRST element is
+// the page it refers to. A named destination (a name or a string, looked up in
+// the catalog's /Dests) is not followed — it would be a second tree out of the
+// same file, with the same cycle problem, for rows this reader has not met in
+// practice.
+func destArrayPage(src *reader.Document, o reader.Object, pages map[reader.Ref]int) int {
+	arr, ok := reader.ToArray(o)
+	if !ok || len(arr) == 0 {
+		return 0
+	}
+	ref, ok := refOf(arr[0])
+	if !ok {
+		return 0
+	}
+	return pages[ref]
+}
