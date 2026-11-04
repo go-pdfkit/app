@@ -33,7 +33,7 @@ func measure(t *testing.T, ratio float64) bands {
 	a := atRatio(t, ratio, w, h)
 	return bands{
 		ribbon: a.s.toolbarH(),
-		rail:   railW,
+		rail:   a.s.railPx(),
 		status: statusH(),
 		text:   toolkit.CurrentFont().Height(),
 		panel:  panelW,

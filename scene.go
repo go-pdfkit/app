@@ -98,9 +98,6 @@ func rescaleLayout() {
 	rowsW = panelW - toolkit.Scaled(34)
 	bareChrome = toolkit.Scaled(15)
 	labelGap = toolkit.Scaled(10)
-	railW = toolkit.Scaled(132)
-	thumbPicW = toolkit.Scaled(94)
-	thumbTallest = thumbPicW * 5 / 2
 	thumbGap = toolkit.Scaled(6)
 	scrollbarW = toolkit.Scaled(14)
 	lineH = toolkit.Scaled(16)
@@ -212,6 +209,12 @@ type state struct {
 	// themeMode is the reader's choice of light, dark, or whatever the system
 	// says; systemDark is what the system currently says. theme is what the two
 	// of them resolve to (see theme.go).
+	// railWidth is how wide the reader has made the minipage rail, in LOGICAL
+	// pixels — the unit toolkit.SplitPane.Size is in, so the splitter owns this
+	// observable and writes to it as the divider moves. Everything that needs
+	// device pixels goes through railPx().
+	railWidth *mvvm.Observable[int]
+
 	themeMode  themeMode
 	systemDark bool
 	// themeCtl is the switch itself, kept because its tooltip is the one part
@@ -225,6 +228,10 @@ func newState(w, h int, h2 host) *state {
 	s := &state{w: w, h: h, theme: toolkit.DefaultLight(), host: h2, at: 1, tools: newTools()}
 	s.pv = newViewer()
 	s.drawn = map[int]int{}
+	s.railWidth = mvvm.NewObservable(railLogicalW)
+	// The tiles are laid out from this width, so a drag has to rebuild the rail
+	// — not merely redraw it at the old shape inside a narrower pane.
+	s.railWidth.Subscribe(func(int) { s.railView, s.railMore = nil, false; s.dirty = true })
 	// ⛔ The viewer's page and the workbench's are ONE datum seen twice, and
 	// this is the direction a field could not have: scrolling, a nav key or the
 	// viewer's own prev/next move the reader without going through any verb, so
@@ -590,19 +597,58 @@ func (s *state) arrange(w toolkit.Widget) toolkit.Widget {
 	if s.railView == nil && s.tools.open == "" {
 		return page
 	}
-	// An HBox, which is what puts things side by side; the page takes whatever
-	// the rail and the panel leave. The rail goes on the left, where a reader
-	// looks first and where every document viewer has put it.
-	row := toolkit.NewHBox()
-	row.Spacing = gap
+	// ⛔ A Splitter and not an HBox, which is the difference between a rail the
+	// reader can widen and one they cannot. The rail goes on the left, where a
+	// reader looks first and where every document viewer has put it; the page
+	// takes whatever the rail and the panel leave.
+	//
+	// The width lives in s.railWidth, which the splitter WRITES as the divider
+	// moves — so the band is rebuilt on every refresh without the reader's
+	// choice being rebuilt with it.
+	var panes []*toolkit.SplitPane
 	if s.railView != nil {
-		row.AddFixed(toolkit.NewFrame(s.railView), railW)
+		panes = append(panes, &toolkit.SplitPane{
+			Widget: toolkit.NewFrame(s.railView),
+			Name:   "the minipages",
+			Size:   s.railWidth,
+			Min:    railMinW,
+			Max:    railMaxW,
+			// Collapsible, so a double-click puts the rail away and another
+			// brings it back at the width it had. A reader who wants the whole
+			// window for the page should not have to drag it to nothing.
+			Collapsible: true,
+		})
 	}
-	row.AddFlex(page, 1)
+	panes = append(panes, &toolkit.SplitPane{Widget: page, Name: "the page", Weight: mvvm.NewObservable(1)})
 	if s.tools.open != "" {
-		row.AddFixed(toolkit.NewFrame(s.body()), panelW)
+		panes = append(panes, &toolkit.SplitPane{
+			Widget: toolkit.NewFrame(s.body()),
+			Name:   "the settings",
+			Size:   mvvm.NewObservable(panelLogicalW),
+			Min:    panelLogicalW,
+			Max:    panelLogicalW,
+		})
 	}
-	return row
+	sp := toolkit.NewSplitter(false, panes...)
+	// ⛔ The pictures are re-made when the GESTURE ends, not while it runs. Each
+	// minipage is a page rendered at the rail's width, so re-rendering them on
+	// every frame of a drag would render the whole window's worth of pages
+	// dozens of times on the way to a width the reader has not chosen yet.
+	// Until then the tiles are the old pictures scaled into the new boxes,
+	// which is what a Thumbnail does anyway.
+	sp.OnResized = func([]int) { s.remakeRail() }
+	return sp
+}
+
+// remakeRail throws away the minipages so they are drawn again at the rail's
+// new width. The tiles themselves were already rebuilt when the width changed
+// (the Subscribe in newState); this is the half that costs rendering.
+func (s *state) remakeRail() {
+	if s.thumbs != nil {
+		s.thumbs.pix, s.thumbs.size = map[int][]byte{}, map[int][2]int{}
+	}
+	s.railView, s.railMore = nil, false
+	s.dirty = true
 }
 
 // pageW is how much width the page has: the whole band, less the panel when
@@ -634,13 +680,21 @@ func (s *state) resize(w, h int) bool {
 	return true
 }
 
+// pageW is how much width the page has: the whole band, less the rail and the
+// panel beside it and the divider between each.
+//
+// ⛔ It reads the rail's LIVE width, not a constant. This is the number the
+// published band rect is cut from and the one blankPages and the
+// page-as-a-picture verb scale by, so a rail the reader has widened and a
+// pageW that still describes the old one is a page measured against a band it
+// is no longer in.
 func (s *state) pageW() int {
 	w := s.viewW()
 	if s.railView != nil {
-		w -= railW + gap
+		w -= s.railPx() + toolkit.Scaled(toolkit.SplitterHandleW)
 	}
 	if s.tools.open != "" {
-		w -= panelW + gap
+		w -= panelW + toolkit.Scaled(toolkit.SplitterHandleW)
 	}
 	return w
 }

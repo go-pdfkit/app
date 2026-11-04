@@ -12,19 +12,30 @@ import (
 	"github.com/go-widgets/toolkit"
 )
 
-// railW is the whole rail and thumbPicW the picture inside it: the scrollbar
-// down its edge and the frame around each tile take the rest. Logical lengths,
-// re-derived by rescaleLayout — and the picture is therefore MADE at the
-// display's own resolution, which is what keeps a tile from being a 1x bitmap
-// stretched over a 2x tile.
+// railLogicalW is the rail's width when nobody has moved the divider, and
+// railMinW / railMaxW bound where they may put it. ⛔ LOGICAL pixels, because
+// that is the unit toolkit.SplitPane.Size is in — railW and thumbPicW above
+// are the same numbers already multiplied out for the display, which is a
+// difference worth a sentence rather than a debugging session.
 //
-// thumbTallest caps a tile, because a tile's height follows its page's shape
-// and a page may be any shape at all: a cutting plan 50 times taller than it
-// is wide would otherwise make one tile the length of the rail.
-var (
-	railW        = 132
-	thumbPicW    = 94
-	thumbTallest = thumbPicW * 5 / 2
+// The floor is a tile still worth looking at; past it the rail says less than
+// its own scrollbar costs. The ceiling is half the design surface: a rail
+// wider than the page it is a map of has stopped being a rail.
+const (
+	railLogicalW = 132
+	railMinW     = 72
+	railMaxW     = surfaceW / 2
+
+	// panelLogicalW is the settings panel's width in the same unit. It is not
+	// resizable: every row in it is a labelled control laid out to a fixed
+	// width, so a narrower panel would clip its own labels rather than reflow.
+	panelLogicalW = 300
+
+	// thumbChrome is what the rail takes from its own width before the picture:
+	// the scrollbar down its edge and the frame around each tile. Derived from
+	// the three numbers above so the proportions a reader sees at the default
+	// width are the ones they keep at any other.
+	thumbChrome = railLogicalW - 94
 )
 
 const (
@@ -68,6 +79,22 @@ type thumbs struct {
 	pix   map[int][]byte
 	size  map[int][2]int
 }
+
+// railPx is the rail's current width in DEVICE pixels, and picW the picture
+// inside it. ⛔ These replace the railW and thumbPicW constants: the rail is
+// resizable now, so a width read once at startup is a width that stops being
+// true the first time somebody drags the divider — and every tile is measured,
+// laid out and RENDERED from it.
+func (s *state) railPx() int { return toolkit.Scaled(s.railWidth.Get()) }
+
+func (s *state) picW() int {
+	return max(toolkit.Scaled(railMinW-thumbChrome), s.railPx()-toolkit.Scaled(thumbChrome))
+}
+
+// tallest caps a tile, because a tile's height follows its page's shape and a
+// page may be any shape at all: a cutting plan 50 times taller than it is wide
+// would otherwise make one tile the length of the rail.
+func (s *state) tallest() int { return s.picW() * 5 / 2 }
 
 // stampOf identifies a document by its bytes.
 func stampOf(raw []byte) [2]uint64 {
@@ -123,9 +150,9 @@ func (s *state) rail(src *reader.Document, stamp [2]uint64) (toolkit.Widget, boo
 		col.AddFixed(s.tile(i, n), tileH)
 		h += tileH
 	}
-	col.SetBounds(toolkit.Rect{W: railW - scrollbarW, H: h})
+	col.SetBounds(toolkit.Rect{W: s.railPx() - scrollbarW, H: h})
 	sv := toolkit.NewScrollView(col)
-	sv.SetContentSize(railW-scrollbarW, h)
+	sv.SetContentSize(s.railPx()-scrollbarW, h)
 	return sv, more
 }
 
@@ -137,14 +164,14 @@ func (s *state) rail(src *reader.Document, stamp [2]uint64) (toolkit.Widget, boo
 // somebody needs a rail to find their way around, and a tile the shape of its
 // page says "that one" before any picture in it is legible.
 func (s *state) tileH(src *reader.Document, i int) int {
-	pic := thumbPicW // a page that cannot be measured gets a square
+	pic := s.picW() // a page that cannot be measured gets a square
 	if page, err := src.Page(i); err == nil {
 		if w, h := pageSize(src, page); w > 0 && h > 0 {
-			pic = int(float64(thumbPicW) * h / w)
+			pic = int(float64(s.picW()) * h / w)
 		}
 	}
-	if pic > thumbTallest {
-		pic = thumbTallest
+	if pic > s.tallest() {
+		pic = s.tallest()
 	}
 	return pic + textH() + 2*toolkit.ThumbnailLabelPad
 }
@@ -214,7 +241,7 @@ func (s *state) drawThumbs(src *reader.Document, n int) bool {
 			continue
 		}
 		img, _ := drawPage(src, i, render.Options{
-			Scale:       float64(thumbPicW) / w,
+			Scale:       float64(s.picW()) / w,
 			MaxDuration: thumbPage,
 		})
 		// A minipage that ran out of time is kept as far as it got, and one
