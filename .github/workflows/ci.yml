@@ -32,11 +32,17 @@ jobs:
       - name: Test with coverage
         run: go test -covermode=set -coverprofile=coverage.out ./...
 
-      - name: The browser check builds and vets too
+      # The lane the browser check never had. It vetted and built, and nothing
+      # ran a test in it -- because it had none, which is how its reply table
+      # came to be read and written from two goroutines under a comment saying
+      # the mutex existed to stop exactly that. -race is the point of the step:
+      # the sequential checks it drives would never open the window.
+      - name: The browser check builds, vets and races too
         working-directory: browsercheck
         run: |
           go vet ./...
           test -z "$(gofmt -l .)"
+          go test -race -count=1 ./...
 
       - name: Assert exact 100% statement coverage
         run: |

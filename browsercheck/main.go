@@ -250,6 +250,48 @@ type event struct {
 	Params json.RawMessage
 }
 
+// ⛔ EVERY TOUCH OF replies AND id GOES THROUGH THESE THREE, and that is the
+// point of them. The comment on the mutex above has always said why it exists;
+// pump then read and deleted from the map without taking it, which is the
+// "concurrent map writes" the comment describes, sitting under a note saying
+// it had been dealt with. A lock a reader has to remember to take is a lock
+// somebody will forget — so there is now nowhere left to forget it.
+
+// await reserves the next request number and the channel its reply will arrive
+// on.
+func (c *conn) await() (int, chan json.RawMessage) {
+	ch := make(chan json.RawMessage, 1)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.id++
+	c.replies[c.id] = ch
+	return c.id, ch
+}
+
+// deliver hands a reply to whoever is waiting for it, and reports whether
+// anybody was. The send happens AFTER the mutex is dropped: the channel has
+// room for one and could not block today, but a lock held across a send to a
+// channel somebody else owns is how that stops being true.
+func (c *conn) deliver(id int, msg json.RawMessage) bool {
+	c.mu.Lock()
+	ch, ok := c.replies[id]
+	delete(c.replies, id)
+	c.mu.Unlock()
+	if !ok {
+		return false
+	}
+	ch <- msg
+	return true
+}
+
+// forget drops a request nobody will read the reply of. Deleting twice is a
+// no-op, which is what lets call defer this unconditionally.
+func (c *conn) forget(id int) {
+	c.mu.Lock()
+	delete(c.replies, id)
+	c.mu.Unlock()
+}
+
 func dial(ctx context.Context, url string) (*conn, error) {
 	ws, _, err := websocket.Dial(ctx, url, nil)
 	if err != nil {
@@ -280,14 +322,11 @@ func (c *conn) pump(ctx context.Context) {
 			continue
 		}
 		if msg.ID != 0 {
-			if ch, ok := c.replies[msg.ID]; ok {
-				if msg.Error != nil {
-					ch <- json.RawMessage(`{"__error":` + string(msg.Error) + `}`)
-				} else {
-					ch <- msg.Result
-				}
-				delete(c.replies, msg.ID)
+			reply := msg.Result
+			if msg.Error != nil {
+				reply = json.RawMessage(`{"__error":` + string(msg.Error) + `}`)
 			}
+			c.deliver(msg.ID, reply)
 			continue
 		}
 		select {
@@ -299,20 +338,11 @@ func (c *conn) pump(ctx context.Context) {
 
 // call sends one command and waits for its reply.
 func (c *conn) call(ctx context.Context, method string, params map[string]any, sessionID string) (json.RawMessage, error) {
-	ch := make(chan json.RawMessage, 1)
-	c.mu.Lock()
-	c.id++
-	id := c.id
-	c.replies[id] = ch
-	c.mu.Unlock()
+	id, ch := c.await()
 	// Whatever happens next, this entry must not outlive the call: a write
 	// that fails or a context that ends would otherwise leave pump holding a
 	// channel nobody will ever read.
-	defer func() {
-		c.mu.Lock()
-		delete(c.replies, id)
-		c.mu.Unlock()
-	}()
+	defer c.forget(id)
 	req := map[string]any{"id": id, "method": method}
 	if params != nil {
 		req["params"] = params
