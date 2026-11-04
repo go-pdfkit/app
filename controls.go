@@ -62,8 +62,11 @@ func (s *state) controls() []spot {
 	// 66%" -- numbers that were right for a strip of buttons and wrong the
 	// moment the band above the page grew. A check whose baseline pixel is
 	// inside the ribbon measures the ribbon.
+	// On says the band is showing a drawn page. It reads the VIEWER rather
+	// than a picture field: the band now holds a viewer at all times, and what
+	// a caller is asking is whether there is a page in it.
 	out = append(out, spot{Label: bandPage,
-		X: margin, Y: s.viewTop(), W: s.pageW(), H: s.viewH(), On: s.page != nil})
+		X: margin, Y: s.viewTop(), W: s.pageW(), H: s.viewH(), On: s.pv.PageCount() > 0})
 	if s.tools.open != "" {
 		out = append(out, spot{Label: bandPanel,
 			X: s.w - margin - panelW, Y: s.viewTop(), W: panelW, H: s.viewH(), On: true})

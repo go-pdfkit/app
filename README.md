@@ -142,6 +142,36 @@ nothing at all. Neither failed anything: headless Chrome runs at ratio 1 unless
 told otherwise, so the one condition both defects needed was the one condition
 CI never produced. The browser check takes a ratio now and runs at **1 and 2**.
 
+### The page band is a viewer
+
+One page scaled to fit was all there was. The band now holds
+`toolkit.PagedView`: **zoom in and out**, **fit to width**, **fit to page**,
+and a choice between one page at a time and a **continuous stack** of every
+page in the document — with the wheel, PageUp/PageDown, Home/End and a
+`n / N` read-out, none of it written here.
+
+⛔ **The viewer outlives the document it is showing.** Everything else in the
+workbench is rebuilt by `refresh`, because everything else is a function of the
+document as it now stands. A viewer is not: its zoom, its layout mode and where
+it is scrolled to are the *reader's*, and rebuilding it on every edit would
+hand back a page at 100% and at the top after each crop — the moment somebody
+most wants to still be looking at what they were looking at.
+
+⛔ **Every page is laid out; few are drawn.** The sizes of all of them are
+declared, so the scrollbar is honest and a page number means what it says,
+while bitmaps are held only for a window around the reader (`SetPageBitmap`,
+added to the toolkit for this). A tile in the rail is small and a page is not:
+a five-hundred-page document held whole would be more memory than the tab has.
+
+⛔ **A page is drawn at the size it is shown at**, not drawn once and scaled.
+`PagedView` scales a bitmap to the card it declared, so a page rendered at one
+zoom and then magnified is that first rendering enlarged — soft, and softest
+exactly when somebody has zoomed in to look closely.
+
+The frame budget is the rail's: what is not finished in 400 ms is left for the
+next repaint, which the scene asks for. A page the renderer *refuses* is
+finished, not pending — asking again would be a loop rather than a retry.
+
 ### Light, dark, or whatever the machine says
 
 The switch on the quick bar cycles **system → light → dark → system**, and

@@ -6,7 +6,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -147,8 +146,23 @@ type state struct {
 	// panel beside it when a group of verbs is open — so it is a widget of
 	// whatever kind that arrangement needs rather than always a frame.
 	view  toolkit.Widget
-	page  *toolkit.Image
 	empty *toolkit.Label
+	// pv is the page band's viewer. ⛔ It OUTLIVES every refresh: its zoom, its
+	// layout mode and where it is scrolled to belong to the reader, not to the
+	// document, so it is built once in newState and only its contents are
+	// replaced. See viewer.go.
+	pv *toolkit.PagedView
+	// pvDoc is the document whose pages the viewer currently holds, and drawn
+	// is the width each held page was last drawn at — a page shown wider than
+	// it was drawn has to be drawn again, or zooming in enlarges a rendering
+	// instead of making one.
+	pvDoc [2]uint64
+	drawn map[int]int
+	// pageMore says some page the reader can see is still waiting to be drawn,
+	// so the frame loop should come back for it — the same contract railMore
+	// has, because it is the same problem: a budget per frame is only half an
+	// answer without a way to say "and there is more".
+	pageMore bool
 
 	// doc is what every operation acts on, and src is the same document
 	// parsed, which is what gets drawn. They are rebuilt together after every
@@ -209,6 +223,14 @@ type state struct {
 // newState builds the workbench.
 func newState(w, h int, h2 host) *state {
 	s := &state{w: w, h: h, theme: toolkit.DefaultLight(), host: h2, at: 1, tools: newTools()}
+	s.pv = newViewer()
+	s.drawn = map[int]int{}
+	// ⛔ The viewer's page and the workbench's are ONE datum seen twice, and
+	// this is the direction a field could not have: scrolling, a nav key or the
+	// viewer's own prev/next move the reader without going through any verb, so
+	// the rail would light the wrong tile and every verb would act on the page
+	// somebody had scrolled away from.
+	s.pv.CurrentPage().Subscribe(s.followViewer)
 	// The colour scheme is settled BEFORE the ribbon and the view are built,
 	// because both are drawn with s.theme and a workbench that opened light and
 	// turned dark on its first frame would flash.
@@ -388,6 +410,7 @@ func (s *state) fail(msg string) {
 func (s *state) refresh() {
 	s.reconsider()
 	s.keepPageNumbersInTheDocument()
+	s.invalidatePages()
 	s.renderPage()
 	s.status = toolkit.NewStatusbar(s.statusLine())
 	s.dirty = true
@@ -499,7 +522,6 @@ var (
 // renderPage draws the current page into the view, or leaves the invitation
 // there when there is nothing to draw.
 func (s *state) renderPage() {
-	s.page = nil
 	s.railView, s.railMore = nil, false
 	if s.doc == nil {
 		s.show(s.empty)
@@ -527,34 +549,15 @@ func (s *state) renderPage() {
 		s.show(s.readingView(src))
 		return
 	}
-	// The rail is settled BEFORE the page is scaled, because the page is
-	// scaled to the room the rail leaves it.
-	s.railView, s.railMore = s.rail(src, stampOf(raw))
-	img, err := drawPage(src, s.at, render.Options{
-		Scale:       s.fitScale(src),
-		MaxDuration: pageBudget,
-	})
-	// A page that ran out of time comes back as far as it got, which is worth
-	// showing: somebody scrolling would rather see most of a figure than a
-	// sentence saying there was one. Anything else, and there is no picture.
-	partial := errors.Is(err, render.ErrTimedOut) && img != nil
-	if err != nil && !partial {
-		// Through show, like every other thing the view band can hold: a page
-		// that cannot be drawn is the moment somebody most needs the rail and
-		// the panel, because what they want next is another page.
-		s.show(toolkit.NewLabel("this page cannot be drawn: " + err.Error()))
-		return
-	}
-	if partial {
-		// Showing half a page without saying so would be the one thing worse
-		// than showing nothing, so the status line says which it is. This is
-		// the only place renderPage writes the note, and it overwrites
-		// whatever was there, because what is on the screen right now matters
-		// more than what happened before it.
-		s.note = fmt.Sprintf("this page was still being drawn after %s; this is as far as it got", pageBudget)
-	}
-	s.page = toolkit.NewImageFit(img.Pix, img.W, img.H)
-	s.show(s.page)
+	// The rail is settled BEFORE the pages are drawn, because the viewer is
+	// given the room the rail leaves it and draws each page to fill it.
+	stamp := stampOf(raw)
+	s.railView, s.railMore = s.rail(src, stamp)
+	// The viewer is put in the band first and given its bounds, because the
+	// size it draws each page at comes from PageRect — which is geometry, and
+	// geometry a widget has not been laid out into is zero.
+	s.show(s.pv)
+	s.pageMore = s.showPages(src, stamp)
 }
 
 // show puts a widget in the view band, with the tool panel beside it when a

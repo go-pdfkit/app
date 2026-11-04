@@ -279,6 +279,7 @@ func (s *state) fillRail() {
 // nothing repaints for is a control that does not react at all.
 func (s *state) tick(dt float64) bool {
 	s.fillRail()
+	s.fillPages()
 	if s.overRibbon {
 		s.ribbon.Tick(dt)
 		s.dirty = true
