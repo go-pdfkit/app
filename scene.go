@@ -201,6 +201,10 @@ type state struct {
 	// file arrives from the browser long after the press that asked for it,
 	// so there is no event left to repaint on; the harness asks here instead.
 	dirty bool
+	// pressing says a button is down, which is what turns a pointer move into
+	// a DRAG. The browser reports a move without saying which buttons are
+	// held, so it has to be remembered between the press and the release.
+	pressing bool
 	// overRibbon says the pointer is on the command band, which is what runs
 	// the ribbon's own clock: it lights a control under the pointer and counts
 	// out the delay before that control's tooltip.
@@ -881,13 +885,39 @@ func hit(w toolkit.Widget, kind toolkit.EventKind, x, y int) {
 }
 
 // handleClick routes a press to whatever is under it.
-func (s *state) handleClick(x, y int) bool { return s.pointer(toolkit.EventClick, x, y) }
+func (s *state) handleClick(x, y int) bool {
+	s.pressing = true
+	return s.pointer(toolkit.EventClick, x, y)
+}
 
-// handleMove routes a pointer move.
-func (s *state) handleMove(x, y int) bool { return s.pointer(toolkit.EventMouseMove, x, y) }
+// handleMove routes a pointer move — as a DRAG while a button is down.
+//
+// ⛔⛔ THE WORKBENCH SENT NO DRAG AT ALL, and so nothing in it could be
+// dragged. The toolkit has two events for a moving pointer and they mean
+// different things: EventMouseMove is a pointer passing over, and
+// EventMouseDrag is "the mouse moved while a button is still pressed... the
+// initial button press was already dispatched as EventClick" (widget.go:69).
+// A Splitter grabs its divider on the press and then moves it on the DRAG, so
+// a workbench that only ever sent moves grabbed the divider, was told nothing,
+// and let go — the bar looked alive and could not be shifted a pixel.
+//
+// The browser hands over a move without saying which buttons are down, so the
+// press is remembered here. It is cleared on release and whenever the pointer
+// comes back over the window having been let go elsewhere, which is the case a
+// flag alone gets wrong.
+func (s *state) handleMove(x, y int) bool {
+	if s.pressing {
+		return s.pointer(toolkit.EventMouseDrag, x, y)
+	}
+	return s.pointer(toolkit.EventMouseMove, x, y)
+}
 
 // handleRelease routes a release.
-func (s *state) handleRelease(x, y int) bool { return s.pointer(toolkit.EventMouseUp, x, y) }
+func (s *state) handleRelease(x, y int) bool {
+	ok := s.pointer(toolkit.EventMouseUp, x, y)
+	s.pressing = false
+	return ok
+}
 
 // handleChar puts a printable character into the box being typed into; with
 // nothing being typed into, the workbench has nowhere to put it.

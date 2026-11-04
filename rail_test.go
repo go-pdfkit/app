@@ -50,6 +50,81 @@ func TestTheRailHasADividerAReaderCanMove(t *testing.T) {
 	}
 }
 
+// dragDivider does to the divider what a person does: press on it, move, let
+// go. ⛔ Through the workbench's own three entry points, not by Setting the
+// width — which is the difference between testing the rail and testing the
+// gesture, and the difference this file shipped without.
+func dragDivider(t *testing.T, s *state, by int) {
+	t.Helper()
+	sp := splitterIn(s.view)
+	if sp == nil {
+		t.Fatal("the band beside the page has no splitter")
+	}
+	r, ok := sp.HandleRect(0)
+	if !ok || r.W <= 0 {
+		t.Fatalf("the divider has no rectangle to grab: %+v", r)
+	}
+	x, y := r.X+r.W/2, r.Y+r.H/2
+	s.handleClick(x, y)
+	s.handleMove(x+by, y)
+	s.handleRelease(x+by, y)
+}
+
+func TestTheDividerCanActuallyBeDragged(t *testing.T) {
+	// ⛔⛔ THE TEST THIS FEATURE SHIPPED WITHOUT, and the defect it hid was
+	// total: the workbench sent EventMouseMove for every pointer move and
+	// never EventMouseDrag, so a Splitter grabbed its divider on the press,
+	// was told nothing while the pointer moved, and let go. The bar could not
+	// be shifted a pixel.
+	//
+	// Every test around this one passed, because every one of them moved the
+	// width by Setting the observable the splitter writes — the one thing a
+	// person cannot do.
+	s, _ := opened(t, 3)
+	s.draw(buffer())
+	before := s.railWidth.Get()
+
+	dragDivider(t, s, toolkit.Scaled(40))
+
+	if s.railWidth.Get() <= before {
+		t.Errorf("the divider was dragged 40 to the right and the rail is still %d wide "+
+			"(was %d)", s.railWidth.Get(), before)
+	}
+}
+
+func TestDraggingTheDividerBackNarrowsItAgain(t *testing.T) {
+	s, _ := opened(t, 3)
+	s.draw(buffer())
+	dragDivider(t, s, toolkit.Scaled(40))
+	wide := s.railWidth.Get()
+	s.refresh()
+	s.draw(buffer())
+
+	dragDivider(t, s, -toolkit.Scaled(30))
+	if s.railWidth.Get() >= wide {
+		t.Errorf("the divider was dragged back and the rail is %d wide (was %d)",
+			s.railWidth.Get(), wide)
+	}
+}
+
+func TestAPointerMoveWithNoButtonDownIsNotADrag(t *testing.T) {
+	// ⛔ The other half of the same thing. A pointer passing over the divider
+	// on its way somewhere must not move it, or the rail would follow the
+	// mouse around the window.
+	s, _ := opened(t, 3)
+	s.draw(buffer())
+	sp := splitterIn(s.view)
+	r, _ := sp.HandleRect(0)
+	before := s.railWidth.Get()
+
+	s.handleMove(r.X+r.W/2, r.Y+r.H/2)
+	s.handleMove(r.X+r.W/2+toolkit.Scaled(60), r.Y+r.H/2)
+	if s.railWidth.Get() != before {
+		t.Errorf("the pointer passed over the divider and the rail went from %d to %d",
+			before, s.railWidth.Get())
+	}
+}
+
 func TestWideningTheRailWidensTheMinipagesAndNarrowsThePage(t *testing.T) {
 	// ⛔ The whole of what "resizable" has to mean. A rail that got wider while
 	// its tiles stayed the same size would be a rail with a margin, and a page
