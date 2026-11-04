@@ -209,6 +209,11 @@ type state struct {
 	// themeMode is the reader's choice of light, dark, or whatever the system
 	// says; systemDark is what the system currently says. theme is what the two
 	// of them resolve to (see theme.go).
+	// menu is the page menu a secondary press opened, or nil. It is built for
+	// the page it was opened over and thrown away when it closes, because its
+	// rows are that page's verbs and whether each may run.
+	menu *toolkit.ContextMenu
+
 	// railWidth is how wide the reader has made the minipage rail, in LOGICAL
 	// pixels — the unit toolkit.SplitPane.Size is in, so the splitter owns this
 	// observable and writes to it as the divider moves. Everything that needs
@@ -783,6 +788,15 @@ func (s *state) draw(buf []byte) {
 	// ribbon is not under it: a host without one has to call this itself, and
 	// without the call the group that folded into a button opens onto nothing.
 	s.ribbon.DrawPopover(p, s.theme)
+	// ⛔ After the ribbon's own pop-overs, because this is the one thing on the
+	// canvas that a reader opened deliberately and that stands over everything
+	// until they choose from it or press elsewhere.
+	if s.menu != nil {
+		// Re-stated each frame: the window can be resized while a menu is up,
+		// and the menu keeps itself inside the surface it is given.
+		s.menu.SetBounds(painter.Rect{W: s.w, H: s.h})
+		s.menu.Draw(p, s.theme)
+	}
 }
 
 // layOutRibbon puts the ribbon across the top. Flush with the edges: it is the
@@ -804,6 +818,20 @@ func (s *state) pointer(kind toolkit.EventKind, x, y int) bool {
 	// arrive before the first frame does and a widget with no bounds is under
 	// no point at all.
 	s.layOutRibbon()
+	if kind == toolkit.EventClick && s.menu != nil {
+		// ⛔ AN OPEN MENU TAKES THE PRESS BEFORE ANYTHING ELSE, and the press
+		// closes it either way. It is drawn over the page and the rail, so a
+		// press in it is a press they would otherwise take — the row would do
+		// nothing and the page under it would turn, which is the defect the
+		// ribbon's own pop-overs already carry this note about. Kept apart from
+		// the ribbon's, because this menu is drawn after even those.
+		menu := s.menu
+		s.closeContextMenu()
+		if menu.MenuBounds().Contains(x, y) {
+			hit(menu, kind, x, y)
+			return true
+		}
+	}
 	if kind == toolkit.EventClick {
 		// ⛔ THE RIBBON'S POP-OVERS ARE OFFERED THE PRESS FIRST. What a folded
 		// group opened is drawn outside the ribbon's own rectangle and over
