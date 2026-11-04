@@ -142,6 +142,34 @@ nothing at all. Neither failed anything: headless Chrome runs at ratio 1 unless
 told otherwise, so the one condition both defects needed was the one condition
 CI never produced. The browser check takes a ratio now and runs at **1 and 2**.
 
+### Light, dark, or whatever the machine says
+
+The switch on the quick bar cycles **system → light → dark → system**, and
+starts on *system*.
+
+⛔ **Three states and not two.** A switch that only says light-or-dark has no
+way to say "whatever this machine is set to", so the first press takes the
+workbench out of the system's hands for good — including at sunset, when the
+system flips and the workbench does not. The third state is the default, which
+is what makes a reader who never touches the button still get the right one.
+
+The system's own answer comes from `matchMedia("(prefers-color-scheme: dark)")`,
+and the workbench subscribes to it: there is no command-line flag and no
+document property that says "this machine is in dark mode", and the system can
+change while the tab is open. Both listener spellings are registered —
+`addEventListener` and the deprecated `addListener` Safari carried alone for
+years — because registering only the first is a workbench that follows the
+system on some machines and silently does not on others.
+
+The choice is remembered in `localStorage` and **not** written back when it is
+restored: a write on every visit would overwrite a choice made in another tab
+between this tab's read and its write. A value that cannot be read reads as
+*system*; a write that throws (a private window, blocked site data, a full
+quota) is swallowed, and the choice then lasts as long as the tab.
+
+The page picture itself is not recoloured. A PDF page is paper, and paper does
+not turn black because the window did.
+
 Text is set in [IBM Plex Sans](https://github.com/go-opentype/fonts) through
 the toolkit's TrueType path. It replaced Inter because a reader said the
 lowercase `g` read as a `9`, and that turned out to be measurable: rendering

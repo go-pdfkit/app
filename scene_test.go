@@ -24,6 +24,29 @@ type fakeHost struct {
 	// savedAll counts everything handed back, which is what says a verb that
 	// produces several files produced them all.
 	savedAll int
+
+	// The colour scheme the page is being shown in, the mode remembered from a
+	// previous visit, and what the workbench asked to have remembered. sysDark
+	// is a field rather than a constant so a test can flip it under a running
+	// workbench through flipSystem, which is what the browser does at sunset.
+	sysDark   bool
+	mode      string
+	storedAs  []string
+	onSysDark func(bool)
+}
+
+func (h *fakeHost) SystemDark() bool                { return h.sysDark }
+func (h *fakeHost) OnSystemDarkChange(f func(bool)) { h.onSysDark = f }
+func (h *fakeHost) ThemeMode() string               { return h.mode }
+func (h *fakeHost) StoreThemeMode(mode string)      { h.storedAs = append(h.storedAs, mode) }
+
+// flipSystem is the page changing colour scheme under a workbench that is
+// already open, which is the case a value read once at startup cannot serve.
+func (h *fakeHost) flipSystem(dark bool) {
+	h.sysDark = dark
+	if h.onSysDark != nil {
+		h.onSysDark(dark)
+	}
 }
 
 func (h *fakeHost) Open(done func(string, []byte)) {

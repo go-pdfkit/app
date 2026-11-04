@@ -26,6 +26,15 @@ type host interface {
 	Open(func(name string, data []byte))
 	// Save hands a file to the person under the given name.
 	Save(name string, data []byte)
+	// SystemDark says whether the page is being shown in a dark colour scheme,
+	// and OnSystemDarkChange calls back when that changes — it can change while
+	// the tab is open, which is the whole reason the second one exists.
+	SystemDark() bool
+	OnSystemDarkChange(func(dark bool))
+	// ThemeMode and StoreThemeMode remember the reader's own choice between
+	// visits. An unreadable or absent value reads as "system" (parseThemeMode).
+	ThemeMode() string
+	StoreThemeMode(mode string)
 }
 
 // The size of the surface the workbench is laid out on. The canvas keeps its
@@ -185,11 +194,28 @@ type state struct {
 	// the ribbon's own clock: it lights a control under the pointer and counts
 	// out the delay before that control's tooltip.
 	overRibbon bool
+
+	// themeMode is the reader's choice of light, dark, or whatever the system
+	// says; systemDark is what the system currently says. theme is what the two
+	// of them resolve to (see theme.go).
+	themeMode  themeMode
+	systemDark bool
+	// themeCtl is the switch itself, kept because its tooltip is the one part
+	// of it that says the mode in words and so has to be rewritten when the
+	// mode changes. Tip is a plain field on the control, not an Observable.
+	themeCtl *toolkit.RibbonControl
 }
 
 // newState builds the workbench.
 func newState(w, h int, h2 host) *state {
 	s := &state{w: w, h: h, theme: toolkit.DefaultLight(), host: h2, at: 1, tools: newTools()}
+	// The colour scheme is settled BEFORE the ribbon and the view are built,
+	// because both are drawn with s.theme and a workbench that opened light and
+	// turned dark on its first frame would flash.
+	s.systemDark = h2.SystemDark()
+	s.themeMode = parseThemeMode(h2.ThemeMode())
+	s.theme = themeFor(s.themeMode, s.systemDark)
+	h2.OnSystemDarkChange(s.setSystemDark)
 	s.empty = toolkit.NewLabel("Open a PDF to begin — nothing leaves this tab.")
 	s.view = toolkit.NewFrame(s.empty)
 	s.status = toolkit.NewStatusbar([]string{"no document", "", ""})
