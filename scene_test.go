@@ -420,7 +420,7 @@ func TestADocumentThatCannotBeDrawn(t *testing.T) {
 	if s.doc == nil {
 		t.Fatal("the document did not open")
 	}
-	if s.page != nil {
+	if s.pageShown() {
 		t.Error("a page was drawn from content that cannot be read")
 	}
 	buf := buffer()
@@ -513,7 +513,7 @@ func TestWhenTheDocumentInHandCannotBeWritten(t *testing.T) {
 		t.Error("a document that cannot be written was handed back anyway")
 	}
 	s.refresh()
-	if s.page != nil {
+	if s.pageShown() {
 		t.Error("a page was drawn from a document that cannot be written")
 	}
 	buf := buffer()
@@ -535,7 +535,7 @@ func TestWhenTheDocumentJustWrittenCannotBeReadBack(t *testing.T) {
 	}
 
 	s.refresh()
-	if s.page != nil {
+	if s.pageShown() {
 		t.Error("a page was drawn from a document that cannot be read back")
 	}
 	src, msg := s.reopen()
@@ -558,7 +558,7 @@ func TestDeletingTheLastPageWhileItIsTheOneShown(t *testing.T) {
 	if s.at != 2 {
 		t.Errorf("showing page %d of two", s.at)
 	}
-	if s.page == nil {
+	if !s.pageShown() {
 		t.Error("nothing is being shown")
 	}
 }
@@ -670,7 +670,7 @@ func TestAPageThatRanOutOfTimeIsShownAsFarAsItGot(t *testing.T) {
 	if budget <= 0 {
 		t.Error("the renderer was given no budget at all")
 	}
-	if s.page == nil {
+	if !s.pageShown() {
 		t.Fatal("the part of the page that was drawn was thrown away")
 	}
 	if !strings.Contains(s.note, "as far as it got") {
@@ -698,7 +698,7 @@ func TestAPageThatRanOutOfTimeWithNothingDrawnSaysSo(t *testing.T) {
 	}
 
 	s.refresh()
-	if s.page != nil {
+	if s.pageShown() {
 		t.Error("a page was drawn from nothing")
 	}
 	buf := buffer()
