@@ -79,9 +79,19 @@ func TestTheChoiceIsRememberedAndRestored(t *testing.T) {
 
 	// A later visit, same browser: the remembered mode is in force before the
 	// first frame, not after it.
+	//
+	// ⛔ Each is restored AGAINST the opposite system, which is the only way the
+	// restore can be told from the system deciding. A remembered "dark" on a
+	// dark system passes whether it was read or ignored.
 	back := newState(surfaceW, surfaceH, &fakeHost{sysDark: false, mode: "dark"})
 	if back.themeMode != themeDark || !paintsDark(back) {
-		t.Errorf("a remembered dark came back as %q (dark %v)", back.themeMode.name(), paintsDark(back))
+		t.Errorf("a remembered dark came back as %q (dark %v) on a LIGHT system",
+			back.themeMode.name(), paintsDark(back))
+	}
+	lit := newState(surfaceW, surfaceH, &fakeHost{sysDark: true, mode: "light"})
+	if lit.themeMode != themeLight || paintsDark(lit) {
+		t.Errorf("a remembered light came back as %q (dark %v) on a DARK system",
+			lit.themeMode.name(), paintsDark(lit))
 	}
 
 	// ⛔ And restoring must NOT write back. A write on every visit would
