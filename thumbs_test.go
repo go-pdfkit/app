@@ -124,7 +124,8 @@ func TestTheRailLeavesThePageLessRoomAndTheToolsLessStill(t *testing.T) {
 	}
 	// What matters is that the sum is honest: the three bands and the gaps
 	// between them are the whole width, and nothing is drawn over anything.
-	if got, want := s.pageW()+railW+panelW+2*gap, s.viewW(); got != want {
+	divider := toolkit.Scaled(toolkit.SplitterHandleW)
+	if got, want := s.pageW()+s.railPx()+panelW+2*divider, s.viewW(); got != want {
 		t.Errorf("rail, page and panel come to %d across, in a band %d wide", got, want)
 	}
 }
@@ -408,18 +409,18 @@ func TestAMinipageIsTheShapeOfItsSheet(t *testing.T) {
 	if land >= port {
 		t.Errorf("the landscape page's minipage is %d tall and the portrait one's %d", land, port)
 	}
-	if want := thumbPicW * 300 / 400; land != want {
-		t.Errorf("a 400x300 page at %d across gave a picture %d tall, not %d", thumbPicW, land, want)
+	if want := s.picW() * 300 / 400; land != want {
+		t.Errorf("a 400x300 page at %d across gave a picture %d tall, not %d", s.picW(), land, want)
 	}
-	if tall := got[2].Bounds().H - strip; tall != thumbTallest {
+	if tall := got[2].Bounds().H - strip; tall != s.tallest() {
 		t.Errorf("a page 90 times taller than it is wide gave a tile %d tall, and the cap is %d",
-			tall, thumbTallest)
+			tall, s.tallest())
 	}
 	// A page whose box says nothing is a square rather than nothing at all:
 	// a tile of no height would make the numbers lie about where you are.
-	if none := got[3].Bounds().H - strip; none != thumbPicW {
+	if none := got[3].Bounds().H - strip; none != s.picW() {
 		t.Errorf("a page with no usable size gave a tile %d tall, and a square would be %d",
-			none, thumbPicW)
+			none, s.picW())
 	}
 }
 
@@ -440,11 +441,11 @@ func TestAMinipageIsDrawnSmallRatherThanShrunkAfterwards(t *testing.T) {
 		}
 		// Within a pixel of the rail's width: the scale is derived from the
 		// page's own size in points, so rounding is the only slack there is.
-		if w < thumbPicW-1 || w > thumbPicW+1 {
+		if w < s.picW()-1 || w > s.picW()+1 {
 			t.Errorf("the picture of page %d is %dx%d, and the rail is %d across",
-				i, w, h, thumbPicW)
+				i, w, h, s.picW())
 		}
-		if got, want := w*h*4, (thumbPicW+2)*(thumbTallest+2)*4; got > want {
+		if got, want := w*h*4, (s.picW()+2)*(s.tallest()+2)*4; got > want {
 			t.Errorf("the picture of page %d is %d bytes, and the largest tile is %d", i, got, want)
 		}
 	}

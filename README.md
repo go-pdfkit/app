@@ -142,6 +142,27 @@ nothing at all. Neither failed anything: headless Chrome runs at ratio 1 unless
 told otherwise, so the one condition both defects needed was the one condition
 CI never produced. The browser check takes a ratio now and runs at **1 and 2**.
 
+### The rail is resizable, and the minipages follow
+
+The band is a `toolkit.Splitter` rather than a fixed row: the divider between
+the rail and the page can be dragged, stepped with the arrow keys, and
+double-clicked to put the rail away and bring it back at the width it had. The
+floor is a tile still worth looking at; the ceiling is half the surface,
+because a rail wider than the page it is a map of has stopped being a rail.
+
+⛔ **The minipages follow the width, which is the whole of what "resizable"
+has to mean.** A rail that got wider while its tiles stayed the same size would
+be a rail with a margin. Every tile is measured, laid out *and rendered* from
+the live width, and `pageW` is cut from it too — a rail the reader has widened
+with a page still drawn to the old width is a page drawn under the rail.
+
+⛔ **The pictures are re-made when the gesture ends, not while it runs.** Each
+minipage is a page put through the renderer at the rail's width, so re-rendering
+them on every frame of a drag would render the whole window's worth of pages
+dozens of times on the way to a width the reader has not chosen yet. During the
+drag the tiles are the old pictures scaled into the new boxes, which is what a
+`Thumbnail` does anyway.
+
 ### The page band is a viewer
 
 One page scaled to fit was all there was. The band now holds
