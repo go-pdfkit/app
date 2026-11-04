@@ -258,7 +258,7 @@ func TestProtectingAFileAndTakingItOffAgain(t *testing.T) {
 	}
 	// The page is still drawn, because the workbench reads its own output
 	// back with the password it was just given.
-	if s.page == nil {
+	if !s.pageShown() {
 		t.Error("a protected document was not drawn")
 	}
 	s.save()
@@ -354,7 +354,7 @@ func TestReadingWhatAPageSaysAndWhatItCarries(t *testing.T) {
 	if s.tools.reading.Get() != readingText {
 		t.Fatalf("the reading is %q", s.tools.reading.Get())
 	}
-	if s.page != nil {
+	if s.pageShown() {
 		t.Error("the picture of the page was drawn as well as the reading of it")
 	}
 	// Pressing it again puts the page back.
@@ -393,8 +393,8 @@ func TestReadingWhatAPageSaysAndWhatItCarries(t *testing.T) {
 
 	// And the page comes back.
 	pressVerb(t, s, "readPage")
-	if s.tools.reading.Get() != "" || s.page == nil {
-		t.Errorf("the reading is %q and the page %v", s.tools.reading.Get(), s.page != nil)
+	if s.tools.reading.Get() != "" || !s.pageShown() {
+		t.Errorf("the reading is %q and the page %v", s.tools.reading.Get(), s.pageShown())
 	}
 }
 
@@ -402,12 +402,12 @@ func TestAPageWithNothingToRead(t *testing.T) {
 	s, _ := opened(t, 2) // the sample carries a square and no text
 	s.tools.reading.Set(readingText)
 	s.refresh()
-	if s.page != nil {
+	if s.pageShown() {
 		t.Error("a picture of the page was drawn under the reading")
 	}
 	s.tools.reading.Set(readingImages)
 	s.refresh()
-	if s.page != nil {
+	if s.pageShown() {
 		t.Error("a picture of the page was drawn under the list")
 	}
 }
@@ -440,7 +440,7 @@ func TestAPageThatCannotBeReadAtAll(t *testing.T) {
 	for _, what := range []string{readingText, readingImages} {
 		s.tools.reading.Set(what)
 		s.refresh()
-		if s.page != nil {
+		if s.pageShown() {
 			t.Errorf("a page was drawn for the %s reading", what)
 		}
 	}
