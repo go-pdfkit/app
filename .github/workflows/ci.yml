@@ -32,11 +32,25 @@ jobs:
       - name: Test with coverage
         run: go test -covermode=set -coverprofile=coverage.out ./...
 
-      - name: The browser check builds and vets too
+      # The lane the browser check never had. It vetted and built, and nothing
+      # ran a test in it -- because it had none, which is how its reply table
+      # came to be read and written from two goroutines under a comment saying
+      # the mutex existed to stop exactly that. -race is the point of the step:
+      # the sequential checks it drives would never open the window.
+      - name: The browser check builds, vets and races too
         working-directory: browsercheck
+        # ⛔ CGO for this step ALONE. The workflow sets CGO_ENABLED=0 for
+        # everything, which is right for what it ships — and -race is built on
+        # the cgo runtime, so the first version of this step failed outright:
+        # "-race requires cgo; enable cgo by setting CGO_ENABLED=1". It had
+        # passed locally, where no such variable was set. A lane is only
+        # equivalent to the one in CI when its ENVIRONMENT is too.
+        env:
+          CGO_ENABLED: "1"
         run: |
           go vet ./...
           test -z "$(gofmt -l .)"
+          go test -race -count=1 ./...
 
       - name: Assert exact 100% statement coverage
         run: |
