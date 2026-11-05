@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-pdfkit/reader"
 	"github.com/go-pdfkit/render"
+	"github.com/go-widgets/mvvm"
 	"github.com/go-widgets/toolkit"
 )
 
@@ -133,13 +134,6 @@ func (s *state) rail(src *reader.Document, stamp [2]uint64) (toolkit.Widget, boo
 	if n < 2 {
 		return nil, false
 	}
-	// ⛔ The contents go in the SAME column as the minipages, switched between,
-	// rather than beside them. They answer one question — "where in this
-	// document am I, and how do I get to the part I want" — and two columns
-	// both answering it would take the page's width twice to say it once.
-	if s.railContents {
-		return s.contentsRail(src), false
-	}
 	if s.thumbs == nil {
 		s.thumbs = &thumbs{}
 	}
@@ -160,7 +154,32 @@ func (s *state) rail(src *reader.Document, stamp [2]uint64) (toolkit.Widget, boo
 	col.SetBounds(toolkit.Rect{W: s.railPx() - scrollbarW, H: h})
 	sv := toolkit.NewScrollView(col)
 	sv.SetContentSize(s.railPx()-scrollbarW, h)
-	return sv, more
+
+	// ⛔ THE CONTENTS SIT ABOVE THE MINIPAGES, NOT INSTEAD OF THEM. The first
+	// version of this switched the column between the two, on the grounds that
+	// they answer one question and two columns answering it would take the
+	// page's width twice. That argument is about width, and it does not apply
+	// to STACKING: the contents say what a part is called and the minipages
+	// say what it looks like, and a reader wanting "the table near the start"
+	// is served by both at once and by neither alone.
+	//
+	// Nothing is shown for a document that has no outline — an empty pane
+	// taking a third of the rail for ever would be worse than the switch being
+	// off, and the switch says so in its tooltip instead.
+	marks := s.marksFor(src, stamp)
+	if !s.railContents || len(marks) == 0 {
+		return sv, more
+	}
+	return toolkit.NewSplitter(true,
+		&toolkit.SplitPane{
+			Widget:      s.contentsPane(marks),
+			Name:        "the contents",
+			Size:        s.contentsH,
+			Min:         contentsMinH,
+			Collapsible: true,
+		},
+		&toolkit.SplitPane{Widget: sv, Name: "the minipages", Weight: mvvm.NewObservable(1)},
+	), more
 }
 
 // tileH is how tall the ith tile is: its page's own shape at the rail's width,

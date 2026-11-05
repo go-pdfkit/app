@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -282,22 +283,27 @@ func TestAnOutlineNestedPastTheBoundStops(t *testing.T) {
 	}
 }
 
-func TestADocumentWithNoContentsSaysSo(t *testing.T) {
-	// ⛔ The view still appears. A switch that silently showed an empty column
-	// would leave a reader unable to tell "this document has no contents" from
-	// "the switch is broken".
+func TestADocumentWithNoContentsGetsNoEmptyPane(t *testing.T) {
+	// ⛔ Nothing is shown rather than an empty pane. A pane taking a third of
+	// the rail for ever, saying "no contents", would be worse than the switch
+	// being off — and the switch says why in its tooltip, which is where that
+	// sentence belongs.
 	s, _ := opened(t, 3) // samplePDF carries no outline
 	if got := s.bookmarks(s.src); len(got) != 0 {
 		t.Fatalf("a document with no outline gave %d rows", len(got))
 	}
-	s.railContents = true
-	s.refresh()
 	s.draw(buffer())
 	if s.railView == nil {
-		t.Fatal("switching to the contents left no rail at all")
+		t.Fatal("a three-page document has no rail at all")
 	}
 	if got := railButtons(s.railView); len(got) != 0 {
 		t.Errorf("a document with no contents offered %d places to go", len(got))
+	}
+	if splitterIn(s.railView) != nil {
+		t.Error("a document with no contents was given a divider for a pane that is not there")
+	}
+	if got := len(railTiles(s.railView)); got != 3 {
+		t.Errorf("the rail shows %d minipages of 3", got)
 	}
 }
 
@@ -452,20 +458,102 @@ func TestANestedContentsRowIsIndented(t *testing.T) {
 	}
 }
 
-func TestTheSwitchSaysWhichViewIsOnAndNeedsADocument(t *testing.T) {
+func TestTheContentsAndTheMinipagesAreBothThere(t *testing.T) {
+	// ⛔⛔ THE WHOLE POINT, and the thing the first version of this feature got
+	// wrong: the contents went IN PLACE OF the minipages. They are different
+	// answers to the same question — the contents say what a part is called,
+	// the minipages say what it looks like — and a reader after "the table
+	// near the start" is served by both at once and by neither alone.
+	s := openOutlined(t, 6, []mark{{"One", 1, -1}, {"Two", 4, -1}}, nil)
+	s.draw(buffer())
+
+	rows := railButtons(s.railView)
+	if len(rows) != 2 {
+		t.Errorf("the rail offers %d contents rows, and the document has 2", len(rows))
+	}
+	tiles := railTiles(s.railView)
+	if len(tiles) != 6 {
+		t.Errorf("the rail shows %d minipages, and the document has 6 pages", len(tiles))
+	}
+	// And they are stacked, not overlaid: the divider between them exists.
+	sp := splitterIn(s.railView)
+	if sp == nil {
+		t.Fatal("the contents and the minipages share the rail with no divider between them")
+	}
+	if sp.Handles() != 1 {
+		t.Errorf("the rail's splitter has %d dividers", sp.Handles())
+	}
+}
+
+func TestTheContentsPaneCanBeDraggedTaller(t *testing.T) {
+	// ⛔ Dragged, not Set — the lesson that cost a release. The divider between
+	// the contents and the minipages is the same kind of control as the one
+	// beside the page, and the only way to know it works is to press it, move
+	// and let go.
+	s := openOutlined(t, 8, []mark{{"One", 1, -1}, {"Two", 4, -1}, {"Three", 7, -1}}, nil)
+	s.draw(buffer())
+	before := s.contentsH.Get()
+
+	dragHandle(t, s, splitterIn(s.railView), 0, toolkit.Scaled(60))
+
+	if s.contentsH.Get() <= before {
+		t.Errorf("the divider was dragged 60 down and the contents pane is still %d tall "+
+			"(was %d)", s.contentsH.Get(), before)
+	}
+	// And the minipages are still there underneath, which is the whole
+	// arrangement.
+	s.refresh()
+	s.draw(buffer())
+	if got := len(railTiles(s.railView)); got != 8 {
+		t.Errorf("after the drag the rail shows %d minipages of 8", got)
+	}
+}
+
+func TestPuttingTheContentsAwayLeavesTheMinipages(t *testing.T) {
+	s := openOutlined(t, 4, []mark{{"One", 1, -1}}, nil)
+	s.draw(buffer())
+	if len(railButtons(s.railView)) == 0 {
+		t.Fatal("precondition: the contents should be up")
+	}
+
+	s.toggleContents()
+	s.refresh()
+	s.draw(buffer())
+	if got := len(railButtons(s.railView)); got != 0 {
+		t.Errorf("the contents were put away and %d rows are still there", got)
+	}
+	if got := len(railTiles(s.railView)); got != 4 {
+		t.Errorf("putting the contents away left %d minipages of 4", got)
+	}
+}
+
+func TestTheSwitchIsOfferedOnlyWhenThereAreContents(t *testing.T) {
 	empty := newState(surfaceW, surfaceH, &fakeHost{})
 	if empty.acts["contents"].IsEnabled() {
 		t.Error("the contents switch is offered with no document to show the contents of")
 	}
 
-	s, _ := opened(t, 3)
+	// ⛔ A document with no outline: the switch is off AND says why. Greyed
+	// with no reason given leaves a reader unable to tell "this document
+	// carries none" from "this control is broken".
+	plain, _ := opened(t, 3)
+	if plain.acts["contents"].IsEnabled() {
+		t.Error("the contents switch is offered for a document that carries no contents")
+	}
+	if !strings.Contains(plain.contentsCtl.Tip, "no table of contents") {
+		t.Errorf("the switch is greyed and says %q, which does not say why",
+			plain.contentsCtl.Tip)
+	}
+
+	s := openOutlined(t, 3, []mark{{"One", 1, -1}}, nil)
+	s.draw(buffer())
 	if !s.acts["contents"].IsEnabled() {
-		t.Fatal("the contents switch is greyed with a document open")
+		t.Fatal("the contents switch is greyed for a document that carries contents")
 	}
 	icon, tip := s.contentsIcon(), s.contentsCtl.Tip
 	s.toggleContents()
-	if !s.railContents {
-		t.Fatal("pressing the switch did not change the view")
+	if s.railContents {
+		t.Fatal("pressing the switch did not put the contents away")
 	}
 	if s.contentsIcon() == icon {
 		t.Errorf("both views carry the mark %q", icon)

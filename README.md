@@ -142,13 +142,25 @@ nothing at all. Neither failed anything: headless Chrome runs at ratio 1 unless
 told otherwise, so the one condition both defects needed was the one condition
 CI never produced. The browser check takes a ratio now and runs at **1 and 2**.
 
-### The rail also shows the document's own contents
+### The rail shows the contents AND the minipages
 
-A switch on the quick bar swaps the rail between the minipages and the
-document's table of contents — its `/Outlines` tree — each row indented by its
-depth and pressable to go to its page. They share one column because they
-answer the same question, *where am I and how do I get where I want*, and two
-columns both answering it would take the page's width twice to say it once.
+The document's table of contents — its `/Outlines` tree — sits **above** the
+minipages, each row indented by its depth and pressable to go to its page, with
+a divider between the two that can be dragged, stepped with the arrow keys, and
+double-clicked to collapse. A switch on the quick bar puts the contents away
+and brings them back.
+
+⛔ **Above, not instead of.** The first version of this swapped the rail
+between the two, arguing that they answer one question and two columns
+answering it would take the page's width twice. That argument is about width
+and it does not survive stacking: the contents say what a part is *called* and
+the minipages say what it *looks like*, and a reader after "the table near the
+start" is served by both at once and by neither alone.
+
+A document with no outline gets no pane at all — an empty one taking a third of
+the rail for ever would be worse than the switch being off — and the switch is
+greyed with a tooltip saying the document carries no contents, so "there are
+none" never looks like "this is broken".
 
 ⛔ **Every link in an outline comes out of the file.** It is a tree of indirect
 references, and nothing in the format stops a file pointing `/Next` at an item
