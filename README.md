@@ -179,6 +179,38 @@ a divider between the two that can be dragged, stepped with the arrow keys, and
 double-clicked to collapse. A switch on the quick bar puts the contents away
 and brings them back.
 
+⛔⛔ **A document with no outline gets its LINKS listed, and that was a list of
+pages first.** The fallback shipped as one row per page, and the person who
+asked for the view said, on seeing it, that what they meant by a table of
+contents was a display of the document's **links**. They were right, and the
+difference is not presentational: a link is structure the **author** wrote —
+*this phrase leads there* — while a list of pages is arithmetic that reads the
+same for every file of the same length.
+
+A row says **the words the link sits on**, because that is the only name a link
+has: a PDF link is a rectangle and a destination, and nothing in it is a title.
+The words under the rectangle are read off the page (`extract.Runs`, once per
+page however many links sit on it), down the page and then across — runs arrive
+in the order the page *draws* them, and a page is free to draw its last word
+first. A link with no words under it keeps its row and names where it goes
+instead: an image that is a link, a link over a blank area of a scan, a link
+whose text cannot be read.
+
+⛔ **A link that leaves the document is shown and not followed.** Pressing it
+says where it would go, in the status line. The whole promise of this workbench
+is that nothing leaves this tab, and navigating the tab to somebody else's URL
+is the one gesture that would break it — silently, and in the one direction a
+reader cannot undo.
+
+⛔ **The list is bounded and says so.** A document chooses how many links it
+carries, and reading the words under each one means reading the text of the page
+it is on; both are the file's to make enormous. Past a thousand rows the last
+one reads *"… and N more links, not shown"*, because a list that silently stops
+lies about what the document holds.
+
+A page list is still there, as the **last** resort, for a document that carries
+neither an outline nor a link.
+
 ⛔ **Above, not instead of.** The first version of this swapped the rail
 between the two, arguing that they answer one question and two columns
 answering it would take the page's width twice. That argument is about width

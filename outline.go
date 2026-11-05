@@ -28,10 +28,16 @@ import (
 
 // A bookmark is one row of the contents: what it says, which page it goes to,
 // and how deeply it is nested.
+//
+// uri is set only on a row standing for a LINK that leaves the document. Such a
+// row has no page to go to, and pressing it says where it would go rather than
+// going: a workbench whose whole promise is that nothing leaves this tab does
+// not navigate the tab away from itself.
 type bookmark struct {
 	title string
 	page  int
 	depth int
+	uri   string
 }
 
 // The bounds on what a file may ask this walk to do.
@@ -94,23 +100,32 @@ func (s *state) contentsTip() string {
 		// and since most documents carry none, the view was reported as
 		// missing by somebody who had the build that added it. A contents view
 		// only the minority of files can open is a contents view nobody finds.
-		return "Press to list this document's pages above the minipages; it carries no outline of its own."
+		return "Press to list the links this document carries above the minipages; it has no outline of its own."
 	}
 	return "Press to show the document's contents above the minipages."
 }
 
-// contentsOf is what the contents pane lists: the document's own outline when
-// it carries one, and its pages when it does not.
+// contentsOf is what the contents pane lists, in order of preference: the
+// document's own outline, then the LINKS it carries, and a list of its pages
+// only when it has neither.
 //
-// ⛔ MOST DOCUMENTS CARRY NO OUTLINE. Falling back to the pages is not a
-// consolation prize — a column of titles is how you find page 340 of a
-// scanned book, because it scrolls in one flick where four hundred pictures do
-// not, and it is what "a table-of-contents-TYPE view with click to page" asked
-// for. The fallback is OFF by default where the outline is on, because an
-// outline is the author saying which parts matter and a page list is not.
+// ⛔⛔ THE FALLBACK IS THE LINKS, AND IT WAS A LIST OF PAGES FIRST. That was
+// wrong, and the person who asked for this view said so as soon as they saw it:
+// what they meant by a table of contents was a display of the document's links.
+// The difference is not presentational. A link is structure the AUTHOR wrote —
+// this phrase leads there — and the whole value of a contents view is that
+// somebody decided those places were worth naming. A list of pages is
+// arithmetic over the document: it is the same list for every file of the same
+// length, and it tells a reader nothing they could not get by counting.
+//
+// Most documents carry no outline, which is why there is a fallback at all. A
+// great many of those do carry links.
 func (s *state) contentsOf(src *reader.Document, marks []bookmark) []bookmark {
 	if len(marks) > 0 {
 		return marks
+	}
+	if links := s.linkList(src); len(links) > 0 {
+		return links
 	}
 	return s.pageList(src)
 }
@@ -174,6 +189,20 @@ func (s *state) contentsRow(m bookmark) toolkit.Widget {
 	label := m.title
 	for range m.depth {
 		label = "  " + label
+	}
+	// ⛔ A LINK OUT OF THE DOCUMENT IS SHOWN AND NOT FOLLOWED. Pressing it says
+	// where it would go, in the status line. The whole promise of this workbench
+	// is that nothing leaves this tab, and navigating the tab to somebody else's
+	// URL is the one gesture that would break it — silently, and in the one
+	// direction a reader cannot undo.
+	if m.uri != "" {
+		b := toolkit.NewButton(label, func() {
+			s.note = "that link leaves the document: " + m.uri
+			s.status = toolkit.NewStatusbar(s.statusLine())
+			s.dirty = true
+		})
+		b.Style = toolkit.ButtonSecondary
+		return b
 	}
 	if m.page == 0 {
 		l := toolkit.NewLabel(label)

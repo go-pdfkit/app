@@ -183,7 +183,11 @@ func TestTheContentsAreReadFromTheDocument(t *testing.T) {
 	// ⛔ Reading order, with the child between its parent and the next
 	// top-level entry — not every top-level entry first. A contents that
 	// reordered the document would be worse than none.
-	want := []bookmark{{"One", 1, 0}, {"One point one", 2, 1}, {"Two", 3, 0}}
+	want := []bookmark{
+		{title: "One", page: 1},
+		{title: "One point one", page: 2, depth: 1},
+		{title: "Two", page: 3},
+	}
 	for i, w := range want {
 		if got[i] != w {
 			t.Errorf("row %d is %+v, want %+v", i, got[i], w)
@@ -579,7 +583,10 @@ func TestTheSwitchIsOfferedForAnyOpenDocument(t *testing.T) {
 		t.Error("the contents switch is greyed for a document that carries no outline")
 	}
 	plain.toggleContents() // down, so the tooltip says what the next press does
-	if !strings.Contains(plain.contentsCtl.Tip, "list this document's pages") {
+	// ⛔ And it says LINKS, because that is what the fallback lists. It said
+	// "pages" first, and the person who asked for the view said that was not
+	// what they meant by a table of contents.
+	if !strings.Contains(plain.contentsCtl.Tip, "list the links this document carries") {
 		t.Errorf("the switch says %q, which does not say what pressing it lists",
 			plain.contentsCtl.Tip)
 	}
