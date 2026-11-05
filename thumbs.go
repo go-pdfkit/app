@@ -163,16 +163,20 @@ func (s *state) rail(src *reader.Document, stamp [2]uint64) (toolkit.Widget, boo
 	// say what it looks like, and a reader wanting "the table near the start"
 	// is served by both at once and by neither alone.
 	//
-	// Nothing is shown for a document that has no outline — an empty pane
-	// taking a third of the rail for ever would be worse than the switch being
-	// off, and the switch says so in its tooltip instead.
-	marks := s.marksFor(src, stamp)
-	if !s.railContents || len(marks) == 0 {
+	// ⛔ A document with no outline gets its PAGES listed rather than no pane
+	// at all. The pane used to be withheld there, which withheld it from most
+	// documents: the view was reported as missing by somebody running the very
+	// build that added it. What is withheld now is only the DEFAULT — the
+	// switch starts up for an outline and down for a page list, because an
+	// outline is an author saying which parts matter and a list of pages is
+	// not.
+	rows := s.contentsOf(src, s.marksFor(src, stamp))
+	if !s.railContents || len(rows) == 0 {
 		return sv, more
 	}
 	return toolkit.NewSplitter(true,
 		&toolkit.SplitPane{
-			Widget:      s.contentsPane(marks),
+			Widget:      s.contentsPane(rows),
 			Name:        "the contents",
 			Size:        s.contentsH,
 			Min:         contentsMinH,
@@ -232,7 +236,39 @@ func (s *state) goTo(to int) {
 		return
 	}
 	s.at = to
-	s.refresh()
+	// ⛔ NOT refresh, AND THIS IS THE WHOLE OF WHAT "the app lags" WAS. refresh
+	// is what a VERB ends in: it writes the entire document out, parses it back,
+	// throws away every page picture and renders the visible ones again, so
+	// that what is on the screen is what would come out of Save. Going to a
+	// page changes nothing about the document — the only difference it makes is
+	// which number is lit — and it was paying that whole bill. Measured on a
+	// forty-page sample (cost_test.go): one press on a minipage wrote 8 422
+	// bytes, parsed them back and re-rendered twenty pages, and both of those
+	// grow with the file, so the press got slower the bigger the document.
+	//
+	// The band has to be holding the viewer for the cheap path to be right: a
+	// form or a reading is built from the document and does have to be remade.
+	if pv, viewing := s.shown.(*toolkit.PagedView); !viewing || pv != s.pv || s.src == nil {
+		s.refresh()
+		return
+	}
+	s.pv.ScrollToPage(to, 0)
+	s.relight()
+}
+
+// relight rebuilds what says WHERE the reader is — the lit minipage, the lit
+// contents row, the page number in the status line, and whether "previous" and
+// "next" are greyed — without touching the document under them.
+//
+// The rail is rebuilt rather than merely redrawn because the mark is a widget's
+// own state: the tile and the row are made Selected when they are made. The
+// pictures inside them are kept, which is the part that costs anything.
+func (s *state) relight() {
+	s.reconsider()
+	s.railView, s.railMore = s.rail(s.src, s.thumbs.stamp)
+	s.show(s.shown)
+	s.status = toolkit.NewStatusbar(s.statusLine())
+	s.dirty = true
 }
 
 // drawThumbs draws what the window asks for and the budget allows, nearest to

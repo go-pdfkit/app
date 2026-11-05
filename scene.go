@@ -254,12 +254,29 @@ func newState(w, h int, h2 host) *state {
 	s.drawn = map[int]int{}
 	s.railWidth = mvvm.NewObservable(railLogicalW)
 	s.contentsH = mvvm.NewObservable(contentsLogicalH)
-	// ⛔ ON by default, for a document that has an outline. A table of contents
-	// a reader has to go and find is one most readers never learn is there,
-	// and a document that carries one is a document whose author thought it
-	// was worth carrying. Nothing is shown for a document without one.
+	// ⛔ ON by default, for EVERY document. A table of contents a reader has to
+	// go and find is one most readers never learn is there — and the first
+	// version of this went further and showed nothing at all unless the file
+	// carried an /Outlines tree, which most do not, so the view was reported
+	// as missing by somebody running the build that added it. A document
+	// without an outline gets its pages listed instead.
 	s.railContents = true
-	s.contentsH.Subscribe(func(int) { s.railView, s.railMore = nil, false; s.dirty = true })
+	// ⛔ THIS ONE DOES NOT THROW THE RAIL AWAY, and the one below does. The
+	// difference is what is built from the number: the minipages are laid out
+	// from the rail's WIDTH, so a width that changes has to rebuild them — the
+	// contents pane is not laid out from its HEIGHT at all, and the splitter
+	// re-lays itself out anyway.
+	//
+	// Throwing it away here was a defect with no symptom in the drawing: the
+	// splitter WRITES this observable while it lays itself out, clamping the
+	// starting height into a rail too short to hold it, so the subscription
+	// fired during the very layout that built the rail and set railView back to
+	// nil. Nothing rebuilds it after that, and railView is also what says a rail
+	// EXISTS — so the tiles went on being painted from the view already built
+	// while every press on one landed on nothing, and the next arrange dropped
+	// the rail outright. It cost a right-click that stopped working the moment
+	// the contents were up.
+	s.contentsH.Subscribe(func(int) { s.dirty = true })
 	// The tiles are laid out from this width, so a drag has to rebuild the rail
 	// — not merely redraw it at the old shape inside a narrower pane.
 	s.railWidth.Subscribe(func(int) { s.railView, s.railMore = nil, false; s.dirty = true })
@@ -500,14 +517,18 @@ func (s *state) takeDirty() bool {
 
 // statusLine is what the bottom of the window says.
 func (s *state) statusLine() []string {
+	// ⛔ The version is in BOTH, and it is the cell that never empties. A reader
+	// asking "why can I not see the thing you said you shipped" is asking which
+	// build they have, and the empty workbench is the screen they are looking at
+	// when they ask it.
 	if s.doc == nil {
-		return []string{"no document", s.note, "nothing leaves this tab"}
+		return []string{"no document", s.note, "nothing leaves this tab", appVersion()}
 	}
 	where := fmt.Sprintf("page %d of %d", s.at, s.doc.PageCount())
 	if s.showingForm && s.form != nil {
 		where = fmt.Sprintf("%d fields", len(s.form.what.Form().Fields()))
 	}
-	return []string{s.name, where, s.note}
+	return []string{s.name, where, s.note, appVersion()}
 }
 
 // reopenBytes is the document as it would be saved, or the reason it cannot

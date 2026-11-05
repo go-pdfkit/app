@@ -34,6 +34,15 @@ on somebody's first visit is the one they keep, and five releases in a row
 reached nobody who had been here before. `browsercheck` changes a file under
 the browser, reloads, and fails if the tab is still served the old one.
 
+⛔ **And the status line says which build it is**, at the bottom right, on the
+empty workbench as well as an open document: `v0.19.0-2-g0aecb79` is the tag it
+was cut from and how far past it the commit is. That is the one question a
+reader cannot answer by looking — an old binary and a missing feature are the
+same screen — and it is what the cache trap above cost before anybody could
+ask it. The deploy passes the string with `-ldflags -X` and then **greps the
+built wasm for it**, because a `-X` naming a variable that no longer exists is
+accepted in silence.
+
 ## What is on the ribbon, and what is beside the page
 
 Seven tabs: **Home** · **Pages** · **Sheet** · **Marks** · **File** ·
@@ -116,6 +125,16 @@ which is most of what the rail is for. Pages are drawn nearest-first within a
 budget per frame, so a long document fills its rail in rather than holding up
 the page it belongs to.
 
+⛔ **Going to a page does not rewrite the document.** Everything the workbench
+shows is built from the document *written out and read back*, so that what is
+on the screen is always what would come out of Save — and every verb ends in
+exactly that. Going to a page was ending in it too, for a gesture whose entire
+effect is that a different number is lit: measured on a forty-page sample, one
+press on a minipage wrote 8 422 bytes, parsed them back and re-rendered twenty
+pages, and both of those grow with the file, so the press got slower the bigger
+the document. It was reported as *the app lags*. A test now counts the writes
+and fails on any; its control is a verb, which must still pay the whole bill.
+
 Every verb carries a mark from
 [go-icons/iconoir](https://github.com/go-icons/iconoir), rasterised and
 recoloured by the toolkit rather than outlined here. A test asks the pack
@@ -157,10 +176,16 @@ and it does not survive stacking: the contents say what a part is *called* and
 the minipages say what it *looks like*, and a reader after "the table near the
 start" is served by both at once and by neither alone.
 
-A document with no outline gets no pane at all — an empty one taking a third of
-the rail for ever would be worse than the switch being off — and the switch is
-greyed with a tooltip saying the document carries no contents, so "there are
-none" never looks like "this is broken".
+⛔ **A document with no outline gets its pages listed, not an empty pane and
+not nothing.** The pane used to be withheld from a file with no `/Outlines` —
+which is *most* files — so the view shipped and was reported missing by
+somebody running the very build that added it. A contents view only the
+minority of documents can open is a contents view nobody finds. The fallback is
+not a consolation prize either: a column of titles is how you reach page 340 of
+a scanned book, because it scrolls in one flick where four hundred pictures do
+not. A document that labels its pages something other than their position —
+`iv`, `A-2`, a plate number — says both, because the label is what its own
+index refers to and the position is what every other control here counts in.
 
 ⛔ **Every link in an outline comes out of the file.** It is a tree of indirect
 references, and nothing in the format stops a file pointing `/Next` at an item
