@@ -35,13 +35,23 @@ reached nobody who had been here before. `browsercheck` changes a file under
 the browser, reloads, and fails if the tab is still served the old one.
 
 ⛔ **And the status line says which build it is**, at the bottom right, on the
-empty workbench as well as an open document: `v0.19.0-2-g0aecb79` is the tag it
-was cut from and how far past it the commit is. That is the one question a
+empty workbench as well as an open document: `v0.19.0` for a released build,
+`v0.19.0-2-g0aecb79` for one two commits past it. That is the one question a
 reader cannot answer by looking — an old binary and a missing feature are the
 same screen — and it is what the cache trap above cost before anybody could
 ask it. The deploy passes the string with `-ldflags -X` and then **greps the
 built wasm for it**, because a `-X` naming a variable that no longer exists is
 accepted in silence.
+
+⛔ **A release is tagged after the deploy that carries it**, so the published
+binary would name the *previous* one for ever: a merge to main deploys, and
+only once main is green does the tag go on, so the deploy builds a commit no
+tag points at yet. Measured the first time it ran — the live binary said
+`v0.18.0-2-gc1c82b4` while the release was v0.19.0, which is the same confusion
+one step removed. Publishing a release now dispatches the deploy again, on
+`main`, where `git describe` returns the bare tag. It dispatches rather than
+deploying itself because the Pages environment admits one ref and a release
+event's is the tag.
 
 ## What is on the ribbon, and what is beside the page
 

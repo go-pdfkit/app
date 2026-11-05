@@ -1,0 +1,33 @@
+# ⛔ A RELEASE IS TAGGED AFTER THE DEPLOY THAT CARRIES IT, so without this the
+# published workbench names the PREVIOUS release for ever.
+#
+# The order is fixed and cannot be rearranged: a pull request merges to main,
+# that push deploys, and only once main's CI is green does the tag go on. The
+# deploy therefore builds a commit no tag points at yet, and `git describe`
+# honestly says "two commits past v0.18.0" about the very commit that is about
+# to become v0.19.0. Measured the first time it ran: the live binary said
+# v0.18.0-2-gc1c82b4 while the release was v0.19.0 — which is exactly the
+# confusion the version was added to end, one step removed.
+#
+# ⛔ It dispatches rather than deploying itself. The Pages environment admits
+# ONE ref — a custom branch policy naming `main` — and a release event's ref is
+# the tag, so a job here would build and then be refused at the deploy. The
+# dispatch runs as `refs/heads/main`, which is admitted, and main at that moment
+# is the tagged commit, so `git describe` returns the bare tag.
+name: redeploy-on-release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  actions: write
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy main again, now that it has a tag to name itself by
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-pages.yml --ref main --repo "$GITHUB_REPOSITORY"
