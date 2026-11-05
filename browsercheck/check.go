@@ -159,6 +159,11 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 	withDoc, _ := lookAt(ctx, c, sid, at[bandPage])
 	fmt.Printf("document shown: %d pixels drawn in the page band, %d of them ink\n", withDoc.N, withDoc.Ink)
 
+	if err := contentsListsTheLinks(ctx, c, sid); err != nil {
+		say(c)
+		return err
+	}
+
 	if err := dividerMoves(ctx, c, sid); err != nil {
 		say(c)
 		return err
@@ -278,6 +283,123 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 	fmt.Println("the mark written from the ribbon is in the saved file")
 
 	return shellReaches(ctx, c, sid, page)
+}
+
+// A contentsRow is one row of the contents pane as the workbench publishes it.
+type contentsRow struct {
+	Title string `json:"title"`
+	Page  int    `json:"page"`
+	URI   string `json:"uri"`
+	Depth int    `json:"depth"`
+}
+
+// contentsListsTheLinks opens the contents pane and reads what it says.
+//
+// ⛔⛔ THE FEATURE THIS CHECK COULD NOT SEE. The contents pane lists a
+// document's links, and the document this program opened carried none — so
+// every run exercised the fallback and the links were covered by unit tests
+// alone. The sample carries links and words now, and this reads the rows back
+// as TEXT: a harness that can only see rectangles cannot tell a pane listing
+// the right rows from one listing the wrong ones, because what a row says
+// comes from the document rather than from the workbench.
+func contentsListsTheLinks(ctx context.Context, c *conn, sid string) error {
+	at, err := controls(ctx, c, sid)
+	if err != nil {
+		return err
+	}
+	if _, ok := at["contents"]; !ok {
+		return fmt.Errorf("the workbench offers no way to show the contents")
+	}
+	// ⛔ The pane starts UP, which is the whole point of the fix it is here to
+	// check: a contents view a reader has to go looking for is a contents view
+	// that gets reported missing. So the rows are read first and the switch is
+	// exercised afterwards.
+	var rows []contentsRow
+	if err := until(ctx, 15*time.Second, func() (bool, error) {
+		rows, err = contentsOf(ctx, c, sid)
+		return len(rows) > 0, err
+	}); err != nil {
+		return fmt.Errorf("the contents pane lists nothing for a document carrying links: %w", err)
+	}
+
+	// The sample carries two links on every page: one to the next page, over
+	// the words "the second chapter", and one leaving the document, over
+	// "somewhere outside".
+	var inside, outside int
+	for _, r := range rows {
+		switch {
+		case r.Title == "the second chapter" && r.Page != 0 && r.URI == "":
+			inside++
+		case r.Title == "somewhere outside" && r.URI == "https://example.invalid/outside":
+			outside++
+		}
+	}
+	if inside == 0 || outside == 0 {
+		return fmt.Errorf("the contents list %d rows and none of them reads the words its link sits on: %+v",
+			len(rows), rows)
+	}
+	// ⛔ And a row that leaves the document carries NO page. A row that both
+	// names an address and offers a page would be a row this workbench follows
+	// out of the tab.
+	for _, r := range rows {
+		if r.URI != "" && r.Page != 0 {
+			return fmt.Errorf("a row leaves the document and offers page %d as well: %+v", r.Page, r)
+		}
+	}
+	fmt.Printf("the contents list %d links by the words they sit on, %d of them leaving the document\n",
+		len(rows), outside)
+
+	// And the switch works, in both directions. ⛔ Asserted by what the pane
+	// SAYS rather than by the switch's own state: a switch that flips a flag
+	// nothing reads looks exactly like one that works.
+	at, err = controls(ctx, c, sid)
+	if err != nil {
+		return err
+	}
+	if err := pressControl(ctx, c, sid, at, "contents"); err != nil {
+		return err
+	}
+	if err := until(ctx, 10*time.Second, func() (bool, error) {
+		away, err := contentsOf(ctx, c, sid)
+		return len(away) == 0, err
+	}); err != nil {
+		return fmt.Errorf("pressing the contents switch did not put the list away: %w", err)
+	}
+	at, err = controls(ctx, c, sid)
+	if err != nil {
+		return err
+	}
+	if err := pressControl(ctx, c, sid, at, "contents"); err != nil {
+		return err
+	}
+	if err := until(ctx, 10*time.Second, func() (bool, error) {
+		back, err := contentsOf(ctx, c, sid)
+		return len(back) == len(rows), err
+	}); err != nil {
+		return fmt.Errorf("pressing it again did not bring the same list back: %w", err)
+	}
+	fmt.Println("the contents switch puts the list away and brings it back")
+	return nil
+}
+
+// contentsOf asks the workbench what its contents pane is listing.
+func contentsOf(ctx context.Context, c *conn, sid string) ([]contentsRow, error) {
+	v, err := eval(ctx, c, sid, `(() => {
+		if (typeof window.pdfkitContents !== 'function') return '[]';
+		return window.pdfkitContents();
+	})()`)
+	if err != nil {
+		return nil, fmt.Errorf("asking the workbench what its contents say: %w", err)
+	}
+	var quoted string
+	if json.Unmarshal([]byte(v), &quoted) == nil {
+		v = quoted
+	}
+	var rows []contentsRow
+	if err := json.Unmarshal([]byte(v), &rows); err != nil {
+		return nil, fmt.Errorf("the workbench answered %s, which is not a list of rows: %w", v, err)
+	}
+	return rows, nil
 }
 
 // dividerMoves drags the divider between the minipages and the page, and asks
