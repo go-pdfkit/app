@@ -311,6 +311,39 @@ func TestASingleSheetIsNotGivenARailByTheFrameLoop(t *testing.T) {
 	}
 }
 
+// ⛔ And the case the one above cannot reach: a document that HAD a rail and no
+// longer does. A single sheet opened as one never builds a thumbs at all, so
+// fillRail stops at its first guard; dropping a two-page document to one leaves
+// the thumbs behind, and the frame loop then asks for a rail every frame and is
+// told there is none. It must take that for an answer rather than asking for a
+// repaint, which would spin.
+func TestDroppingToASingleSheetDoesNotSpinTheFrameLoop(t *testing.T) {
+	s, _ := opened(t, 2)
+	s.draw(buffer())
+	if s.thumbs == nil || s.railView == nil {
+		t.Fatal("precondition: two pages should have a rail and some pictures")
+	}
+
+	s.deletePage()
+	s.draw(buffer())
+	if s.doc.PageCount() != 1 {
+		t.Fatalf("precondition: the document still has %d pages", s.doc.PageCount())
+	}
+	if s.thumbs == nil {
+		t.Fatal("precondition: the pictures from when there were two pages should still be here")
+	}
+
+	s.takeDirty()
+	for i := 0; i < 3; i++ {
+		if s.tick(1.0 / 60) {
+			t.Fatal("a document with no rail left asked to be repainted every frame")
+		}
+	}
+	if s.railView != nil {
+		t.Error("a single remaining sheet was given a rail")
+	}
+}
+
 func TestASingleSheetWithThePanelOpenStillHasADivider(t *testing.T) {
 	// ⛔ The combination the band is easiest to get wrong on: no rail, because
 	// one sheet is its own map, but a panel beside the page all the same. The
