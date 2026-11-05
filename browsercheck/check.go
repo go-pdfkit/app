@@ -122,6 +122,22 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 	// Ink, as opposed to nearly black: a scanned page's ink is grey once it has
 	// been scaled to fit, so counting nearly black pixels read a real scanned
 	// document as never having arrived, on a page that was drawn correctly.
+	//
+	// ⛔⛔ AND THE COMPARISON IS "MOVED", NOT "GREW", BECAUSE THIS CHECK COULD
+	// NOT RUN ON A DARK DISPLAY. It asked for MORE ink than the empty band had,
+	// which is only true when the paper is lighter than what is behind it. On a
+	// machine whose browser reports prefers-color-scheme: dark the empty band is
+	// nearly all ink and a page arriving is a large PALE rectangle, so the ink
+	// count FALLS -- measured here on 2026-11-05: 811 671 with nothing open,
+	// 515 818 with the sample open. The check then waited out its whole timeout
+	// and reported "the document never appeared where the page is drawn" about a
+	// document that was plainly drawn: the workbench's own `On` was true and the
+	// band's hash had changed, in the same reading.
+	//
+	// It is a check that could only ever see one of the two themes it ships, and
+	// it is green in CI because GitHub's runners are light. What the arrival of
+	// a page actually means is that a LOT of the band is different, whichever
+	// way round the two colours are.
 	if err := until(ctx, 30*time.Second, func() (bool, error) {
 		where, err := controls(ctx, c, sid)
 		if err != nil {
@@ -131,7 +147,7 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 		if err != nil {
 			return false, err
 		}
-		return where[bandPage].On && v.Hash != empty.Hash && v.Ink > empty.Ink, nil
+		return where[bandPage].On && v.Hash != empty.Hash && moved(v.Ink, empty.Ink), nil
 	}); err != nil {
 		say(c)
 		return fmt.Errorf("the document never appeared where the page is drawn: %w", err)
@@ -142,6 +158,11 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 	}
 	withDoc, _ := lookAt(ctx, c, sid, at[bandPage])
 	fmt.Printf("document shown: %d pixels drawn in the page band, %d of them ink\n", withDoc.N, withDoc.Ink)
+
+	if err := dividerMoves(ctx, c, sid); err != nil {
+		say(c)
+		return err
+	}
 
 	if err := screenshot(ctx, c, sid, shot); err != nil {
 		return err
@@ -257,6 +278,126 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 	fmt.Println("the mark written from the ribbon is in the saved file")
 
 	return shellReaches(ctx, c, sid, page)
+}
+
+// dividerMoves drags the divider between the minipages and the page, and asks
+// whether the minipages are a different width afterwards.
+//
+// ⛔⛔ IT IS THE ONLY THING HERE THAT IS NOT A PRESS, and that is the point.
+// Every check above presses a control at a published point; the divider answers
+// to a GESTURE, and nothing in this repository could make one. So the divider
+// shipped moving nothing in a browser, this check stayed green through it, and
+// the person using the workbench is who found out. A check that cannot perform
+// the gesture a feature is made of cannot see that feature fail.
+//
+// ⛔ The width is read from what the WORKBENCH publishes and the pixels are read
+// from the band it names, rather than either alone: a published number that
+// nothing redraws is a resize that did not happen, and pixels that changed
+// without the number moving are some other repaint. Both have to agree.
+func dividerMoves(ctx context.Context, c *conn, sid string) error {
+	at, err := controls(ctx, c, sid)
+	if err != nil {
+		return err
+	}
+	h, ok := at[ctlDivider]
+	if !ok {
+		return fmt.Errorf("the workbench publishes no divider beside the minipages, " +
+			"so there is nothing for a reader to drag")
+	}
+	was, ok := at[bandRail]
+	if !ok {
+		return fmt.Errorf("the workbench publishes a divider and no minipages for it to resize")
+	}
+	wasInk, err := lookAt(ctx, c, sid, was)
+	if err != nil {
+		return err
+	}
+
+	const by = 60 // canvas pixels, well inside railMaxW
+	if err := drag(ctx, c, sid, h.X+h.W/2, h.Y+h.H/2, by, 0); err != nil {
+		return err
+	}
+
+	now, err := settled(ctx, c, sid)
+	if err != nil {
+		return fmt.Errorf("the minipages never settled after the divider was dragged: %w", err)
+	}
+	// ⛔ Compared against the DISTANCE DRAGGED, not merely against "wider". The
+	// first version asked only for a bigger number and was satisfied by 139
+	// after a 60-pixel drag -- one step of eight, read before the gesture had
+	// finished arriving. A divider that answers the first move of a drag and
+	// ignores the rest is a divider that does not work, and "wider than before"
+	// cannot tell the two apart.
+	if now.W < was.W+by/2 {
+		return fmt.Errorf("dragging the divider %d pixels to the right left the minipages %d wide "+
+			"and they were %d, so the resize bar does not follow the pointer in a browser", by, now.W, was.W)
+	}
+	// ⛔ ON, as well as wide: ending the drag throws the minipages away so they
+	// can be drawn again at the new width, and for a whole release nothing
+	// brought them back. A check that stopped at the number would pass on a rail
+	// that never returned.
+	if !now.On {
+		return fmt.Errorf("the minipages are %d wide and the workbench is holding none of them, "+
+			"so the drag left the rail empty", now.W)
+	}
+	nowInk, err := lookAt(ctx, c, sid, now)
+	if err != nil {
+		return err
+	}
+	if nowInk.Hash == wasInk.Hash {
+		return fmt.Errorf("the minipages are published as %d wide instead of %d and what is drawn "+
+			"there has not changed, so the number moved and the rail did not", now.W, was.W)
+	}
+	wide := now.W
+	fmt.Printf("dragging the divider widened the minipages from %d to %d pixels, and redrew them\n",
+		was.W, wide)
+
+	// ⛔ And back again, in the other direction. A divider that only ever grows
+	// is a divider that is being pushed by something other than the pointer --
+	// a rail rebuilt wider for its own reasons would pass the test above.
+	at, err = controls(ctx, c, sid)
+	if err != nil {
+		return err
+	}
+	back := at[ctlDivider]
+	if err := drag(ctx, c, sid, back.X+back.W/2, back.Y+back.H/2, -by, 0); err != nil {
+		return err
+	}
+	if now, err = settled(ctx, c, sid); err != nil {
+		return fmt.Errorf("the minipages never settled after the divider was dragged back: %w", err)
+	}
+	if !now.On || now.W > wide-by/2 {
+		return fmt.Errorf("dragging the divider %d pixels back to the left left the minipages %d wide; "+
+			"they were %d, and the workbench is holding them: %v", by, now.W, wide, now.On)
+	}
+	fmt.Printf("dragging it back narrowed them to %d pixels\n", now.W)
+	return nil
+}
+
+// stillFor is how many readings in a row have to agree before the minipages
+// count as having stopped moving. The gesture arrives in the tab over several
+// frames, so the first reading after the release is usually mid-drag.
+const stillFor = 5
+
+// settled waits for the width of the minipages to stop changing and hands back
+// what it stopped at.
+func settled(ctx context.Context, c *conn, sid string) (spot, error) {
+	var now spot
+	same := 0
+	err := until(ctx, 15*time.Second, func() (bool, error) {
+		a, err := controls(ctx, c, sid)
+		if err != nil {
+			return false, err
+		}
+		if a[bandRail].W == now.W {
+			same++
+		} else {
+			same = 0
+		}
+		now = a[bandRail]
+		return same >= stillFor, nil
+	})
+	return now, err
 }
 
 // The two builds the staleness check publishes, in order. They are only ever
@@ -398,6 +539,10 @@ func fetched(ctx context.Context, c *conn, sid, url string) (string, error) {
 const (
 	bandPage  = "#page"
 	bandPanel = "#panel"
+	// The minipages, whose WIDTH is the answer to whether the divider moved,
+	// and the divider that is grabbed to move it.
+	bandRail   = "#rail"
+	ctlDivider = "#divider"
 )
 
 // A spot is one named control and where the workbench says it is, in the
@@ -529,6 +674,23 @@ type canvas struct {
 	Hash int `json:"hash"`
 }
 
+// inkFloor is how much of a band's ink has to change before it counts as
+// something having arrived rather than a control lighting up. The comment on
+// `ink` measured a real scanned page at 1805 pixels this way and 9 the other, so
+// a thousand is below the smallest arrival seen and far above a highlight.
+const inkFloor = 1000
+
+// moved says a band's ink is materially different from what it was, in EITHER
+// direction. See the ⛔⛔ on canvas.Ink: "more ink than before" is a statement
+// about a light theme, and this program ships two.
+func moved(now, before int) bool {
+	d := now - before
+	if d < 0 {
+		d = -d
+	}
+	return d >= inkFloor
+}
+
 // look reads the pixels out of the whole canvas in the tab.
 func look(ctx context.Context, c *conn, sid string) (canvas, error) {
 	return lookAt(ctx, c, sid, spot{W: -1})
@@ -580,34 +742,89 @@ func lookAt(ctx context.Context, c *conn, sid string, at spot) (canvas, error) {
 	return out, json.Unmarshal([]byte(s), &out)
 }
 
-// click presses the canvas at a point in its own pixels, which is not the same
-// as a point on the page: the canvas is drawn at whatever width the layout
+// onPage turns a point in the canvas's own pixels into a point on the page,
+// which is not the same thing: the canvas is drawn at whatever width the layout
 // gives it.
-func click(ctx context.Context, c *conn, sid string, x, y int) error {
+func onPage(ctx context.Context, c *conn, sid string, x, y int) (point, error) {
+	var at point
 	s, err := eval(ctx, c, sid, fmt.Sprintf(`(() => {
 	  const c = document.getElementById('screen');
 	  const r = c.getBoundingClientRect();
 	  return JSON.stringify({x: r.left + %d * r.width / c.width, y: r.top + %d * r.height / c.height});
 	})()`, x, y))
 	if err != nil {
-		return err
+		return at, err
 	}
 	var quoted string
 	if json.Unmarshal([]byte(s), &quoted) == nil {
 		s = quoted
 	}
-	var at struct{ X, Y float64 }
-	if err := json.Unmarshal([]byte(s), &at); err != nil {
+	return at, json.Unmarshal([]byte(s), &at)
+}
+
+type point struct{ X, Y float64 }
+
+// mouse sends one pointer event. buttons is the BITMASK of what is held down,
+// which is not the same as button: Chrome ignores a mouseMoved that does not say
+// a button is still held, so a drag sent without it is a press, a few moves
+// nobody treats as a drag, and a release somewhere else.
+func mouse(ctx context.Context, c *conn, sid, kind string, at point, buttons int) error {
+	_, err := c.call(ctx, "Input.dispatchMouseEvent", map[string]any{
+		"type": kind, "x": at.X, "y": at.Y, "button": "left",
+		"buttons": buttons, "clickCount": 1,
+	}, sid)
+	return err
+}
+
+// click presses the canvas at a point in its own pixels.
+func click(ctx context.Context, c *conn, sid string, x, y int) error {
+	at, err := onPage(ctx, c, sid, x, y)
+	if err != nil {
 		return err
 	}
-	for _, kind := range []string{"mousePressed", "mouseReleased"} {
-		if _, err := c.call(ctx, "Input.dispatchMouseEvent", map[string]any{
-			"type": kind, "x": at.X, "y": at.Y, "button": "left", "clickCount": 1,
-		}, sid); err != nil {
+	if err := mouse(ctx, c, sid, "mousePressed", at, 1); err != nil {
+		return err
+	}
+	return mouse(ctx, c, sid, "mouseReleased", at, 0)
+}
+
+// dragSteps is how many moves one gesture is sent in.
+//
+// ⛔ More than one, because a drag is a SEQUENCE and the defect this exists to
+// catch is in the sequence. The workbench once sent a move to the widget under
+// the pointer instead of to the one holding the gesture, which a single jump
+// from the handle to the destination can hide: the first move already lands
+// where the pointer is going.
+const dragSteps = 8
+
+// drag does to the canvas what a person's hand does: press, move while held,
+// let go.
+//
+// ⛔⛔ THE GESTURE THIS CHECK COULD NOT MAKE. Every other thing it does is a
+// press, and a press is one point. The divider between the minipages and the
+// page only answers to a gesture, so this check was green before and after a
+// divider that moved nothing at all -- the defect reached the person using the
+// application, and was reported by them, not by CI.
+func drag(ctx context.Context, c *conn, sid string, x, y, dx, dy int) error {
+	from, err := onPage(ctx, c, sid, x, y)
+	if err != nil {
+		return err
+	}
+	to, err := onPage(ctx, c, sid, x+dx, y+dy)
+	if err != nil {
+		return err
+	}
+	if err := mouse(ctx, c, sid, "mousePressed", from, 1); err != nil {
+		return err
+	}
+	for i := 1; i <= dragSteps; i++ {
+		f := float64(i) / dragSteps
+		step := point{X: from.X + (to.X-from.X)*f, Y: from.Y + (to.Y-from.Y)*f}
+		if err := mouse(ctx, c, sid, "mouseMoved", step, 1); err != nil {
 			return err
 		}
 	}
-	return nil
+	return mouse(ctx, c, sid, "mouseReleased", to, 0)
 }
 
 // eval runs a snippet in the tab and gives back what it evaluated to, as JSON.

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/go-widgets/toolkit"
 )
 
 // spots reads the published answer back the way a harness outside this process
@@ -126,6 +128,74 @@ func TestThePageBandIsWhereTheDocumentIsDrawn(t *testing.T) {
 	if page.Y+page.H > s.h-statusH() {
 		t.Errorf("the page band ends at %d and the status line starts at %d",
 			page.Y+page.H, s.h-statusH())
+	}
+}
+
+// ⛔⛔ THE PUBLISHED DIVIDER IS DRAGGED HERE, AT THE COORDINATES IT PUBLISHES.
+// Everything else the workbench publishes is pressed, and a press is one point;
+// the divider only answers to a gesture, and the browser check -- which is the
+// only thing that exercises the path from a real pointer to this code -- could
+// not make one. It was green before and after a divider that moved nothing,
+// which is how that defect reached the person using the application.
+//
+// This test is the in-process half of closing that: it proves the published
+// rectangle is the one a gesture has to start from. The browser check is the
+// other half, and it dispatches real mouse events at this same rectangle.
+func TestTheDividerIsPublishedWhereAGestureHasToGrabIt(t *testing.T) {
+	s, _ := opened(t, 6)
+	s.draw(buffer())
+	got := spots(t, s)
+
+	h, ok := got[ctlDivider]
+	if !ok {
+		t.Fatal("the divider is not published, so nothing outside this process can drag it")
+	}
+	rail, ok := got[bandRail]
+	if !ok {
+		t.Fatal("the minipages are not published, so a drag has nothing to be judged by")
+	}
+	if h.W <= 0 || h.H <= 0 {
+		t.Fatalf("the divider is published as %dx%d, which cannot be grabbed", h.W, h.H)
+	}
+
+	// ⛔ The divider published must be the RAIL's, not the panel's. arrange puts
+	// the rail first, so handle 0 is the rail's -- but that is an arrangement,
+	// not a law, and a harness told to widen the minipages would otherwise widen
+	// the settings. It sits at the rail's right edge.
+	if h.X < rail.X+rail.W-toolkit.SplitterHandleW || h.X > rail.X+rail.W+toolkit.SplitterHandleW {
+		t.Fatalf("the published divider is at x=%d and the minipages end at x=%d, "+
+			"so it is some other divider", h.X, rail.X+rail.W)
+	}
+
+	// Now drag it, at the published point, through the workbench's own three
+	// entry points -- the ones the browser's mouse events arrive on.
+	by := toolkit.Scaled(40)
+	x, y := h.X+h.W/2, h.Y+h.H/2
+	s.handleClick(x, y)
+	s.handleMove(x+by, y)
+	s.handleRelease(x+by, y)
+	s.draw(buffer())
+
+	after := spots(t, s)
+	if after[bandRail].W <= rail.W {
+		t.Fatalf("grabbing the published divider and moving right by %d left the minipages "+
+			"%d wide; they were %d", by, after[bandRail].W, rail.W)
+	}
+	// And the divider moved with it, or a second drag would grab where it was.
+	if after[ctlDivider].X <= h.X {
+		t.Fatalf("the minipages grew and the published divider stayed at x=%d", after[ctlDivider].X)
+	}
+}
+
+func TestTheDividerIsNotPublishedWhenThereIsNoRailToResize(t *testing.T) {
+	s := newState(surfaceW, surfaceH, &fakeHost{})
+	s.draw(buffer())
+	got := spots(t, s)
+	if _, ok := got[ctlDivider]; ok {
+		t.Error("a divider is published with no document open, so a harness would drag nothing")
+	}
+	if _, ok := got[bandRail]; ok {
+		t.Error("a rail is published with no document open")
 	}
 }
 

@@ -348,7 +348,49 @@ func aroundWithin(at, n, reach int) []int {
 // again: a repaint writes the whole document out and reads it back, and doing
 // that once per frame to add two minipages would cost more than the minipages.
 func (s *state) fillRail() {
-	if !s.railMore || s.shown == nil || s.src == nil || s.thumbs == nil {
+	if s.shown == nil || s.src == nil || s.thumbs == nil {
+		return
+	}
+	// ⛔⛔ AND NOT WHILE A GESTURE IS RUNNING. Putting the band back together
+	// builds a NEW Splitter, and the one holding the drag goes with the old
+	// one: the pointer keeps moving and nothing is listening any more.
+	//
+	// Measured in the browser, where a drag can be made: a 60-pixel drag moved
+	// the divider 7 pixels -- one frame's worth -- and stopped. In process it is
+	// invisible, because a test drives press, move and release back to back with
+	// no frame in between.
+	//
+	// It is not only about the rail coming back after a resize. A long document
+	// whose minipages are still being drawn rebuilds the band every frame, so
+	// reaching for the divider while that happens cancelled the drag too.
+	if sp := splitterIn(s.view); sp != nil && sp.Dragging().Get() {
+		return
+	}
+	// ⛔⛔ AND THE RAIL IS PUT BACK WHEN SOMETHING THREW IT AWAY, which for a
+	// whole release nothing did. Ending a drag on the divider calls remakeRail,
+	// which drops the pictures and sets railView to nil so they are drawn AGAIN
+	// at the new width -- and "again" never happened: only refresh rebuilds the
+	// rail, and widening it does not refresh anything. The reader was left with
+	// the pictures made for the old width, stretched into the new boxes, and the
+	// workbench itself answered that it was holding no rail at all.
+	//
+	// TestThePicturesAreRemadeWhenTheDragEndsAndNotDuringIt did not see it
+	// because the test calls s.refresh() itself, on the line after the one that
+	// drops them. The browser check found it, on the first run that could drag.
+	//
+	// A document with no rail (a single sheet) costs one PageCount per frame
+	// here and marks nothing dirty, so it does not spin.
+	if s.railView == nil {
+		rail, more := s.rail(s.src, s.thumbs.stamp)
+		if rail == nil {
+			return
+		}
+		s.railView, s.railMore = rail, more
+		s.show(s.shown)
+		s.dirty = true
+		return
+	}
+	if !s.railMore {
 		return
 	}
 	rail, more := s.rail(s.src, s.thumbs.stamp)
