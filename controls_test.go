@@ -199,6 +199,76 @@ func TestTheDividerIsNotPublishedWhenThereIsNoRailToResize(t *testing.T) {
 	}
 }
 
+// ⛔⛔ WORDS, NOT COORDINATES. Everything else the workbench publishes is
+// geometry, and geometry is enough to press a control and watch what happens.
+// A contents row is named by the DOCUMENT — a bookmark's title, or the text a
+// link sits on — so a harness reading only rectangles cannot tell a pane
+// listing the right rows from one listing the wrong ones. The browser check
+// spent a release unable to see this feature at all.
+func TestWhatTheContentsSayIsPublished(t *testing.T) {
+	s := openedWith(t, linkedPDF(t))
+	s.draw(buffer())
+
+	var rows []contentsRowSaid
+	if err := json.Unmarshal([]byte(s.contentsJSON()), &rows); err != nil {
+		t.Fatalf("what was published does not parse: %v", err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("%d rows published for a document carrying three links: %+v", len(rows), rows)
+	}
+	if rows[0].Title != "the first chapter" || rows[0].Page != 3 || rows[0].URI != "" {
+		t.Errorf("the first row published as %+v", rows[0])
+	}
+	if rows[1].URI != "https://example.org/elsewhere" || rows[1].Page != 0 {
+		// ⛔ A row that leaves the document carries NO page. One that named an
+		// address AND offered a page would be a row this workbench follows out
+		// of the tab.
+		t.Errorf("the row leaving the document published as %+v", rows[1])
+	}
+}
+
+func TestNothingIsPublishedWhileTheContentsArePutAway(t *testing.T) {
+	s := openedWith(t, linkedPDF(t))
+	s.draw(buffer())
+	s.toggleContents()
+
+	var rows []contentsRowSaid
+	if err := json.Unmarshal([]byte(s.contentsJSON()), &rows); err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("%d rows published with the pane put away", len(rows))
+	}
+	// And back again, which is what says the emptiness was the pane being down
+	// rather than the list being lost.
+	s.toggleContents()
+	if err := json.Unmarshal([]byte(s.contentsJSON()), &rows); err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 3 {
+		t.Errorf("%d rows after putting the pane back", len(rows))
+	}
+}
+
+func TestWhatTheContentsSayWhenItCannotBeWritten(t *testing.T) {
+	was := marshal
+	t.Cleanup(func() { marshal = was })
+	marshal = func(any) ([]byte, error) { return nil, errors.New("no") }
+
+	s := openedWith(t, linkedPDF(t))
+	got := s.contentsJSON()
+	if !strings.Contains(got, "cannot be said") {
+		t.Errorf("it published %q", got)
+	}
+	// ⛔ And it still parses, as the rows a caller expects. A caller that
+	// cannot read the answer at all cannot tell "the workbench would not say"
+	// from "the pane is empty", and those want different things done.
+	var rows []contentsRowSaid
+	if err := json.Unmarshal([]byte(got), &rows); err != nil {
+		t.Errorf("what it published instead does not parse: %v", err)
+	}
+}
+
 func TestWhatIsPublishedWhenItCannotBeWritten(t *testing.T) {
 	was := marshal
 	t.Cleanup(func() { marshal = was })

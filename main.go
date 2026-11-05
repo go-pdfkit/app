@@ -32,6 +32,16 @@ func publishControls(s *state) {
 	js.Global().Set("pdfkitControls", js.FuncOf(func(js.Value, []js.Value) any {
 		return s.controlsJSON()
 	}))
+	// ⛔ AND WHAT THE CONTENTS PANE SAYS, which is the one part of the
+	// workbench whose correctness is in its WORDS rather than its geometry. A
+	// row of the contents is named by the document — a bookmark's title, or the
+	// text a link sits on — so a harness that can only see where things are
+	// cannot tell a pane listing the right rows from one listing the wrong
+	// ones, and the browser check spent a release unable to see this feature at
+	// all because the sample it opened carried nothing to list.
+	js.Global().Set("pdfkitContents", js.FuncOf(func(js.Value, []js.Value) any {
+		return s.contentsJSON()
+	}))
 }
 
 // ⛔ pixelRatio USED TO BE HERE, reading window.devicePixelRatio once at

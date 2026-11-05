@@ -151,6 +151,42 @@ func (s *state) controlsJSON() string {
 	return string(b)
 }
 
+// A contentsRowSaid is one row of the contents pane as a caller outside this
+// process reads it: what it says and where it leads.
+//
+// Page is this document's page number, 0 for a row that goes nowhere; URI is
+// the address of a row that leaves the document, "" for one that does not.
+type contentsRowSaid struct {
+	Title string `json:"title"`
+	Page  int    `json:"page"`
+	URI   string `json:"uri"`
+	Depth int    `json:"depth"`
+}
+
+// contentsJSON is what the contents pane is listing, as text.
+//
+// ⛔ WORDS, NOT COORDINATES. Everything else published here is geometry, and
+// geometry is enough to press a control and watch what happens. A contents row
+// is named by the DOCUMENT — a bookmark's title, or the text a link sits on —
+// so a harness reading only rectangles cannot tell a pane listing the right
+// rows from one listing the wrong ones. It is empty when the pane is not
+// showing, which is itself the answer to "is it up".
+func (s *state) contentsJSON() string {
+	var rows []contentsRowSaid
+	if s.railContents && s.src != nil {
+		for _, m := range s.contentsOf(s.src, s.marksFor(s.src, s.thumbs.stamp)) {
+			rows = append(rows, contentsRowSaid{
+				Title: m.title, Page: m.page, URI: m.uri, Depth: m.depth,
+			})
+		}
+	}
+	b, err := marshal(rows)
+	if err != nil {
+		return `[{"title": "cannot be said: ` + err.Error() + `"}]`
+	}
+	return string(b)
+}
+
 // marshal is a variable so a test can watch what is handed back when writing
 // the answer goes wrong, the way docBytes and drawPage are.
 var marshal = json.Marshal
