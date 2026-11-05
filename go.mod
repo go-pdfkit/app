@@ -12,7 +12,7 @@ require (
 	github.com/go-pdfkit/render v0.69.1
 	github.com/go-widgets/mvvm v0.15.0
 	github.com/go-widgets/painter v0.16.1
-	github.com/go-widgets/toolkit v0.352.0
+	github.com/go-widgets/toolkit v0.354.0
 	github.com/go-widgets/webcanvas v0.7.0
 )
 
@@ -31,6 +31,7 @@ require (
 	github.com/go-simd/highway v0.0.14 // indirect
 	github.com/go-typeset/bidi v0.3.1 // indirect
 	github.com/go-widgets/data v0.3.0 // indirect
+	github.com/go-widgets/textinput v0.1.0 // indirect
 	github.com/tannevaled/gobig2 v0.2.0 // indirect
 	golang.org/x/image v0.47.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect

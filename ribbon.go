@@ -411,10 +411,12 @@ func (s *state) contentsControl() *toolkit.RibbonControl {
 		Visible: mvvm.NewObservable(true),
 	}
 	s.acts["contents"] = a
-	// Offered only for a document that has contents to show: with none there
-	// is nothing for the switch to do, and its tooltip says that rather than
-	// leaving a greyed control unexplained.
-	s.rules["contents"] = func(s *state) bool { return s.opened() && len(s.marks) > 0 }
+	// ⛔ Offered for ANY open document, not only one carrying an outline. The
+	// first version greyed it for a document with no /Outlines, which is most
+	// of them — so the view shipped and was reported missing, by somebody
+	// running the build that added it. A document with no outline gets a list
+	// of its pages, and the tooltip says so before the press rather than after.
+	s.rules["contents"] = func(s *state) bool { return s.opened() }
 	s.contentsCtl = &toolkit.RibbonControl{Kind: toolkit.RibbonButton, Action: a, Tip: s.contentsTip()}
 	return s.contentsCtl
 }

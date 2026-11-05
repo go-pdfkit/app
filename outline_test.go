@@ -6,6 +6,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/go-pdfkit/ops"
 	"github.com/go-pdfkit/reader"
 	"github.com/go-widgets/toolkit"
 )
@@ -283,27 +284,63 @@ func TestAnOutlineNestedPastTheBoundStops(t *testing.T) {
 	}
 }
 
-func TestADocumentWithNoContentsGetsNoEmptyPane(t *testing.T) {
-	// ⛔ Nothing is shown rather than an empty pane. A pane taking a third of
-	// the rail for ever, saying "no contents", would be worse than the switch
-	// being off — and the switch says why in its tooltip, which is where that
-	// sentence belongs.
+func TestADocumentWithNoOutlineListsItsPagesInstead(t *testing.T) {
+	// ⛔ THE REPORT THIS TEST CARRIES: "I still cannot see the table of
+	// contents view". The pane used to be withheld from a document with no
+	// /Outlines — which is MOST documents, this fixture among them — so the
+	// view shipped and was invisible to the person it shipped for. A contents
+	// view only the minority of files can open is a contents view nobody
+	// finds.
+	//
+	// What the fallback lists is the pages. That is not a consolation prize: a
+	// column of titles is how you reach page 340 of a scanned book, because it
+	// scrolls in one flick where four hundred pictures do not.
 	s, _ := opened(t, 3) // samplePDF carries no outline
 	if got := s.bookmarks(s.src); len(got) != 0 {
-		t.Fatalf("a document with no outline gave %d rows", len(got))
+		t.Fatalf("a document with no outline gave %d outline rows", len(got))
 	}
 	s.draw(buffer())
 	if s.railView == nil {
 		t.Fatal("a three-page document has no rail at all")
 	}
-	if got := railButtons(s.railView); len(got) != 0 {
-		t.Errorf("a document with no contents offered %d places to go", len(got))
+	if got := railButtons(s.railView); len(got) != 3 {
+		t.Errorf("a three-page document with no outline offered %d places to go, and it has 3 pages", len(got))
 	}
-	if splitterIn(s.railView) != nil {
-		t.Error("a document with no contents was given a divider for a pane that is not there")
+	if splitterIn(s.railView) == nil {
+		t.Error("the contents and the minipages share the rail with no divider between them")
 	}
 	if got := len(railTiles(s.railView)); got != 3 {
 		t.Errorf("the rail shows %d minipages of 3", got)
+	}
+	// And the rows go somewhere: a list that cannot be pressed is a picture.
+	s.goTo(1)
+	rows := s.pageList(s.src)
+	if len(rows) != 3 || rows[2].page != 3 || rows[2].title != "Page 3" {
+		t.Errorf("the page list reads %+v", rows)
+	}
+}
+
+// A document that labels its pages something other than their position says
+// both, because the label is what its own index refers to and the position is
+// what every other control in the workbench counts in.
+func TestAPageListSaysTheDocumentsOwnLabel(t *testing.T) {
+	s, _ := opened(t, 3)
+	if err := s.doc.SetPageLabels([]ops.LabelRule{{Style: ops.LabelLowerRoman}}); err != nil {
+		t.Fatal(err)
+	}
+	s.refresh()
+	rows := s.pageList(s.src)
+	if len(rows) != 3 {
+		t.Fatalf("the page list has %d rows", len(rows))
+	}
+	if rows[2].title != "Page iii (3)" {
+		t.Errorf("page 3 of a roman-numbered document reads %q", rows[2].title)
+	}
+	// ⛔ The control for the branch that does NOT add the label: a document
+	// whose labels are already its page numbers must not read "Page 3 (3)".
+	plain, _ := opened(t, 2)
+	if got := plain.pageList(plain.src)[1].title; got != "Page 2" {
+		t.Errorf("an unlabelled page reads %q", got)
 	}
 }
 
@@ -527,23 +564,26 @@ func TestPuttingTheContentsAwayLeavesTheMinipages(t *testing.T) {
 	}
 }
 
-func TestTheSwitchIsOfferedOnlyWhenThereAreContents(t *testing.T) {
+func TestTheSwitchIsOfferedForAnyOpenDocument(t *testing.T) {
 	empty := newState(surfaceW, surfaceH, &fakeHost{})
 	if empty.acts["contents"].IsEnabled() {
 		t.Error("the contents switch is offered with no document to show the contents of")
 	}
 
-	// ⛔ A document with no outline: the switch is off AND says why. Greyed
-	// with no reason given leaves a reader unable to tell "this document
-	// carries none" from "this control is broken".
+	// ⛔ A document with no outline gets the switch TOO, and the tooltip says
+	// what the list will be. It used to be greyed here — for most documents,
+	// which is how the view came to be reported missing by somebody running
+	// the build that added it.
 	plain, _ := opened(t, 3)
-	if plain.acts["contents"].IsEnabled() {
-		t.Error("the contents switch is offered for a document that carries no contents")
+	if !plain.acts["contents"].IsEnabled() {
+		t.Error("the contents switch is greyed for a document that carries no outline")
 	}
-	if !strings.Contains(plain.contentsCtl.Tip, "no table of contents") {
-		t.Errorf("the switch is greyed and says %q, which does not say why",
+	plain.toggleContents() // down, so the tooltip says what the next press does
+	if !strings.Contains(plain.contentsCtl.Tip, "list this document's pages") {
+		t.Errorf("the switch says %q, which does not say what pressing it lists",
 			plain.contentsCtl.Tip)
 	}
+	plain.toggleContents()
 
 	s := openOutlined(t, 3, []mark{{"One", 1, -1}}, nil)
 	s.draw(buffer())

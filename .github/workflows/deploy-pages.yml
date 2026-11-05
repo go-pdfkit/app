@@ -26,6 +26,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # ⛔ The WHOLE history, because the status line says `git describe`
+          # and describe needs the TAGS. The default checkout is one commit
+          # deep with none of them, and describe would fail — or, worse, be
+          # made to not fail and print something that is not a version.
+          fetch-depth: 0
 
       - uses: actions/setup-go@v7
         with:
@@ -34,12 +40,29 @@ jobs:
           # an unpinned toolchain changes both with no commit to point at.
           go-version: '1.27.3'
 
-      - name: Build the wasm binary
+      - name: Build the wasm binary, with the version it is built from in it
         env:
           GOOS: js
           GOARCH: wasm
           CGO_ENABLED: "0"
-        run: go build -trimpath -ldflags=-s -o web/main.wasm .
+        run: |
+          v=$(git describe --tags --always --dirty)
+          echo "building $v"
+          go build -trimpath -ldflags="-s -X main.release=$v" -o web/main.wasm .
+
+      - name: The binary says which build it is
+        # ⛔ THIS STEP IS THE POINT OF THE ONE ABOVE. A -X flag naming a
+        # variable that no longer exists is accepted in SILENCE: the build
+        # succeeds and the string is simply absent, and the status line goes
+        # back to saying nothing without a single red mark anywhere. Renaming
+        # main.release now fails the deploy instead.
+        run: |
+          v=$(git describe --tags --always --dirty)
+          if ! grep -qa -- "$v" web/main.wasm; then
+            echo "::error::web/main.wasm does not carry the version $v -- does -X still name a variable that exists?"
+            exit 1
+          fi
+          echo "web/main.wasm says it is $v"
 
       - name: Take wasm_exec.js from the same toolchain
         # ⛔ Not vendored. The file is the runtime shim for the compiler that

@@ -57,6 +57,49 @@ func TestASecondaryPressOnAMinipageOpensAMenuForThatPage(t *testing.T) {
 	}
 }
 
+// ⛔ THE SECOND PRESS NAMES THE SAME PAGE AS THE FIRST, with no frame drawn
+// between them.
+//
+// Opening the menu goes to the page it is about, which rebuilds the rail. The
+// rebuilt tiles live inside a scroll view, and until go-widgets/toolkit#532 a
+// scroll view only placed a child it could not measure WHEN IT WAS PAINTED —
+// so between the rebuild and the next frame every tile carried a rectangle
+// relative to the column rather than to the window.
+//
+// That did not read as "nothing is there". A stale rectangle still contains
+// plausible points, so the press came back as a DIFFERENT page: measured on
+// this fixture with the rail as it was before the contents pane, a press on
+// the third tile was answered "page 4" — pageUnder(72,522) = 4, true. With the
+// contents pane above them the stale rectangles miss instead, and the press
+// answers nothing. Neither failure was visible to any test here: the one above
+// draws a frame first, and the one that reopens a menu only asked whether a
+// menu appeared.
+func TestASecondPressOnTheSameTileStillNamesThatPage(t *testing.T) {
+	s, _ := opened(t, 4)
+	s.draw(buffer())
+	x, y := aTile(t, s, 3)
+
+	s.handleContext(x, y)
+	if got := menuLabels(s); len(got) == 0 || got[0] != "Page 3" {
+		t.Fatalf("the first press offers %v", got)
+	}
+	s.closeContextMenu()
+
+	// No draw here, deliberately: a press can arrive in the same frame as the
+	// rebuild it caused, and this is that press.
+	s.handleContext(x, y)
+	got := menuLabels(s)
+	if len(got) == 0 {
+		t.Fatal("the second press on the same tile opened no menu at all")
+	}
+	if got[0] != "Page 3" {
+		t.Errorf("the second press on the third tile says %q", got[0])
+	}
+	if s.at != 3 {
+		t.Errorf("the workbench moved to page %d", s.at)
+	}
+}
+
 func TestASecondaryPressOnThePageOpensAMenuForIt(t *testing.T) {
 	s, _ := opened(t, 2)
 	s.draw(buffer())

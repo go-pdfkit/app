@@ -19,6 +19,9 @@
 package main
 
 import (
+	"fmt"
+	"strconv"
+
 	"github.com/go-pdfkit/reader"
 	"github.com/go-widgets/toolkit"
 )
@@ -83,16 +86,59 @@ func (s *state) contentsIcon() string {
 
 func (s *state) contentsTip() string {
 	switch {
-	case s.opened() && len(s.marks) == 0:
-		// ⛔ It says WHY it is off. A switch greyed with no reason given leaves
-		// a reader unable to tell "this document carries no contents" from
-		// "this control is broken" — which is the same thing an empty pane
-		// would have left them unable to tell, one layer up.
-		return "This document carries no table of contents."
 	case s.railContents:
 		return "The contents are above the minipages. Press to put them away."
+	case s.opened() && len(s.marks) == 0:
+		// ⛔ It says WHAT THE LIST WILL BE. The switch used to be GREYED here,
+		// with this tooltip explaining that the document carried no outline —
+		// and since most documents carry none, the view was reported as
+		// missing by somebody who had the build that added it. A contents view
+		// only the minority of files can open is a contents view nobody finds.
+		return "Press to list this document's pages above the minipages; it carries no outline of its own."
 	}
 	return "Press to show the document's contents above the minipages."
+}
+
+// contentsOf is what the contents pane lists: the document's own outline when
+// it carries one, and its pages when it does not.
+//
+// ⛔ MOST DOCUMENTS CARRY NO OUTLINE. Falling back to the pages is not a
+// consolation prize — a column of titles is how you find page 340 of a
+// scanned book, because it scrolls in one flick where four hundred pictures do
+// not, and it is what "a table-of-contents-TYPE view with click to page" asked
+// for. The fallback is OFF by default where the outline is on, because an
+// outline is the author saying which parts matter and a page list is not.
+func (s *state) contentsOf(src *reader.Document, marks []bookmark) []bookmark {
+	if len(marks) > 0 {
+		return marks
+	}
+	return s.pageList(src)
+}
+
+// pageList is one row per page, named the way the document names it.
+//
+// A document may label its pages something other than their position — "iv",
+// "A-2", a plate number — and those labels are what its own index refers to,
+// so a row shows the label and the position together when they differ. The
+// rows are NOT bounded the way the outline is: the outline's bound exists
+// because a file chooses that tree and can make it enormous or circular, and
+// a page list is as long as the document the rail is already drawing a tile
+// for each page of.
+func (s *state) pageList(src *reader.Document) []bookmark {
+	n := src.PageCount()
+	var labels []string
+	if s.doc != nil {
+		labels = s.doc.PageLabels()
+	}
+	out := make([]bookmark, 0, n)
+	for i := 1; i <= n; i++ {
+		title := fmt.Sprintf("Page %d", i)
+		if i <= len(labels) && labels[i-1] != "" && labels[i-1] != strconv.Itoa(i) {
+			title = fmt.Sprintf("Page %s (%d)", labels[i-1], i)
+		}
+		out = append(out, bookmark{title: title, page: i})
+	}
+	return out
 }
 
 // contentsPane is the document's own table of contents: one row per bookmark,
