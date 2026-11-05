@@ -411,7 +411,10 @@ func (s *state) contentsControl() *toolkit.RibbonControl {
 		Visible: mvvm.NewObservable(true),
 	}
 	s.acts["contents"] = a
-	s.rules["contents"] = func(s *state) bool { return s.opened() }
+	// Offered only for a document that has contents to show: with none there
+	// is nothing for the switch to do, and its tooltip says that rather than
+	// leaving a greyed control unexplained.
+	s.rules["contents"] = func(s *state) bool { return s.opened() && len(s.marks) > 0 }
 	s.contentsCtl = &toolkit.RibbonControl{Kind: toolkit.RibbonButton, Action: a, Tip: s.contentsTip()}
 	return s.contentsCtl
 }

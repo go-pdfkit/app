@@ -56,18 +56,23 @@ func TestTheRailHasADividerAReaderCanMove(t *testing.T) {
 // gesture, and the difference this file shipped without.
 func dragDivider(t *testing.T, s *state, by int) {
 	t.Helper()
-	sp := splitterIn(s.view)
+	dragHandle(t, s, splitterIn(s.view), by, 0)
+}
+
+// dragHandle presses sp's first divider and moves it by (dx, dy).
+func dragHandle(t *testing.T, s *state, sp *toolkit.Splitter, dx, dy int) {
+	t.Helper()
 	if sp == nil {
-		t.Fatal("the band beside the page has no splitter")
+		t.Fatal("there is no splitter to drag")
 	}
 	r, ok := sp.HandleRect(0)
-	if !ok || r.W <= 0 {
+	if !ok || r.W <= 0 || r.H <= 0 {
 		t.Fatalf("the divider has no rectangle to grab: %+v", r)
 	}
 	x, y := r.X+r.W/2, r.Y+r.H/2
 	s.handleClick(x, y)
-	s.handleMove(x+by, y)
-	s.handleRelease(x+by, y)
+	s.handleMove(x+dx, y+dy)
+	s.handleRelease(x+dx, y+dy)
 }
 
 func TestTheDividerCanActuallyBeDragged(t *testing.T) {

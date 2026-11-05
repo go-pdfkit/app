@@ -50,11 +50,11 @@ const (
 	outlineUntitled = "(untitled)"
 )
 
-// toggleContents swaps the rail between the minipages and the contents.
+// toggleContents shows or hides the contents pane above the minipages.
 //
 // ⛔ It rebuilds the rail rather than refreshing: refresh re-reads the whole
 // document and redraws every page, and nothing about the document has changed
-// — only which of two views of it is being shown.
+// — only whether one of two views of it is on the screen.
 func (s *state) toggleContents() {
 	s.railContents = !s.railContents
 	s.contentsCtl.Tip = s.contentsTip()
@@ -62,8 +62,18 @@ func (s *state) toggleContents() {
 	s.dirty = true
 }
 
-// contentsIcon and contentsTip say which view is on and what the next press
-// does, which is the whole of what the switch's fixed label cannot.
+// settleContentsSwitch puts the switch in the state this document deserves:
+// offered only when there are contents to show, and saying so either way.
+// It is only ever called from refresh, which newState runs after the ribbon is
+// built, so the switch always exists by the time this does anything — no guard
+// for a nil one, because a branch nothing can reach is not a guard.
+func (s *state) settleContentsSwitch() {
+	s.contentsCtl.Tip = s.contentsTip()
+	s.acts["contents"].Enabled.Set(s.mayRun(s.rules["contents"]))
+}
+
+// contentsIcon and contentsTip say whether the contents are up and what the
+// next press does, which is the whole of what the switch's fixed label cannot.
 func (s *state) contentsIcon() string {
 	if s.railContents {
 		return "media-image-list"
@@ -72,29 +82,28 @@ func (s *state) contentsIcon() string {
 }
 
 func (s *state) contentsTip() string {
-	if s.railContents {
-		return "The contents. Press for the minipages."
+	switch {
+	case s.opened() && len(s.marks) == 0:
+		// ⛔ It says WHY it is off. A switch greyed with no reason given leaves
+		// a reader unable to tell "this document carries no contents" from
+		// "this control is broken" — which is the same thing an empty pane
+		// would have left them unable to tell, one layer up.
+		return "This document carries no table of contents."
+	case s.railContents:
+		return "The contents are above the minipages. Press to put them away."
 	}
-	return "The minipages. Press for the document's contents."
+	return "Press to show the document's contents above the minipages."
 }
 
-// contentsRail is the rail showing the document's own table of contents: one
-// row per bookmark, indented by its depth, each a press that goes to its page.
-//
-// ⛔ A document with no outline still gets the view, saying so. Offering a
-// switch that silently shows an empty column would leave a reader unable to
-// tell "this document has no contents" from "the switch is broken".
-func (s *state) contentsRail(src *reader.Document) toolkit.Widget {
-	marks := s.bookmarks(src)
+// contentsPane is the document's own table of contents: one row per bookmark,
+// indented by its depth, each a press that goes to its page.
+func (s *state) contentsPane(marks []bookmark) toolkit.Widget {
 	col := toolkit.NewVBox()
 	col.Spacing = thumbGap
 	h := 0
 	add := func(w toolkit.Widget) {
 		col.AddFixed(w, lineH)
 		h += lineH + thumbGap
-	}
-	if len(marks) == 0 {
-		add(toolkit.NewLabel("no contents"))
 	}
 	for _, m := range marks {
 		add(s.contentsRow(m))
@@ -133,6 +142,37 @@ func (s *state) contentsRow(m bookmark) toolkit.Widget {
 	b.Style = toolkit.ButtonSecondary
 	b.Selected().Set(m.page == s.at)
 	return b
+}
+
+// contentsMinH is the shortest the contents pane may be dragged to and still
+// show a row; below it the pane says less than its own scrollbar costs. There
+// is no maximum: the splitter's flexible pane keeps the minipages from being
+// squeezed out, and a reader of a long table of contents may want most of the
+// rail for it.
+const (
+	contentsMinH = 48
+	// contentsLogicalH is how tall the pane starts: a handful of rows, enough
+	// to see that there IS a table of contents and roughly how it is shaped,
+	// with the minipages still filling the rest of the rail.
+	contentsLogicalH = 160
+)
+
+// marksFor is the document's contents, remembered between repaints.
+//
+// ⛔ Walked ONCE per document, not once per frame. The scene repaints on a
+// pointer move and on every frame the rail is still filling, and the walk
+// follows up to a thousand indirect references through the file — cheap beside
+// rendering a page, and not cheap sixty times a second for a document nobody
+// is changing.
+func (s *state) marksFor(src *reader.Document, stamp [2]uint64) []bookmark {
+	if s.marksDoc == stamp && s.marks != nil {
+		return s.marks
+	}
+	s.marksDoc = stamp
+	// Never nil once read, so a document that genuinely has no contents is
+	// remembered as having none rather than walked again on every frame.
+	s.marks = append([]bookmark{}, s.bookmarks(src)...)
+	return s.marks
 }
 
 // bookmarks is the document's contents, flattened in reading order with each

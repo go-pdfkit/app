@@ -228,6 +228,13 @@ type state struct {
 	// how do I get where I want — so they share one column rather than taking
 	// the page's width twice to say it once.
 	railContents bool
+	// contentsH is how tall the reader has made the contents pane, in LOGICAL
+	// pixels — the splitter above the minipages owns it, as the one beside the
+	// page owns railWidth. marks is the document's contents, remembered
+	// between repaints, and marksDoc says which document they came from.
+	contentsH *mvvm.Observable[int]
+	marks     []bookmark
+	marksDoc  [2]uint64
 	// contentsCtl is the switch, kept because its tooltip is the one part of
 	// it that says which view is on in words.
 	contentsCtl *toolkit.RibbonControl
@@ -246,6 +253,13 @@ func newState(w, h int, h2 host) *state {
 	s.pv = newViewer()
 	s.drawn = map[int]int{}
 	s.railWidth = mvvm.NewObservable(railLogicalW)
+	s.contentsH = mvvm.NewObservable(contentsLogicalH)
+	// ⛔ ON by default, for a document that has an outline. A table of contents
+	// a reader has to go and find is one most readers never learn is there,
+	// and a document that carries one is a document whose author thought it
+	// was worth carrying. Nothing is shown for a document without one.
+	s.railContents = true
+	s.contentsH.Subscribe(func(int) { s.railView, s.railMore = nil, false; s.dirty = true })
 	// The tiles are laid out from this width, so a drag has to rebuild the rail
 	// — not merely redraw it at the old shape inside a narrower pane.
 	s.railWidth.Subscribe(func(int) { s.railView, s.railMore = nil, false; s.dirty = true })
@@ -436,6 +450,13 @@ func (s *state) refresh() {
 	s.keepPageNumbersInTheDocument()
 	s.invalidatePages()
 	s.renderPage()
+	// ⛔ AFTER renderPage, and that is the point of it being here twice. The
+	// contents switch is offered only for a document that has contents, and
+	// whether this one does is learnt while the rail is built — inside
+	// renderPage. Asking before it would answer about the document BEFORE
+	// this one, so the switch would be right one frame late, which for a
+	// document opened and acted on in the same breath means wrong.
+	s.settleContentsSwitch()
 	s.status = toolkit.NewStatusbar(s.statusLine())
 	s.dirty = true
 }
