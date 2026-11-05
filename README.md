@@ -249,6 +249,25 @@ dozens of times on the way to a width the reader has not chosen yet. During the
 drag the tiles are the old pictures scaled into the new boxes, which is what a
 `Thumbnail` does anyway.
 
+⛔ **And they come back by themselves, which for a release they did not.**
+Ending the drag throws the pictures away so they can be made again at the new
+width — and *again* never happened: only `refresh` rebuilds the rail, and
+widening it is not a verb, so nothing called one. The reader was left with the
+pictures made for the old width, stretched, and the workbench answered that it
+was holding no rail at all. `fillRail` now puts it back on the next frame. The
+in-process test did not see it because the test calls `s.refresh()` itself, on
+the line after the one that drops them; the browser check found it on the first
+run that could perform a drag.
+
+⛔ **And a frame in the middle of a gesture does not cancel it.** Putting the
+band back together builds a **new** `Splitter`, and the one holding the drag
+goes with the old one: the pointer keeps moving and nothing is listening.
+Measured in the browser — a 60-pixel drag moved the divider 7 pixels, one
+frame's worth, and stopped. Nothing rebuilds the band while
+`Splitter.Dragging()` is set. It was invisible in process because a test sends
+press, move and release back to back and the running workbench gets a frame
+between every pair of pointer events; there is now a test that puts one there.
+
 ### The page band is a viewer
 
 One page scaled to fit was all there was. The band now holds

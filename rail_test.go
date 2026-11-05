@@ -6,23 +6,8 @@ import (
 	"github.com/go-widgets/toolkit"
 )
 
-// splitterIn finds the splitter the view band is laid out with, which is what
-// a reader drags. ⛔ Found by walking the band rather than kept in a field: a
-// test that read a field would agree with a workbench that built the splitter
-// and never put it on the screen.
-func splitterIn(w toolkit.Widget) *toolkit.Splitter {
-	if sp, ok := w.(*toolkit.Splitter); ok {
-		return sp
-	}
-	if p, ok := w.(interface{ Children() []toolkit.Widget }); ok {
-		for _, c := range p.Children() {
-			if sp := splitterIn(c); sp != nil {
-				return sp
-			}
-		}
-	}
-	return nil
-}
+// splitterIn lives in controls.go now: the workbench publishes the divider, so
+// finding it is no longer something only a test needs to do.
 
 func TestTheRailHasADividerAReaderCanMove(t *testing.T) {
 	s, _ := opened(t, 3)
@@ -220,6 +205,142 @@ func TestThePicturesAreRemadeWhenTheDragEndsAndNotDuringIt(t *testing.T) {
 		if w := size[0]; w < s.picW()-1 || w > s.picW()+1 {
 			t.Errorf("minipage %d came back %d across, and the rail is now %d", i, w, s.picW())
 		}
+	}
+}
+
+// ⛔⛔ THE HALF THE TEST ABOVE CALLS refresh() FOR, AND THE RUNNING WORKBENCH
+// DOES NOT. Ending the drag drops the pictures so they can be made again at the
+// new width; the test above then calls s.refresh() itself and watches them come
+// back. Nothing in the application does: refresh is what a VERB runs, and
+// widening the rail is not a verb. So for a release the reader was left with the
+// pictures made for the old width, stretched, and the workbench published that
+// it was holding no rail at all.
+//
+// The browser check found it, on the first run that could perform a drag. This
+// is the in-process statement of it, and it uses the frame the workbench
+// actually gets -- tick -- and never refresh.
+func TestTheMinipagesComeBackByThemselvesAfterADrag(t *testing.T) {
+	s, _ := opened(t, 6)
+	s.draw(buffer())
+	narrow := s.picW()
+
+	dragDivider(t, s, toolkit.Scaled(40))
+	if s.railView != nil {
+		t.Fatal("precondition: ending the drag should have thrown the tiles away")
+	}
+	if s.picW() <= narrow {
+		t.Fatalf("precondition: the rail is still %d wide after the drag (was %d)", s.picW(), narrow)
+	}
+
+	// Frames, which is all the running workbench ever gets. The rail fills in
+	// over several of them, so it gets several — and no refresh.
+	for i := 0; i < 8 && s.railView == nil; i++ {
+		s.tick(1.0 / 60)
+		s.draw(buffer())
+	}
+	if s.railView == nil {
+		t.Fatal("the minipages never came back after the divider was dragged, " +
+			"so the reader keeps the pictures made for the old width")
+	}
+	if len(s.thumbs.size) == 0 {
+		t.Fatal("the rail came back holding no pictures at all")
+	}
+	for i, size := range s.thumbs.size {
+		if w := size[0]; w < s.picW()-1 || w > s.picW()+1 {
+			t.Errorf("minipage %d came back %d across, and the rail is now %d", i, w, s.picW())
+		}
+	}
+}
+
+// ⛔⛔ A FRAME BETWEEN TWO MOVES OF ONE DRAG. Every other test here sends press,
+// move and release back to back, so the workbench never gets a frame in the
+// middle of a gesture — and the running one gets a frame between every pair of
+// pointer events. Rebuilding the band on such a frame builds a NEW Splitter, and
+// the one holding the drag goes with the old one: the pointer keeps moving and
+// nothing is listening.
+//
+// Measured in the browser, which is the only place a drag could be made at all:
+// a 60-pixel drag moved the divider 7 pixels, one frame's worth, and stopped.
+func TestAFrameInTheMiddleOfADragDoesNotCancelIt(t *testing.T) {
+	s, _ := opened(t, 6)
+	s.draw(buffer())
+	sp := splitterIn(s.view)
+	if sp == nil {
+		t.Fatal("there is no splitter to drag")
+	}
+	r, ok := sp.HandleRect(0)
+	if !ok {
+		t.Fatal("the divider has no rectangle to grab")
+	}
+	x, y := r.X+r.W/2, r.Y+r.H/2
+	before := s.railWidth.Get()
+
+	const steps = 6
+	by := toolkit.Scaled(60)
+	s.handleClick(x, y)
+	for i := 1; i <= steps; i++ {
+		s.handleMove(x+by*i/steps, y)
+		// The frame. It is what the browser gives and what no other test here
+		// gives, and it is the whole of this test.
+		s.tick(1.0 / 60)
+		s.draw(buffer())
+	}
+	s.handleRelease(x+by, y)
+
+	// Logical pixels on both sides: railWidth is what the splitter writes, and
+	// `by` was Scaled for the surface.
+	if got := s.railWidth.Get() - before; got < 45 {
+		t.Fatalf("a 60-pixel drag with a frame between each move moved the divider %d; "+
+			"the gesture was cancelled by the repaint under it", got)
+	}
+}
+
+// The control in the other direction: a document with no rail must not have one
+// built for it every frame, or widening nothing would repaint for ever.
+func TestASingleSheetIsNotGivenARailByTheFrameLoop(t *testing.T) {
+	s, _ := opened(t, 1)
+	s.draw(buffer())
+	s.takeDirty()
+	for i := 0; i < 3; i++ {
+		if s.tick(1.0 / 60) {
+			t.Fatal("a single sheet asked to be repainted with nothing happening to it")
+		}
+	}
+	if s.railView != nil {
+		t.Error("a single sheet was given a rail of one minipage")
+	}
+}
+
+// ⛔ And the case the one above cannot reach: a document that HAD a rail and no
+// longer does. A single sheet opened as one never builds a thumbs at all, so
+// fillRail stops at its first guard; dropping a two-page document to one leaves
+// the thumbs behind, and the frame loop then asks for a rail every frame and is
+// told there is none. It must take that for an answer rather than asking for a
+// repaint, which would spin.
+func TestDroppingToASingleSheetDoesNotSpinTheFrameLoop(t *testing.T) {
+	s, _ := opened(t, 2)
+	s.draw(buffer())
+	if s.thumbs == nil || s.railView == nil {
+		t.Fatal("precondition: two pages should have a rail and some pictures")
+	}
+
+	s.deletePage()
+	s.draw(buffer())
+	if s.doc.PageCount() != 1 {
+		t.Fatalf("precondition: the document still has %d pages", s.doc.PageCount())
+	}
+	if s.thumbs == nil {
+		t.Fatal("precondition: the pictures from when there were two pages should still be here")
+	}
+
+	s.takeDirty()
+	for i := 0; i < 3; i++ {
+		if s.tick(1.0 / 60) {
+			t.Fatal("a document with no rail left asked to be repainted every frame")
+		}
+	}
+	if s.railView != nil {
+		t.Error("a single remaining sheet was given a rail")
 	}
 }
 

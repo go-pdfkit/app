@@ -17,7 +17,11 @@
 
 package main
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/go-widgets/toolkit"
+)
 
 // A spot is one named control and where it is on the canvas, in the canvas's
 // own pixels.
@@ -71,7 +75,51 @@ func (s *state) controls() []spot {
 		out = append(out, spot{Label: bandPanel,
 			X: s.w - margin - panelW, Y: s.viewTop(), W: panelW, H: s.viewH(), On: true})
 	}
+	// ⛔ AND THE DIVIDER, because everything else here is PRESSED and the
+	// divider is the one control that only answers to a gesture: press, move,
+	// release. The browser check could not perform one, so it was green before
+	// and after a divider that moved nothing at all -- a defect reported from
+	// outside as "the minipage resize bar does not work", which no check in this
+	// repository saw. A press needs one point; a drag needs a point to start
+	// from and something whose width is supposed to change, so both are
+	// published: the handle to grab, and the band whose width answers.
+	//
+	// ⛔ Read out of the SPLITTER ON THE SCREEN, not out of railView: moving the
+	// divider throws the minipages away so they can be drawn again at the new
+	// width, so railView is nil for the whole of the resize. A caller asking
+	// "did the drag work" would have been told the rail had gone.
+	//
+	// Pane 0 and handle 0 are the rail's whenever there is a rail pane, because
+	// arrange puts it first; railPane is that arrangement, recorded rather than
+	// assumed, so a harness told to widen the minipages cannot end up widening
+	// the settings.
+	if sp := splitterIn(s.view); sp != nil && s.railPane {
+		b := sp.Bounds()
+		out = append(out, spot{Label: bandRail,
+			X: b.X, Y: b.Y, W: sp.PaneSize(0), H: b.H, On: s.railView != nil})
+		if h, ok := sp.HandleRect(0); ok && h.W > 0 && h.H > 0 {
+			out = append(out, spot{Label: ctlDivider, X: h.X, Y: h.Y, W: h.W, H: h.H, On: true})
+		}
+	}
 	return out
+}
+
+// splitterIn finds the splitter a band is laid out with, which is what a reader
+// drags. ⛔ Found by WALKING the band rather than kept in a field: a field would
+// agree with a workbench that built a splitter and never put it on the screen,
+// which is the half of this feature that shipped broken once already.
+func splitterIn(w toolkit.Widget) *toolkit.Splitter {
+	if sp, ok := w.(*toolkit.Splitter); ok {
+		return sp
+	}
+	if p, ok := w.(interface{ Children() []toolkit.Widget }); ok {
+		for _, c := range p.Children() {
+			if sp := splitterIn(c); sp != nil {
+				return sp
+			}
+		}
+	}
+	return nil
 }
 
 // The two bands, named rather than numbered. A panel is only published when
@@ -80,6 +128,10 @@ func (s *state) controls() []spot {
 const (
 	bandPage  = "#page"
 	bandPanel = "#panel"
+	// bandRail is the minipages, whose WIDTH is the answer to whether the
+	// divider moved. ctlDivider is what is grabbed to move it.
+	bandRail   = "#rail"
+	ctlDivider = "#divider"
 )
 
 // controlsJSON is the same, as the text a caller outside this process reads.

@@ -190,6 +190,10 @@ type state struct {
 	thumbs   *thumbs
 	railView toolkit.Widget
 	railMore bool
+	// railPane says the splitter on the screen has the rail as its first pane,
+	// so its first divider is the one that widens the minipages. It outlives
+	// railView, which is nil for the whole of a resize.
+	railPane bool
 	// shown is what the view band is holding: the page, a form, a reading, or
 	// a sentence saying why there is none of those.
 	shown  toolkit.Widget
@@ -664,6 +668,13 @@ func (s *state) arrange(w toolkit.Widget) toolkit.Widget {
 	// The width lives in s.railWidth, which the splitter WRITES as the divider
 	// moves — so the band is rebuilt on every refresh without the reader's
 	// choice being rebuilt with it.
+	// ⛔ Remembered, because the workbench publishes WHICH divider is the rail's
+	// and railView is nil for the whole of a resize: moving the divider throws
+	// the minipages away so they can be drawn again at the new width, while the
+	// splitter on the screen still has its rail pane. A harness reading railView
+	// would be told the rail had gone at exactly the moment it is asking whether
+	// the drag worked.
+	s.railPane = s.railView != nil
 	var panes []*toolkit.SplitPane
 	if s.railView != nil {
 		panes = append(panes, &toolkit.SplitPane{
