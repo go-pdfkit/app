@@ -95,6 +95,54 @@ func TestGoingToAPageRebuildsABandThatIsNotTheViewer(t *testing.T) {
 	}
 }
 
+// TestDraggingTheDividerCostsNothingPerFrame is the measurement behind the
+// second report: "resizing the bars is very slow, I have the impression the
+// whole tab lags".
+//
+// ⛔ THE FRAMES ARE THE POINT. dragHandle presses, moves and releases back to
+// back with no frame in between, which is how the gesture defect before this
+// one hid: what a drag costs is what it costs ON EVERY FRAME while the pointer
+// is down, and a test with no frames in it measures none of them.
+func TestDraggingTheDividerCostsNothingPerFrame(t *testing.T) {
+	s, _ := opened(t, 40)
+	s.draw(buffer())
+	sp := splitterIn(s.view)
+	if sp == nil {
+		t.Fatal("there is no divider beside the page")
+	}
+	r, ok := sp.HandleRect(0)
+	if !ok {
+		t.Fatalf("the divider has no rectangle to grab: %+v", r)
+	}
+	x, y := r.X+r.W/2, r.Y+r.H/2
+	s.handleClick(x, y)
+
+	c := count(t)
+	const frames = 20
+	for i := 1; i <= frames; i++ {
+		s.handleMove(x+2*i, y)
+		s.tick(0.016)
+		s.draw(buffer())
+	}
+	s.handleRelease(x+2*frames, y)
+
+	if c.writes != 0 || c.reads != 0 {
+		t.Errorf("%d frames of dragging the divider wrote the document %d times (%d bytes) "+
+			"and parsed it back %d times", frames, c.writes, c.written, c.reads)
+	}
+	// ⛔ And no page is re-rendered WHILE the divider is moving. The pictures
+	// are remade once the reader lets go, at the width they settled on —
+	// re-rendering forty pages at each of twenty intermediate widths is the
+	// whole of what "very slow" would be.
+	if c.renders != 0 {
+		t.Errorf("%d frames of dragging re-rendered %d pages before the reader let go",
+			frames, c.renders)
+	}
+	if s.railWidth.Get() <= railLogicalW {
+		t.Fatalf("the drag moved nothing: the rail is %d wide", s.railWidth.Get())
+	}
+}
+
 // TestAVerbStillRewritesTheDocument is the control for the test above: it
 // would pass if goTo simply stopped working, so the cost that MUST still be
 // paid is asserted too. A verb edits the file, and what is on the screen after

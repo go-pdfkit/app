@@ -170,7 +170,7 @@ func (s *state) rail(src *reader.Document, stamp [2]uint64) (toolkit.Widget, boo
 	// switch starts up for an outline and down for a page list, because an
 	// outline is an author saying which parts matter and a list of pages is
 	// not.
-	rows := s.contentsOf(src, s.marksFor(src, stamp))
+	rows := s.contentsOf(src, stamp)
 	if !s.railContents || len(rows) == 0 {
 		return sv, more
 	}
