@@ -334,6 +334,32 @@ func TestAContentsRowFitsThePaneItIsIn(t *testing.T) {
 	}
 }
 
+// ⛔ A PANE WITH NO ROOM SAYS NOTHING, rather than something wrong. Both ends
+// are reachable: the rail can be asked for a width below its own floor, and a
+// pane can be narrower than a single character and its ellipsis. The answer in
+// both cases is an empty row — a row holding half a letter, or an ellipsis
+// alone pretending to be a cut title, would be worse than a blank one.
+func TestARowWithNoRoomSaysNothing(t *testing.T) {
+	for _, c := range []struct {
+		what string
+		px   int
+	}{
+		{"a rail dragged below its own floor", -40},
+		{"a pane of no width at all", 0},
+		{"a pane narrower than one character", 1},
+	} {
+		if got := clipToWidth("a heading", c.px); got != "" {
+			t.Errorf("%s gave the row %q", c.what, got)
+		}
+	}
+	// ⛔ The control: the same string in a pane that HAS room comes back whole.
+	// Without it this test would pass on a clipToWidth that always said nothing.
+	whole := "a heading"
+	if got := clipToWidth(whole, toolkit.TextWidth(whole)); got != whole {
+		t.Errorf("a row that fits exactly came back %q", got)
+	}
+}
+
 // longLinkPDF is one page carrying one link over a line of text far longer than
 // any rail: the case every row of a real document's contents is in.
 func longLinkPDF(t *testing.T) []byte {

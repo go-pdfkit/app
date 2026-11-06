@@ -243,20 +243,28 @@ func clipToWidth(s string, px int) string {
 		return s
 	}
 	r := []rune(s)
-	// Start from a proportional guess and walk from there. One rune at a time
-	// from the end would measure a thousand rows of two hundred characters two
-	// hundred thousand times, every time the divider moves.
-	n := min(len(r), len(r)*px/max(1, toolkit.TextWidth(s)))
-	for n > 0 && toolkit.TextWidth(string(r[:n])+outlineEllipsis) > px {
-		n--
+	// The most runes whose text and ellipsis still fit, found by HALVING.
+	//
+	// ⛔ Not by walking from a proportional guess, which is what this did first:
+	// with the toolkit's fixed-width bitmap font the guess is exact, so the loop
+	// that walked FORWARD from it could never run — dead code that only looked
+	// like care for a proportional face. Halving has no such branch, measures
+	// log(n) times instead of n, and is the same code whatever the font: a
+	// thousand rows of two hundred characters would otherwise be two hundred
+	// thousand measurements every time the divider moves.
+	lo, hi := 0, len(r)
+	for lo < hi {
+		mid := (lo + hi + 1) / 2
+		if toolkit.TextWidth(string(r[:mid])+outlineEllipsis) <= px {
+			lo = mid
+		} else {
+			hi = mid - 1
+		}
 	}
-	for n < len(r) && toolkit.TextWidth(string(r[:n+1])+outlineEllipsis) <= px {
-		n++
-	}
-	if n <= 0 {
+	if lo <= 0 {
 		return ""
 	}
-	return string(r[:n]) + outlineEllipsis
+	return string(r[:lo]) + outlineEllipsis
 }
 
 // pressContents is what a row does when it is pressed.
