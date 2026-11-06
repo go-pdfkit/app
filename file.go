@@ -19,12 +19,107 @@ import (
 	"github.com/go-widgets/toolkit"
 )
 
+// infoShown is what the panel displays under the two entries it can write.
+//
+// ⛔ A NAMED SET, not every key in the dictionary. A file chooses what it puts
+// in there and how much: it may carry a hundred private keys, or one value a
+// megabyte long. So these are drawn, each bounded, and whatever else the file
+// says is COUNTED rather than drawn — a panel that quietly showed six of forty
+// entries would read exactly like a file that had six.
+var infoShown = []reader.Name{
+	"Subject", "Keywords", "Creator", "Producer", "CreationDate", "ModDate",
+}
+
+// infoMax bounds one shown value, in runes.
+const infoMax = 120
+
 // fileGroup is the panel.
 func (s *state) fileGroup() *column {
 	box := newColumn()
 	box.add(s.entryRow("Title", "what the document is called", s.tools.title), labelledH())
 	box.add(s.entryRow("Author", "who wrote it", s.tools.author), labelledH())
+
+	// ⛔ WHAT THE FILE SAYS, SHOWN. The panel used to write only, which is the
+	// smaller half of the problem: see setInfo, where not showing is what made
+	// writing destructive.
+	drawn := 0
+	for _, k := range infoShown {
+		v := s.infoSays(k)
+		if v == "" {
+			continue
+		}
+		l := toolkit.NewLabel(v)
+		l.Ellipsis = true
+		box.add(toolkit.NewFormField(string(k), l), labelledH())
+		drawn++
+	}
+	if more := s.infoMore(drawn); more > 0 {
+		l := toolkit.NewLabel(fmt.Sprintf("… and %d more entries, not shown", more))
+		l.Disabled().Set(true)
+		box.add(l, textH())
+	}
 	return box
+}
+
+// infoSays is one entry of the information dictionary as a line of text, or
+// empty when the file does not carry it.
+//
+// ⛔ Clipped, and the dates are shown AS THE FILE WROTE THEM. A PDF date is a
+// string like D:20260101120000+01'00' (ISO 32000-1, 7.9.4) and nothing in the
+// fleet parses one; rendering it into a pretty date would mean writing that
+// parser here, and showing a guess at it would be worse than showing the text.
+func (s *state) infoSays(key reader.Name) string {
+	if s.doc == nil {
+		return ""
+	}
+	str, ok := s.doc.Info()[key].(reader.String)
+	if !ok {
+		return ""
+	}
+	r := []rune(string(str))
+	if len(r) > infoMax {
+		return string(r[:infoMax-1]) + outlineEllipsis
+	}
+	return string(r)
+}
+
+// infoMore is how many entries of the information dictionary the panel is NOT
+// showing, given how many it drew: everything the file carries, less those and
+// the two the fields above already hold.
+//
+// ⛔ ONE function with ONE guard, because the first version was two — a counter
+// that checked for no document and a second that did not — and the panel is
+// built BEFORE a file is opened. The empty workbench crashed on a nil pointer
+// at startup. Two functions that must agree about the same precondition are
+// two chances to write it once.
+func (s *state) infoMore(drawn int) int {
+	if s.doc == nil {
+		return 0
+	}
+	info := s.doc.Info()
+	shown := drawn
+	for _, k := range []reader.Name{"Title", "Author"} {
+		if _, ok := info[k]; ok {
+			shown++
+		}
+	}
+	return len(info) - shown
+}
+
+// readInfo fills the two fields from what the document already says.
+//
+// ⛔⛔ THIS IS WHAT MAKES `Say so in the file` SAFE TO PRESS. ops.SetInfo
+// documents that "an empty value removes it", and the fields started empty
+// whatever the file said — so opening a paper that carried a title and an
+// author and pressing the button deleted both, silently, under a tip that said
+// it writes "the title and author typed beside it".
+//
+// ⛔ At OPEN and not on every refresh. A refresh follows every verb, and
+// re-reading the fields there would throw away what somebody had typed but not
+// yet written the moment they rotated a page.
+func (s *state) readInfo() {
+	s.tools.title.Set(s.infoSays("Title"))
+	s.tools.author.Set(s.infoSays("Author"))
 }
 
 // flatten draws the annotations into the pages, so that what a form says is

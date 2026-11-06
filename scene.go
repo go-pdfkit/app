@@ -352,6 +352,7 @@ func (s *state) open() {
 		s.showingForm = false
 		s.reopenPw = ""
 		s.tools.reading.Set("")
+		s.readInfo()
 		s.readForm(data)
 		if s.form != nil {
 			s.note = fmt.Sprintf("this document has a form: %d fields",
