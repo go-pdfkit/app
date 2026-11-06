@@ -174,7 +174,7 @@ type contentsRowSaid struct {
 func (s *state) contentsJSON() string {
 	var rows []contentsRowSaid
 	if s.railContents && s.src != nil {
-		for _, m := range s.contentsOf(s.src, s.thumbs.stamp) {
+		for _, m := range s.contentsOf(s.src, s.docStamp) {
 			rows = append(rows, contentsRowSaid{
 				Title: m.title, Page: m.page, URI: m.uri, Depth: m.depth,
 			})

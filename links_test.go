@@ -107,7 +107,7 @@ func TestADocumentWithNoOutlineListsItsLinks(t *testing.T) {
 		t.Fatalf("the fixture carries an outline after all: %+v", got)
 	}
 
-	rows := s.contentsOf(s.src, s.thumbs.stamp)
+	rows := s.contentsOf(s.src, s.docStamp)
 	if len(rows) != 3 {
 		t.Fatalf("%d rows for a document carrying three links: %+v", len(rows), rows)
 	}
