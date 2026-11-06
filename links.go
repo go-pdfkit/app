@@ -174,15 +174,42 @@ func wordsUnder(runs []extract.Run, rect [4]float64) string {
 	return strings.TrimSpace(b.String())
 }
 
-// needsSpace says whether two runs drawn side by side are separate words. The
-// run carries what a space would be worth here, which is what tells a word
-// break from kerning.
+// needsSpace says whether two runs drawn side by side are separate words.
 func needsSpace(before, after extract.Run) bool {
 	if before.Y != after.Y {
 		return true
 	}
 	gap := after.X - (before.X + before.Width)
-	return gap > before.Space/2
+	return gap > wordSpace(before)/2
+}
+
+// wordSpace is what a space is worth in this run's face, which is what tells a
+// word break from kerning.
+//
+// ⛔⛔ Run.Space IS NOT ALWAYS A SPACE. On real documents it comes back as the
+// font SIZE — go-pdfkit/extract#28 — and this used half of it as the threshold,
+// so at 10pt a gap had to exceed 5 points to be a word break. A real space at
+// that size is about 2.8 points and a gap between two letters a fraction of
+// one, so EVERY gap failed and no space was ever found: every link row in the
+// contents pane read as one long word, on every real document.
+//
+// Measured on the opening line of a real page: "Lemoteurgotex", where the gaps
+// are 3.2 points between words and 0.15 between letters.
+//
+// go-pdfkit/latex met the same producer and says why it happens: "a composite
+// font has no character at 32 and answers with whatever its fallback width is;
+// one real producer answers with the font size, and taking that at face value
+// turns a page into one long word."
+//
+// ⛔ A BELIEVABLE number is still believed. This is a fallback for a face that
+// answers with something that cannot be a space, not a replacement for the
+// face's own metrics: a document whose spacing is genuinely unusual is read as
+// it is set, not as a third of its size.
+func wordSpace(r extract.Run) float64 {
+	if r.Space > r.Size*0.05 && r.Space < r.Size*0.9 {
+		return r.Space
+	}
+	return r.Size * 0.33
 }
 
 // clipTitle keeps a row to a line, counting RUNES rather than bytes so that a
