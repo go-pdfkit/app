@@ -118,7 +118,7 @@ func TestTheLinksAreReadOncePerDocumentNotOncePerFrame(t *testing.T) {
 
 	const frames = 30
 	for range frames {
-		s.rail(s.src, s.thumbs.stamp)
+		s.rail(s.src, s.docStamp)
 	}
 	// The fixture carries its three links on one page, so the whole list costs
 	// ONE read of one page's text — once.
@@ -299,7 +299,7 @@ func TestAContentsRowReadsFromTheLeftEdge(t *testing.T) {
 func TestAContentsRowFitsThePaneItIsIn(t *testing.T) {
 	s := openedWith(t, longLinkPDF(t))
 	s.draw(buffer())
-	rows := s.contentsOf(s.src, s.thumbs.stamp)
+	rows := s.contentsOf(s.src, s.docStamp)
 	if len(rows) == 0 {
 		t.Fatal("no rows")
 	}

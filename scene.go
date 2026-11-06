@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-pdfkit/extract"
 	"github.com/go-pdfkit/ops"
 	"github.com/go-pdfkit/reader"
 	"github.com/go-pdfkit/render"
@@ -246,6 +247,23 @@ type state struct {
 	// frame. See linksFor.
 	links    []bookmark
 	linksDoc [2]uint64
+	// sel is the text the reader has selected on the page and selecting says
+	// whether a drag is building it. runs is each page's glyphs, remembered
+	// per document the way marks and links are — see runsFor.
+	sel       toolkit.TextSelection
+	selecting bool
+	runs      map[int][]extract.Run
+	runsDoc   [2]uint64
+	// stamp identifies the document on screen — the length of its bytes and a
+	// CRC over them, as thumbs.stamp is.
+	//
+	// ⛔⛔ IT LIVES HERE BECAUSE A ONE-PAGE DOCUMENT HAS NO RAIL. thumbs is
+	// created inside rail(), which returns before creating it for a document
+	// of fewer than two pages — so everything that reached the document's
+	// identity through s.thumbs.stamp read a NIL POINTER on exactly the
+	// documents that have no rail. contentsJSON, the seam the browser check
+	// reads, crashed the tab on a single sheet.
+	docStamp [2]uint64
 	// contentsCtl is the switch, kept because its tooltip is the one part of
 	// it that says which view is on in words.
 	contentsCtl *toolkit.RibbonControl
@@ -630,6 +648,7 @@ func (s *state) renderPage() {
 	// The rail is settled BEFORE the pages are drawn, because the viewer is
 	// given the room the rail leaves it and draws each page to fill it.
 	stamp := stampOf(raw)
+	s.docStamp = stamp
 	s.railView, s.railMore = s.rail(src, stamp)
 	// The viewer is put in the band first and given its bounds, because the
 	// size it draws each page at comes from PageRect — which is geometry, and
@@ -855,6 +874,10 @@ func (s *state) draw(buf []byte) {
 	// the status line.
 	s.view.SetBounds(painter.Rect{X: margin, Y: s.viewTop(), W: s.viewW(), H: s.viewH()})
 	s.view.Draw(p, s.theme)
+	// ⛔ Over the page and UNDER everything the reader opened. A highlight is
+	// part of the page as far as a reader is concerned, so a pop-over, a menu
+	// or a tooltip still comes forward over it.
+	s.drawSelection(p)
 	// ⛔ LAST, AND OUTSIDE THE RIBBON'S OWN RECTANGLE. A folded group's pop-up,
 	// a tooltip and the keytips are drawn over everything else, so they belong
 	// after the page. The view is wrapped in a PopoverHost of its own, but the
@@ -948,6 +971,14 @@ func hit(w toolkit.Widget, kind toolkit.EventKind, x, y int) {
 // handleClick routes a press to whatever is under it.
 func (s *state) handleClick(x, y int) bool {
 	s.pressing = true
+	// ⛔ A press that lands ON A PAGE begins a selection and goes no further:
+	// dragging across words is what that gesture means in every reader, and
+	// the page itself has nothing else it does with a press. Anywhere else —
+	// the scrollbar, the rail, the ribbon, a form being filled in — the widget
+	// under the pointer gets it exactly as before.
+	if s.beginSelect(x, y) {
+		return true
+	}
 	return s.pointer(toolkit.EventClick, x, y)
 }
 
@@ -967,6 +998,9 @@ func (s *state) handleClick(x, y int) bool {
 // comes back over the window having been let go elsewhere, which is the case a
 // flag alone gets wrong.
 func (s *state) handleMove(x, y int) bool {
+	if s.dragSelect(x, y) {
+		return true
+	}
 	if s.pressing {
 		return s.pointer(toolkit.EventMouseDrag, x, y)
 	}
@@ -975,6 +1009,10 @@ func (s *state) handleMove(x, y int) bool {
 
 // handleRelease routes a release.
 func (s *state) handleRelease(x, y int) bool {
+	if s.endSelect(x, y) {
+		s.pressing = false
+		return true
+	}
 	ok := s.pointer(toolkit.EventMouseUp, x, y)
 	s.pressing = false
 	return ok
@@ -1033,6 +1071,11 @@ func (s *state) handleKeyDown(key string) bool {
 	case "ArrowRight", "PageDown":
 		s.step(1)
 		return true
+	case "Escape":
+		// Letting go of a selection is the one thing a reader expects Escape
+		// to do while text is lit, and it reports whether there was any — so
+		// Escape with nothing selected still reaches whatever else wants it.
+		return s.clearSelection()
 	}
 	return false
 }

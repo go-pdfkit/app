@@ -99,6 +99,7 @@ var ribbonTabs = []struct {
 	}},
 	{groupRead, []verbGroup{
 		{"Read", []string{"readText", "readImages", "readPage"}},
+		{"Selected", []string{"copyText"}},
 		{"Hand over", []string{"pagePicture", "zipped", "textFile"}},
 	}},
 }
@@ -286,6 +287,17 @@ var verbs = map[string]verb{
 		label: "Say so in the file", tip: "Write the title and author typed beside it into the document.",
 		icon: "edit-pencil", large: true,
 		run: (*state).setInfo,
+	},
+	// ⛔ ON THE RIBBON RATHER THAN ON Ctrl+C, because the workbench is handed a
+	// key and nothing else: handleKeyDown takes a string, and no modifier ever
+	// reaches it. A verb that quietly needed a chord the app cannot see would
+	// be a verb nobody could press. The chord is worth adding; it is a change
+	// to the host, not to this table.
+	"copyText": {
+		label: "Copy the words", tip: "Put the text selected on the page on the clipboard. Drag across a page to select some.",
+		icon: "copy", large: true,
+		run:  (*state).copySelection,
+		when: func(s *state) bool { return !s.sel.IsEmpty() },
 	},
 	"clearInfo": {
 		label: "Drop what it says about itself", tip: "Remove the title, author, producer and dates.",

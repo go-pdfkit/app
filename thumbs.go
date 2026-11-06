@@ -265,7 +265,7 @@ func (s *state) goTo(to int) {
 // pictures inside them are kept, which is the part that costs anything.
 func (s *state) relight() {
 	s.reconsider()
-	s.railView, s.railMore = s.rail(s.src, s.thumbs.stamp)
+	s.railView, s.railMore = s.rail(s.src, s.docStamp)
 	s.show(s.shown)
 	s.status = toolkit.NewStatusbar(s.statusLine())
 	s.dirty = true
@@ -381,7 +381,7 @@ func (s *state) fillRail() {
 	// A document with no rail (a single sheet) costs one PageCount per frame
 	// here and marks nothing dirty, so it does not spin.
 	if s.railView == nil {
-		rail, more := s.rail(s.src, s.thumbs.stamp)
+		rail, more := s.rail(s.src, s.docStamp)
 		if rail == nil {
 			return
 		}
@@ -393,7 +393,7 @@ func (s *state) fillRail() {
 	if !s.railMore {
 		return
 	}
-	rail, more := s.rail(s.src, s.thumbs.stamp)
+	rail, more := s.rail(s.src, s.docStamp)
 	s.railView, s.railMore = rail, more
 	s.show(s.shown)
 	s.dirty = true
