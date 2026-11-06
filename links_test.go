@@ -8,7 +8,6 @@ import (
 	"github.com/go-pdfkit/extract"
 	"github.com/go-pdfkit/ops"
 	"github.com/go-pdfkit/reader"
-	"github.com/go-widgets/toolkit"
 )
 
 // linkedPDF is a three-page document whose first page carries three links over
@@ -108,7 +107,7 @@ func TestADocumentWithNoOutlineListsItsLinks(t *testing.T) {
 		t.Fatalf("the fixture carries an outline after all: %+v", got)
 	}
 
-	rows := s.contentsOf(s.src, s.marksFor(s.src, s.thumbs.stamp))
+	rows := s.contentsOf(s.src, s.thumbs.stamp)
 	if len(rows) != 3 {
 		t.Fatalf("%d rows for a document carrying three links: %+v", len(rows), rows)
 	}
@@ -171,12 +170,11 @@ func TestPressingALinkThatLeavesTheDocumentSaysSoAndStays(t *testing.T) {
 	}
 
 	was := s.at
-	row := s.contentsRow(rows[1])
-	b, ok := row.(*toolkit.Button)
-	if !ok {
-		t.Fatalf("a link out of the document is a %T, so it cannot be pressed at all", row)
-	}
-	b.OnClick()
+	// ⛔ Pressed through the PANE at its row's index, not by building a row on
+	// its own: the pane maps an index back to a bookmark, and that mapping is
+	// the part a reader's press actually goes through.
+	lb := listBoxOf(t, s.contentsPane(rows))
+	lb.OnActivate(1)
 	if s.at != was {
 		t.Errorf("pressing it moved the reader to page %d", s.at)
 	}
@@ -191,12 +189,8 @@ func TestPressingALinkRowGoesToItsPage(t *testing.T) {
 	s := openedWith(t, linkedPDF(t))
 	s.draw(buffer())
 	s.goTo(1)
-	row := s.contentsRow(s.linkList(s.src)[0])
-	b, ok := row.(*toolkit.Button)
-	if !ok {
-		t.Fatalf("a link row is a %T", row)
-	}
-	b.OnClick()
+	lb := listBoxOf(t, s.contentsPane(s.linkList(s.src)))
+	lb.OnActivate(0)
 	if s.at != 3 {
 		t.Errorf("pressing a link to page 3 left the reader on page %d", s.at)
 	}
@@ -255,7 +249,7 @@ func TestADocumentWithNeitherOutlineNorLinksStillListsItsPages(t *testing.T) {
 	if got := s.doc.Links(); len(got) != 0 {
 		t.Fatalf("the sample carries %d links after all", len(got))
 	}
-	rows := s.contentsOf(s.src, nil)
+	rows := s.contentsOf(s.src, [2]uint64{})
 	if len(rows) != 3 || rows[2].title != "Page 3" {
 		t.Errorf("the last resort reads %+v", rows)
 	}
@@ -265,8 +259,11 @@ func TestADocumentWithNeitherOutlineNorLinksStillListsItsPages(t *testing.T) {
 // matter, which is more than a link says.
 func TestAnOutlineIsPreferredToTheLinks(t *testing.T) {
 	s := openedWith(t, linkedPDF(t))
-	marks := []bookmark{{title: "a chapter", page: 2}}
-	rows := s.contentsOf(s.src, marks)
+	// The outline is injected through the memo contentsOf reads, which is the
+	// only way in now that contentsOf takes the document rather than a list.
+	stamp := [2]uint64{7, 7}
+	s.marksDoc, s.marks = stamp, []bookmark{{title: "a chapter", page: 2}}
+	rows := s.contentsOf(s.src, stamp)
 	if len(rows) != 1 || rows[0].title != "a chapter" {
 		t.Errorf("with an outline the pane reads %+v", rows)
 	}

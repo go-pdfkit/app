@@ -34,8 +34,46 @@ import (
 const (
 	maxLinkRows = 1000
 	// linkTitleMax is counted in RUNES, the ellipsis included.
+	//
+	// ⛔ It bounds what is KEPT, not what is shown, and reading it as the second
+	// was a defect: two hundred runes is something like fifteen times what fits
+	// in a rail 132 logical pixels wide, so every row overflowed its pane and
+	// the view came back reported as "unusable as it is". What a row DISPLAYS is
+	// clipped to the pane's own width, which the reader changes by dragging the
+	// divider — see contentsLabel. This number only stops one pathological page
+	// of text from being held in memory a thousand times over.
 	linkTitleMax = 200
 )
+
+// extractRuns is the seam a test counts through. The text of a page is the
+// expensive half of building this list, and what it costs is a COUNT rather
+// than a time: the machine this is measured on runs two dozen other things.
+var extractRuns = extract.Runs
+
+// linksFor is the document's links, remembered between repaints.
+//
+// ⛔⛔ ONCE PER DOCUMENT, NOT ONCE PER FRAME — AND THIS WAS THE LAG. marksFor
+// carries the same memo for the OUTLINE, with a comment saying a repaint must
+// not pay for a walk of the file. The links fallback shipped beside it with no
+// memo at all, and it is the more expensive of the two: it reads the TEXT of
+// every page that carries a link, where the outline walk only follows
+// references. The rail is rebuilt on every page change and on every frame while
+// the minipages are still filling, so a document with links on twenty pages was
+// re-extracting twenty pages of text sixty times a second — which is what
+// "resizing the bars is very slow, the whole tab lags" was.
+//
+// It is the same class as the defect goTo carries a comment about: an invariant
+// about CHANGES charged to something that changes nothing.
+func (s *state) linksFor(src *reader.Document, stamp [2]uint64) []bookmark {
+	if s.linksDoc == stamp && s.links != nil {
+		return s.links
+	}
+	s.linksDoc = stamp
+	// Never nil once read, so a document that genuinely carries no links is
+	// remembered as carrying none rather than searched again on every frame.
+	s.links = append([]bookmark{}, s.linkList(src)...)
+	return s.links
+}
 
 // linkList is one row per link the document carries, in page order.
 func (s *state) linkList(src *reader.Document) []bookmark {
@@ -60,7 +98,7 @@ func (s *state) linkList(src *reader.Document) []bookmark {
 			break
 		}
 		if _, read := words[l.Page]; !read {
-			runs, _ := extract.Runs(src, l.Page)
+			runs, _ := extractRuns(src, l.Page)
 			words[l.Page] = runs
 		}
 		out = append(out, bookmark{

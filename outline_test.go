@@ -201,30 +201,45 @@ func TestAContentsRowGoesToItsPage(t *testing.T) {
 	s.refresh()
 	s.draw(buffer())
 
-	rows := railButtons(s.railView)
+	rows := railRows(s.railView)
 	if len(rows) != 2 {
 		t.Fatalf("the contents shows %d rows", len(rows))
 	}
-	rows[1].OnClick()
+	railList(s.railView).OnActivate(1)
 	if s.at != 3 {
 		t.Errorf("pressing the row for page 3 went to page %d", s.at)
 	}
 }
 
-// railButtons walks the rail for its pressable rows, in order.
-func railButtons(w toolkit.Widget) []*toolkit.Button {
-	if b, ok := w.(*toolkit.Button); ok {
-		return []*toolkit.Button{b}
+// railList walks the rail for the contents list, and railRows for what it says.
+//
+// ⛔ It used to walk for toolkit.Buttons, one per row. The rows are a ListBox
+// now — a Button centres its label, which is what "it looks right-aligned
+// instead of left" was, and a column of a thousand Buttons is a thousand
+// widgets laid out on every rebuild. One consequence for these tests: a ListBox
+// lists EVERY row, where a walk for Buttons only found the pressable ones, so a
+// row that goes nowhere is now counted and asserted by what pressing it does.
+func railList(w toolkit.Widget) *toolkit.ListBox {
+	if lb, ok := w.(*toolkit.ListBox); ok {
+		return lb
 	}
 	p, ok := w.(interface{ Children() []toolkit.Widget })
 	if !ok {
 		return nil
 	}
-	var out []*toolkit.Button
 	for _, c := range p.Children() {
-		out = append(out, railButtons(c)...)
+		if lb := railList(c); lb != nil {
+			return lb
+		}
 	}
-	return out
+	return nil
+}
+
+func railRows(w toolkit.Widget) []string {
+	if lb := railList(w); lb != nil {
+		return lb.Items
+	}
+	return nil
 }
 
 func TestAnOutlineThatPointsBackAtItselfIsReadOnce(t *testing.T) {
@@ -307,7 +322,7 @@ func TestADocumentWithNoOutlineListsItsPagesInstead(t *testing.T) {
 	if s.railView == nil {
 		t.Fatal("a three-page document has no rail at all")
 	}
-	if got := railButtons(s.railView); len(got) != 3 {
+	if got := railRows(s.railView); len(got) != 3 {
 		t.Errorf("a three-page document with no outline offered %d places to go, and it has 3 pages", len(got))
 	}
 	if splitterIn(s.railView) == nil {
@@ -364,8 +379,17 @@ func TestABookmarkThatGoesNowhereKeepsItsRow(t *testing.T) {
 	s.railContents = true
 	s.refresh()
 	s.draw(buffer())
-	if n := len(railButtons(s.railView)); n != 1 {
-		t.Errorf("the contents offers %d presses, and only one row goes anywhere", n)
+	// ⛔ BOTH rows are listed, and the broken one does NOTHING when pressed.
+	// The list shows what the document says about itself; the press is what is
+	// withheld. Counting pressable widgets could not tell "the row is gone"
+	// from "the row is there and inert", and those are different bugs.
+	if n := len(railRows(s.railView)); n != 2 {
+		t.Errorf("the contents lists %d rows, and the outline has 2", n)
+	}
+	was := s.at
+	railList(s.railView).OnActivate(1)
+	if s.at != was {
+		t.Errorf("pressing a row that goes nowhere moved the reader to page %d", s.at)
 	}
 }
 
@@ -489,13 +513,13 @@ func TestANestedContentsRowIsIndented(t *testing.T) {
 	s.railContents = true
 	s.refresh()
 	s.draw(buffer())
-	rows := railButtons(s.railView)
+	rows := railRows(s.railView)
 	if len(rows) != 2 {
 		t.Fatalf("the contents shows %d rows", len(rows))
 	}
 	// ⛔ The nesting is what makes a contents a contents rather than a list.
-	if len(rows[1].Label().Get()) <= len("Under it") {
-		t.Errorf("the nested row reads %q, which is not indented", rows[1].Label().Get())
+	if len(rows[1]) <= len("Under it") {
+		t.Errorf("the nested row reads %q, which is not indented", rows[1])
 	}
 }
 
@@ -508,7 +532,7 @@ func TestTheContentsAndTheMinipagesAreBothThere(t *testing.T) {
 	s := openOutlined(t, 6, []mark{{"One", 1, -1}, {"Two", 4, -1}}, nil)
 	s.draw(buffer())
 
-	rows := railButtons(s.railView)
+	rows := railRows(s.railView)
 	if len(rows) != 2 {
 		t.Errorf("the rail offers %d contents rows, and the document has 2", len(rows))
 	}
@@ -553,14 +577,14 @@ func TestTheContentsPaneCanBeDraggedTaller(t *testing.T) {
 func TestPuttingTheContentsAwayLeavesTheMinipages(t *testing.T) {
 	s := openOutlined(t, 4, []mark{{"One", 1, -1}}, nil)
 	s.draw(buffer())
-	if len(railButtons(s.railView)) == 0 {
+	if len(railRows(s.railView)) == 0 {
 		t.Fatal("precondition: the contents should be up")
 	}
 
 	s.toggleContents()
 	s.refresh()
 	s.draw(buffer())
-	if got := len(railButtons(s.railView)); got != 0 {
+	if got := len(railRows(s.railView)); got != 0 {
 		t.Errorf("the contents were put away and %d rows are still there", got)
 	}
 	if got := len(railTiles(s.railView)); got != 4 {

@@ -120,11 +120,17 @@ func (s *state) contentsTip() string {
 //
 // Most documents carry no outline, which is why there is a fallback at all. A
 // great many of those do carry links.
-func (s *state) contentsOf(src *reader.Document, marks []bookmark) []bookmark {
-	if len(marks) > 0 {
+// ⛔ It takes the document's STAMP and reads both memos itself, rather than
+// being handed a list. It used to take the marks, which left every caller free
+// to pass a freshly walked list — and the links branch below had no memo at
+// all, so the one caller that mattered re-read the text of every linked page on
+// every frame. A signature nobody can call the expensive way is the fix; a
+// comment asking callers to remember is not.
+func (s *state) contentsOf(src *reader.Document, stamp [2]uint64) []bookmark {
+	if marks := s.marksFor(src, stamp); len(marks) > 0 {
 		return marks
 	}
-	if links := s.linkList(src); len(links) > 0 {
+	if links := s.linksFor(src, stamp); len(links) > 0 {
 		return links
 	}
 	return s.pageList(src)
@@ -158,65 +164,132 @@ func (s *state) pageList(src *reader.Document) []bookmark {
 
 // contentsPane is the document's own table of contents: one row per bookmark,
 // indented by its depth, each a press that goes to its page.
+//
+// ⛔⛔ A LIST, NOT A COLUMN OF BUTTONS, AND THAT IS TWO OF THREE REPORTED
+// DEFECTS. It was a VBox of toolkit.Buttons inside a ScrollView, which is wrong
+// twice over:
+//
+//   - A Button is "a clickable rectangle with a CENTRED label" (its own doc).
+//     A column of centred rows of different lengths has no edge to read down,
+//     and that is what came back as "it looks right-aligned instead of left".
+//     A ListBox draws every row from a fixed left margin.
+//   - A VBox builds one widget per row and a ScrollView lays out and paints all
+//     of them, so a thousand-row contents cost a thousand widgets every rebuild.
+//     A ListBox scrolls VIRTUALLY — it paints only the rows that fit in its
+//     bounds, so "a list with thousands of rows costs the same per frame as one
+//     with a handful". The rail is rebuilt on every page change, so that cost
+//     was being paid over and over.
 func (s *state) contentsPane(marks []bookmark) toolkit.Widget {
-	col := toolkit.NewVBox()
-	col.Spacing = thumbGap
-	h := 0
-	add := func(w toolkit.Widget) {
-		col.AddFixed(w, lineH)
-		h += lineH + thumbGap
+	items := make([]string, len(marks))
+	for i, m := range marks {
+		items[i] = s.contentsLabel(m)
 	}
-	for _, m := range marks {
-		add(s.contentsRow(m))
+	lb := toolkit.NewListBox(items)
+	lb.RowHeight = lineH
+	// Which row is lit is WHERE THE READER IS, the way a minipage is lit in the
+	// other view. The first row for the page, because an outline may name the
+	// same page twice and the first is the one that starts it.
+	for i, m := range marks {
+		if m.page == s.at && m.uri == "" {
+			lb.Selected().Set(i)
+			break
+		}
 	}
-	if h > 0 {
-		h -= thumbGap
+	lb.OnActivate = func(i int) {
+		if i >= 0 && i < len(marks) {
+			s.pressContents(marks[i])
+		}
 	}
-	w := s.railPx() - scrollbarW
-	col.SetBounds(toolkit.Rect{W: w, H: h})
-	sv := toolkit.NewScrollView(col)
-	sv.SetContentSize(w, h)
-	return sv
+	return lb
 }
 
-// contentsRow is one line of the contents.
+// contentsLabel is what one row SAYS: its depth as an indent, and its title cut
+// to what the pane is currently wide enough to show.
 //
-// ⛔ A bookmark whose destination this document cannot resolve keeps its row
-// and loses its press. The row is still what the document says about itself,
-// and dropping it would renumber everything under it; but a press that went
-// nowhere would be a control that does not work rather than one that is off.
-func (s *state) contentsRow(m bookmark) toolkit.Widget {
+// ⛔ Cut to the PANE, not to a number chosen beside it. The rows were clipped to
+// linkTitleMax runes — two hundred — in a rail 132 logical pixels wide, so every
+// row ran off its pane and the view was reported "unusable as it is". The width
+// here is the one the reader has dragged the divider to, so widening the rail
+// shows more of each row instead of the same cut text in a wider box.
+func (s *state) contentsLabel(m bookmark) string {
 	label := m.title
 	for range m.depth {
 		label = "  " + label
 	}
-	// ⛔ A LINK OUT OF THE DOCUMENT IS SHOWN AND NOT FOLLOWED. Pressing it says
-	// where it would go, in the status line. The whole promise of this workbench
-	// is that nothing leaves this tab, and navigating the tab to somebody else's
-	// URL is the one gesture that would break it — silently, and in the one
-	// direction a reader cannot undo.
+	return clipToWidth(label, s.contentsTextW())
+}
+
+// contentsTextW is how much width a row's text actually has: the rail, less the
+// bar the list scrolls with and the margin it draws from.
+func (s *state) contentsTextW() int {
+	return s.railPx() - scrollbarW - 2*contentsGutter
+}
+
+// contentsGutter is the margin a row's text is drawn from, and so also the
+// furthest a top-level row may start from the pane's left edge and still read
+// as a column. ⛔ It is what a test measures the rows against: the property is
+// where the text LANDS, and a test naming the widget would have passed on the
+// centred buttons this replaced.
+var contentsGutter = 6
+
+// clipToWidth cuts a string to what fits in px, ending it with an ellipsis when
+// it had to cut. It measures rather than counting characters, because the rail
+// is a width in pixels and "how many letters fit" is not a constant.
+func clipToWidth(s string, px int) string {
+	if px <= 0 {
+		return ""
+	}
+	if toolkit.TextWidth(s) <= px {
+		return s
+	}
+	r := []rune(s)
+	// The most runes whose text and ellipsis still fit, found by HALVING.
+	//
+	// ⛔ Not by walking from a proportional guess, which is what this did first:
+	// with the toolkit's fixed-width bitmap font the guess is exact, so the loop
+	// that walked FORWARD from it could never run — dead code that only looked
+	// like care for a proportional face. Halving has no such branch, measures
+	// log(n) times instead of n, and is the same code whatever the font: a
+	// thousand rows of two hundred characters would otherwise be two hundred
+	// thousand measurements every time the divider moves.
+	lo, hi := 0, len(r)
+	for lo < hi {
+		mid := (lo + hi + 1) / 2
+		if toolkit.TextWidth(string(r[:mid])+outlineEllipsis) <= px {
+			lo = mid
+		} else {
+			hi = mid - 1
+		}
+	}
+	if lo <= 0 {
+		return ""
+	}
+	return string(r[:lo]) + outlineEllipsis
+}
+
+// pressContents is what a row does when it is pressed.
+//
+// ⛔ A LINK OUT OF THE DOCUMENT IS SHOWN AND NOT FOLLOWED. Pressing it says
+// where it would go, in the status line. The whole promise of this workbench is
+// that nothing leaves this tab, and navigating the tab to somebody else's URL is
+// the one gesture that would break it — silently, and in the one direction a
+// reader cannot undo.
+//
+// ⛔ And a row whose destination this document cannot resolve keeps its row and
+// does nothing. The row is still what the document says about itself, and
+// dropping it would renumber everything under it; but a press that went nowhere
+// would be a control that does not work rather than one that is off.
+func (s *state) pressContents(m bookmark) {
 	if m.uri != "" {
-		b := toolkit.NewButton(label, func() {
-			s.note = "that link leaves the document: " + m.uri
-			s.status = toolkit.NewStatusbar(s.statusLine())
-			s.dirty = true
-		})
-		b.Style = toolkit.ButtonSecondary
-		return b
+		s.note = "that link leaves the document: " + m.uri
+		s.status = toolkit.NewStatusbar(s.statusLine())
+		s.dirty = true
+		return
 	}
 	if m.page == 0 {
-		l := toolkit.NewLabel(label)
-		l.Disabled().Set(true)
-		return l
+		return
 	}
-	// ButtonSecondary rather than the default: a contents row is a place to go,
-	// not a command, and a column of default-faced buttons reads as a column of
-	// commands. Selected marks the row whose page is being read, the way a
-	// minipage is marked in the other view.
-	b := toolkit.NewButton(label, func() { s.goTo(m.page) })
-	b.Style = toolkit.ButtonSecondary
-	b.Selected().Set(m.page == s.at)
-	return b
+	s.goTo(m.page)
 }
 
 // contentsMinH is the shortest the contents pane may be dragged to and still

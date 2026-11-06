@@ -239,6 +239,13 @@ type state struct {
 	contentsH *mvvm.Observable[int]
 	marks     []bookmark
 	marksDoc  [2]uint64
+	// links is the same for the LINKS fallback, and it was missing: the outline
+	// walk was memoised with a comment explaining that a repaint must not pay
+	// for it, and the fallback added beside it — which reads the TEXT of every
+	// page carrying a link, and so costs more, not less — was read on every
+	// frame. See linksFor.
+	links    []bookmark
+	linksDoc [2]uint64
 	// contentsCtl is the switch, kept because its tooltip is the one part of
 	// it that says which view is on in words.
 	contentsCtl *toolkit.RibbonControl
