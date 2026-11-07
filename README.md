@@ -451,6 +451,44 @@ first chapter` is three runs — the first draft said *"highlighted 3 lines"* fo
 one line of text, and a page drawing that line with a single `Tj` would have
 said *"1 line"* for the same gesture.
 
+## Redacting a passage
+
+**Redact**, on the same tab, takes the selected words **out of the file**. It is
+the only verb on the Read tab that destroys anything, and the only one a saved
+document cannot be talked out of.
+
+⛔ **It is not a black rectangle.** That is the standard data leak: the text
+stays in the page's content stream, so anybody can copy it out from under the
+box, and `pdfops text` prints it. So this removes the operator that drew the
+text, and the status line says which it did —
+*"removed 17 characters from 1 page — the text is gone from the file, not
+covered"*.
+
+It sits next to the selection rather than on Protect because a selection is made
+two controls away: a reader drags across a passage and the verb has to be where
+their eye already is. A redaction they had to go and find on another tab is one
+they would do with a rectangle instead, which is the thing this exists to stop.
+
+⛔ **And it refuses, out loud, where it cannot remove the words completely.**
+[`ops.Doc.Redact`](https://github.com/go-pdfkit/ops) will not take out text that
+is inside a form, across an image, under an annotation, or drawn by an operator
+that also draws words outside the selection — and its message goes to the status
+line unchanged, because that message is the useful part. A reader told *"this
+line is drawn in one piece, and taking it would take more than you asked for"*
+can select the whole line instead. A workbench that swallowed the refusal and
+drew a box would be the leak.
+
+The commonest refusal is the one a reader walks into: **highlight a passage,
+then decide to redact it.** The highlight is an annotation across the region and
+its own note can hold the very words, so the library says no. Drop the
+highlight first.
+
+Where the words go is decided **once**, by the same `selectionQuads` the marking
+verbs use. Marking and redacting are opposite acts — one is written over the
+page and comes off again, the other takes the text out of the file — but they are
+the same question about *where*, and a reader who highlights a line and then
+redacts it has to get the same words both times.
+
 ## The panel and its datum are the same value
 
 Every control in a panel is **two-way bound** to the thing it shows, through
