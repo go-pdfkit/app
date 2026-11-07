@@ -101,6 +101,7 @@ var ribbonTabs = []struct {
 		{"Read", []string{"readText", "readImages", "readPage"}},
 		{"Selected", []string{"copyText"}},
 		{"Mark up", []string{"highlight", "underline", "strikeOut"}},
+		{"Remove", []string{"redactText"}},
 		{"Hand over", []string{"pagePicture", "zipped", "textFile"}},
 	}},
 }
@@ -321,6 +322,16 @@ var verbs = map[string]verb{
 		label: "Strike out", tip: "Strike through the words selected on the page. The text itself is untouched.",
 		icon: "strikethrough",
 		run:  (*state).strikeSelection,
+		when: func(s *state) bool { return !s.sel.IsEmpty() },
+	},
+	// ⛔⛔ THE ONE VERB ON THIS TAB THAT DESTROYS SOMETHING, and its tip says so
+	// in the words that matter: the text is REMOVED, not covered. A reader who
+	// thinks a redaction is a black rectangle is the person this feature is for,
+	// and the label is where they find out otherwise.
+	"redactText": {
+		label: "Redact", tip: "Remove the words selected on the page from the file itself — not a black box over them, which anybody could copy the text out from under. It refuses, and says why, where it cannot remove them completely.",
+		icon: "erase", large: true,
+		run:  (*state).redactSelection,
 		when: func(s *state) bool { return !s.sel.IsEmpty() },
 	},
 	"clearInfo": {

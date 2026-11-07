@@ -102,11 +102,37 @@ func (s *state) markSelection(kind ops.MarkupKind, said string, r, g, b float64)
 // otherwise a reader who scrolls between selecting and pressing Highlight gets
 // a mark where the words used to be.
 func (s *state) selectionMarks(kind ops.MarkupKind, r, g, b float64) (marks []ops.Markup, lines int) {
+	for _, p := range s.selectionQuads() {
+		lines += len(p.quads)
+		marks = append(marks, ops.Markup{
+			Page: p.page, Kind: kind, Quads: p.quads, R: r, G: g, B: b,
+		})
+	}
+	return marks, lines
+}
+
+// pageQuads is one page and the part of the selection that lands on it.
+type pageQuads struct {
+	page  int
+	quads []ops.Quad
+}
+
+// selectionQuads is the selection as quadrilaterals of page space, a group per
+// page it reaches, in page order.
+//
+// ⛔ ONE PLACE WHERE THE SELECTION BECOMES PAGE SPACE. Marking a passage and
+// redacting one are different acts with opposite consequences — one is written
+// over the page and comes off again, the other takes the text out of the file —
+// but they are the same question about WHERE, and they must answer it
+// identically. A reader who highlights a line and then redacts it has to get
+// the same words both times.
+func (s *state) selectionQuads() []pageQuads {
 	if s.sel.IsEmpty() {
-		return nil, 0
+		return nil
 	}
 	s.sel.SetRuns(s.textRuns(s.src, s.docStamp))
 	rects := s.sel.SelectedRects()
+	var out []pageQuads
 	s.eachVisiblePage(s.src, func(i int, pw, ph float64, rect toolkit.Rect) {
 		var quads []ops.Quad
 		for _, sr := range rects {
@@ -117,12 +143,9 @@ func (s *state) selectionMarks(kind ops.MarkupKind, r, g, b float64) (marks []op
 		if len(quads) == 0 {
 			return // a page on screen that the selection does not reach
 		}
-		lines += len(quads)
-		marks = append(marks, ops.Markup{
-			Page: i, Kind: kind, Quads: quads, R: r, G: g, B: b,
-		})
+		out = append(out, pageQuads{page: i, quads: quads})
 	})
-	return marks, lines
+	return out
 }
 
 // inPage says whether a selection rectangle belongs to the page drawn at rect,
