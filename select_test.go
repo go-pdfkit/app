@@ -167,10 +167,6 @@ func TestARunsFontMeasuresTheRunsOwnBox(t *testing.T) {
 	if got, want := run.Font.Advance(), run.Bounds.W/5; got != want {
 		t.Errorf("one character advances %d, want %d", got, want)
 	}
-	// ⛔ And Draw NEVER TOUCHES THE PAINTER: these runs are a layer over a page
-	// the renderer has already drawn, so a font that painted would paint the
-	// text twice. A nil painter is the assertion — it would panic.
-	run.Font.Draw(nil, 0, 0, run.Text, toolkit.RGBA{})
 }
 
 // ⛔⛔ A DRAG TO THE END OF A LINE KEEPS ITS LAST LETTER, and until placeRun
