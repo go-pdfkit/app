@@ -11,9 +11,9 @@ require (
 	github.com/go-pdfkit/reader v0.10.0
 	github.com/go-pdfkit/render v0.69.1
 	github.com/go-widgets/mvvm v0.15.0
-	github.com/go-widgets/painter v0.16.1
-	github.com/go-widgets/toolkit v0.354.0
-	github.com/go-widgets/webcanvas v0.7.0
+	github.com/go-widgets/painter v0.17.0
+	github.com/go-widgets/toolkit v0.356.0
+	github.com/go-widgets/webcanvas v0.8.0
 )
 
 require (
