@@ -7,12 +7,12 @@ require (
 	github.com/go-opentype/fonts v0.14.0
 	github.com/go-pdfkit/extract v0.9.0
 	github.com/go-pdfkit/forms v0.6.0
-	github.com/go-pdfkit/ops v0.25.0
+	github.com/go-pdfkit/ops v0.27.0
 	github.com/go-pdfkit/reader v0.10.0
 	github.com/go-pdfkit/render v0.69.1
 	github.com/go-widgets/mvvm v0.15.0
-	github.com/go-widgets/painter v0.16.1
-	github.com/go-widgets/toolkit v0.354.0
+	github.com/go-widgets/painter v0.17.0
+	github.com/go-widgets/toolkit v0.358.0
 	github.com/go-widgets/webcanvas v0.7.0
 )
 

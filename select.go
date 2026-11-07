@@ -60,10 +60,27 @@ func (s *state) runsFor(src *reader.Document, page int, stamp [2]uint64) []extra
 // renders its bitmaps from (see drawVisible) — so the text cannot drift from
 // the picture it sits on through a scroll, a zoom, a page flip or a resize.
 func (s *state) textRuns(src *reader.Document, stamp [2]uint64) []toolkit.TextRun {
-	if src == nil || s.pv == nil {
-		return nil
-	}
 	var out []toolkit.TextRun
+	s.eachVisiblePage(src, func(i int, w, h float64, rect toolkit.Rect) {
+		out = append(out, wordRuns(s.runsFor(src, i, stamp), w, h, rect)...)
+	})
+	return out
+}
+
+// eachVisiblePage calls f for every page the viewer is showing, with the page's
+// size in points and the pixels it occupies.
+//
+// ⛔ ONE PAGE WALK, because there are now two things that need it: the text
+// layer places runs onto the pages, and the Mark verbs put a selection back
+// into page space (highlight.go). Both need the same pages, the same rectangles
+// and the same four guards, and a second copy of them would be a second set of
+// rounding and fallback decisions — the text would be placed against one layout
+// and the annotation written against another, which is the one way a highlight
+// can land somewhere other than where the reader saw it lit.
+func (s *state) eachVisiblePage(src *reader.Document, f func(page int, w, h float64, rect toolkit.Rect)) {
+	if src == nil || s.pv == nil {
+		return
+	}
 	for i := 1; i <= src.PageCount(); i++ {
 		rect, clip, ok := s.pv.PageRect(i)
 		if !ok || clip.W <= 0 || clip.H <= 0 || rect.W <= 0 || rect.H <= 0 {
@@ -81,9 +98,8 @@ func (s *state) textRuns(src *reader.Document, stamp [2]uint64) []toolkit.TextRu
 		if w <= 0 || h <= 0 {
 			continue
 		}
-		out = append(out, wordRuns(s.runsFor(src, i, stamp), w, h, rect)...)
+		f(i, w, h, rect)
 	}
-	return out
 }
 
 // wordRuns groups a page's glyphs into one run per WORD, placed on screen.
@@ -140,16 +156,62 @@ func wordRuns(runs []extract.Run, pw, ph float64, rect toolkit.Rect) []toolkit.T
 func placeRun(x, width, y, size, pw, ph float64, rect toolkit.Rect, text string) toolkit.TextRun {
 	sx := float64(rect.W) / pw
 	sy := float64(rect.H) / ph
-	return toolkit.TextRun{
-		Text: text,
-		Bounds: toolkit.Rect{
-			X: rect.X + int(x*sx),
-			Y: rect.Y + int((ph-y-size)*sy),
-			W: max(int(width*sx), 1),
-			H: max(int(size*sy), 1),
-		},
-		Font: toolkit.CurrentFont(),
+	box := toolkit.Rect{
+		X: rect.X + int(x*sx),
+		Y: rect.Y + int((ph-y-size)*sy),
+		W: max(int(width*sx), 1),
+		H: max(int(size*sy), 1),
 	}
+	return toolkit.TextRun{Text: text, Bounds: box, Font: runFont{
+		Font: toolkit.CurrentFont(),
+		w:    box.W, h: box.H, n: len([]rune(text)),
+	}}
+}
+
+// runFont measures a run against the run's OWN box.
+//
+// ⛔⛔ THE INTERFACE FONT CANNOT MEASURE A PDF'S GLYPHS, and handing it the job
+// cost the last character of every line. This used to be toolkit.CurrentFont().
+// A TextSelection subdivides a run with the run's Font, while the run's BOX
+// comes from where the glyphs actually sit on the page — so the two metrics
+// disagreed, and on perGlyphPDF, which is what a real producer writes:
+//
+//   - dragging to the right-hand end of a line selected "the first chapte".
+//     The interface font measures "chapter" wider than the glyphs do, so the
+//     caret at the box's right edge landed at the sixth character and the
+//     seventh was NOT REACHABLE — copying a line lost its last letter.
+//   - the word "first", wholly inside the selection, was lit 6 points short of
+//     its own box, because the lit width is the font's measurement of the text
+//     and not the box: the final t stood outside the highlight.
+//
+// A run is one word at one size, so measuring n characters as n/len of the box
+// makes prefixWidth(the whole text) == Bounds.W BY CONSTRUCTION. The caret can
+// then reach both ends, and a covered run is lit exactly edge to edge. Within a
+// word it assumes even spacing, so a caret can sit a fraction of a glyph away
+// from the ink in a proportional face — bounded by one glyph, where the old
+// error was unbounded and grew with the length of the run.
+// ⛔ The interface font is EMBEDDED rather than shadowed, so Draw is inherited
+// and only the measuring is ours. These runs are a layer over a page the
+// renderer has already drawn and nothing in the toolkit paints a selection's
+// text, so a Draw of our own would have had an empty body — and an empty body
+// is a function with NO statements, which `go tool cover -func` reports as 0.0%
+// however often it is called. `covblocks` counts statements and called the same
+// profile clean; the gate in CI counts functions, and it was right.
+type runFont struct {
+	toolkit.Font
+	w, h, n int
+}
+
+func (f runFont) Height() int { return f.h }
+
+func (f runFont) Advance() int { return f.w / max(f.n, 1) }
+
+// ⛔ max(f.n, 1) rather than a guard: wordRuns never emits a run with no text,
+// so a zero n is unreachable and a branch for it would be a statement no test
+// can enter. Dividing by one gives a length rather than a panic, which is the
+// same protection without the dead line.
+func (f runFont) Measure(s string) int {
+	return len([]rune(s)) * f.w / max(f.n, 1)
 }
 
 // beginSelect takes a press that lands on a page, and says whether it did.

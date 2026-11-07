@@ -142,6 +142,72 @@ func perGlyphPDF(t *testing.T) []byte {
 	return out
 }
 
+// ⛔ THE PROMISE runFont MAKES: the whole of a run's text measures the whole of
+// the run's box. Everything the selection does inside a run — where the caret
+// lands, how wide a covered run is lit, and so where a mark is written — is
+// prefixWidth against this font, so if it did not measure the box the box would
+// be the one thing the arithmetic could not reach.
+func TestARunsFontMeasuresTheRunsOwnBox(t *testing.T) {
+	const pw, ph = 300.0, 400.0
+	rect := toolkit.Rect{X: 40, Y: 7, W: 351, H: 468}
+	run := placeRun(20, 25, 300, 10, pw, ph, rect, "first")
+	if got := run.Font.Measure(run.Text); got != run.Bounds.W {
+		t.Errorf("the whole text measures %d, the box is %d wide", got, run.Bounds.W)
+	}
+	if got := run.Font.Measure(""); got != 0 {
+		t.Errorf("no text measures %d", got)
+	}
+	// A prefix is its share of the box, so the caret walks it evenly.
+	if got, want := run.Font.Measure("fi"), 2*run.Bounds.W/5; got != want {
+		t.Errorf("two of five characters measure %d, want %d", got, want)
+	}
+	if got := run.Font.Height(); got != run.Bounds.H {
+		t.Errorf("the font is %d high, the box is %d", got, run.Bounds.H)
+	}
+	if got, want := run.Font.Advance(), run.Bounds.W/5; got != want {
+		t.Errorf("one character advances %d, want %d", got, want)
+	}
+}
+
+// ⛔⛔ A DRAG TO THE END OF A LINE KEEPS ITS LAST LETTER, and until placeRun
+// measured a run against the run's own box it did not: the interface font it
+// handed every run measures "chapter" wider than the page's glyphs do, so the
+// caret at the right-hand edge of the box landed at the sixth character and the
+// seventh was not reachable by any gesture. A reader who selected a line and
+// pressed Copy got "the first chapte".
+//
+// It is tested on the per-glyph fixture because that is where it shows: a page
+// that draws a whole line with one Tj is one run, and one run measured by the
+// wrong font loses however many characters the disagreement comes to.
+func TestADragToTheEndOfALineKeepsItsLastLetter(t *testing.T) {
+	s := shown(t, perGlyphPDF(t))
+	runs := s.textRuns(s.src, s.docStamp)
+	if len(runs) == 0 {
+		t.Fatal("the page offers no text to select")
+	}
+	first := runs[0].Bounds
+	right := first.X + first.W
+	for _, r := range runs {
+		if r.Bounds.Y == first.Y {
+			right = max(right, r.Bounds.X+r.Bounds.W)
+		}
+	}
+	y := first.Y + first.H/2
+	if !s.beginSelect(first.X, y) {
+		t.Fatal("a press on the page did not begin a selection")
+	}
+	s.dragSelect(right, y)
+	s.endSelect(right, y)
+	if got := s.sel.SelectedText(); got != "the first chapter" {
+		t.Errorf("a drag over the whole line selected %q", got)
+	}
+	// And the verb a reader actually presses reports the whole line.
+	s.copySelection()
+	if !strings.Contains(s.note, "17 characters copied") {
+		t.Errorf("Copy says %q", s.note)
+	}
+}
+
 // ⛔ A PRESS THAT IS NOT ON A PAGE IS NOT A SELECTION. The scrollbar, the rail,
 // the ribbon and a form being filled in all keep the press they always had.
 func TestAPressOffThePageIsNotASelection(t *testing.T) {

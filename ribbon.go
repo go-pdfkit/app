@@ -100,6 +100,7 @@ var ribbonTabs = []struct {
 	{groupRead, []verbGroup{
 		{"Read", []string{"readText", "readImages", "readPage"}},
 		{"Selected", []string{"copyText"}},
+		{"Mark up", []string{"highlight", "underline", "strikeOut"}},
 		{"Hand over", []string{"pagePicture", "zipped", "textFile"}},
 	}},
 }
@@ -297,6 +298,29 @@ var verbs = map[string]verb{
 		label: "Copy the words", tip: "Put the text selected on the page on the clipboard. Drag across a page to select some.",
 		icon: "copy", large: true,
 		run:  (*state).copySelection,
+		when: func(s *state) bool { return !s.sel.IsEmpty() },
+	},
+	// ⛔ THESE THREE WRITE ANNOTATIONS, NOT INK. The words under a mark stay
+	// selectable, searchable and extractable, and the mark can be deleted
+	// again, because that is what ISO 32000-1 §12.5.6.10 says a text-markup
+	// annotation is. Burning the colour into the page's content stream would
+	// look the same and be a different, irreversible act.
+	"highlight": {
+		label: "Highlight", tip: "Write a yellow highlight over the words selected on the page. Drag across a page to select some.",
+		icon: "fill-color", large: true,
+		run:  (*state).highlightSelection,
+		when: func(s *state) bool { return !s.sel.IsEmpty() },
+	},
+	"underline": {
+		label: "Underline", tip: "Underline the words selected on the page.",
+		icon: "underline",
+		run:  (*state).underlineSelection,
+		when: func(s *state) bool { return !s.sel.IsEmpty() },
+	},
+	"strikeOut": {
+		label: "Strike out", tip: "Strike through the words selected on the page. The text itself is untouched.",
+		icon: "strikethrough",
+		run:  (*state).strikeSelection,
 		when: func(s *state) bool { return !s.sel.IsEmpty() },
 	},
 	"clearInfo": {

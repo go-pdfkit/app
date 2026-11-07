@@ -406,6 +406,51 @@ between two letters 0.15, so every gap failed and no space was ever found. A
 space that cannot be one is now distrusted, and a face that reports a
 believable number is still believed.
 
+**A run is measured against its own box.** Everything the selection does inside
+a run — where the caret lands, how wide a covered run is lit, where a mark gets
+written — is measured with the run's `Font`, while the run's *box* comes from
+where the glyphs sit on the page. Those were two different metrics: each run was
+handed the interface font, which measures `chapter` wider than the page's glyphs
+do, so the caret at the right-hand edge of a box landed at the sixth character
+and the seventh **could not be reached by any gesture**. A reader who selected a
+line and pressed Copy got `the first chapte`. A run is one word at one size, so
+it now measures *n* characters as *n*/length of its own box, which makes the
+whole text measure the whole box by construction.
+
+## Marking a passage
+
+With words selected, the Read tab offers **Highlight**, **Underline** and
+**Strike out**. Each says how much it marked — *"highlighted 17 characters on 1
+page"* — and lets the selection go, because a mark lands in the file rather than
+on the screen and a verb that worked in silence is one you press twice.
+
+⛔ **The mark goes where the highlight is, and that is the whole design.** The
+rectangles come from `TextSelection.SelectedRects`, which is *what `Draw`
+paints* — `Draw` is a loop over it
+([toolkit#540](https://github.com/go-widgets/toolkit/pull/540)). Re-deriving the
+covered span from the runs and the caret positions would be a second
+implementation of the same rule, and the first time the two disagreed the saved
+file would be wrong while the screen looked right. `placeRun` puts a run onto
+the screen and `quadOfRect` puts a lit rectangle back into page space; they are
+inverses, checked at three scales, exact to the pixel `placeRun` rounds to.
+
+⛔ **And a mark is an annotation, not ink.** ISO 32000-1 §12.5.6.10: a
+text-markup annotation carries `QuadPoints`, *"an array of 8 × n numbers
+specifying the coordinates of n quadrilaterals in default user space"*. The
+page's content stream is untouched, so the words under a highlight stay
+selectable, searchable and extractable, and the mark can be deleted again.
+There is one quadrilateral per run, so the mark has the same shape as the lit
+rectangles rather than one box drawn around them all — and one annotation per
+page, because `QuadPoints` are in a page's own space and no annotation can span
+two of them.
+
+The count is **characters, not quadrilaterals**: a quadrilateral is not
+something a reader can see, and there is one per run, whose size is the
+producer's choice. The page measured here sets one glyph at a time, so `the
+first chapter` is three runs — the first draft said *"highlighted 3 lines"* for
+one line of text, and a page drawing that line with a single `Tj` would have
+said *"1 line"* for the same gesture.
+
 ## The panel and its datum are the same value
 
 Every control in a panel is **two-way bound** to the thing it shows, through
