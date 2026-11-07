@@ -367,6 +367,45 @@ heights follow the installed face rather than being constants, which is what
 lets the workbench change typeface at all — the numbers it used to be laid
 out with were the padding a 5×7 bitmap had been given.
 
+## Selecting the words on a page
+
+Drag across a page to select its text; **Copy the words** on the Read tab puts
+it on the clipboard, and Escape lets go. A press anywhere else — the scrollbar,
+the rail, the strip, a form being filled in — keeps the press it always had.
+
+⛔ **The page is a picture, which is why this needs a layer of its own.**
+`PagedView` says so: *"Content is a `[]*image.RGBA` of page bitmaps at natural
+size … PagedView never knows how they were rasterised."* Nothing in the widget
+tree is text, so without this there is nothing under the pointer to select. The
+glyphs come from [go-pdfkit/extract](https://github.com/go-pdfkit/extract),
+placed where they are **drawn** — the placement comes from
+`PagedView.PageRect`, the same layout the pages are rendered from, so the text
+cannot drift from the picture it sits on through a scroll, a zoom, a page flip
+or a resize.
+
+⛔ **And rendering the pages as SVG later would not remove the need for it.**
+Worth writing down, because the go-tex playground deleted its own text layer
+when it moved from bitmaps to SVG. It could: it typesets the document itself,
+so its SVG carries real `<text>`. A PDF renderer cannot —
+[go-pdfkit/render](https://github.com/go-pdfkit/render) turns every glyph into
+an **outline** before it paints, so an SVG written from it holds `<path>`
+elements and no text at all. Crisp at any zoom, still not selectable.
+
+**One run per word, not per glyph.** A PDF sets glyphs one at a time — a real
+page measured here has 152 runs for four lines — and the toolkit joins the runs
+a selection covers *with a space*. Handed the glyphs, a reader who selected a
+line and copied it got `t h e f i r s t c h a p t e r`. Grouped into words, the
+same gesture gives `the first chapter`.
+
+A PDF never draws a space: it moves the pen. So where a word ends is a
+judgement, and `Run.Space` — which is supposed to be the width of a space —
+comes back as the font **size** on real documents
+([extract#28](https://github.com/go-pdfkit/extract/issues/28)). The threshold
+was half of that: 5 points at 10pt text, where a real word gap is 3.2 and a gap
+between two letters 0.15, so every gap failed and no space was ever found. A
+space that cannot be one is now distrusted, and a face that reports a
+believable number is still believed.
+
 ## The panel and its datum are the same value
 
 Every control in a panel is **two-way bound** to the thing it shows, through
