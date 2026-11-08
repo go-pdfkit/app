@@ -652,6 +652,52 @@ QOI, JP2 and JBIG2 as well, `ops.Picture` makes a page of any of them, and a
 dialog that hides a file the program would have opened is the same defect at a
 smaller size.
 
+## Saying something about a passage
+
+**Put a note on it** attaches a sticky note; **Write in the margin** writes a
+comment beside the passage, where a reader would pencil one. Both are on the
+Read tab, both act on the selection, and both are real annotations — `/Text` and
+`/FreeText`, new in [`ops` v0.29.0](https://github.com/go-pdfkit/ops) — so the
+page underneath is untouched and the comment comes off again by dropping it.
+
+⛔ **Both act on the selection**, like the four marks and Redact, and that is a
+decision about the *gesture* rather than about the format. A note is attached to
+a point and a comment to a box, so either could have been placed by pointing —
+but the workbench's way of pointing at words is already a drag, and a second
+placing gesture would be a second thing to learn and a second set of arithmetic
+to keep in step with the first.
+
+⛔ **A note goes beside the passage, never on it.** The icon is twenty points
+square and opaque: dropped on the words it comments on, it hides exactly them.
+So the left margin is tried, then the right, then above the line — and when none
+of the three is clear, the verb **refuses and says so**, pointing at the margin
+comment, which needs no icon.
+
+The first version of that clamped instead of choosing, and the test caught it
+doing precisely what the verb exists to prevent: a passage starting 19.7 points
+from the edge got a 20-point icon drawn from x=8 to x=28, straight across the
+words. **A clamp keeps a number in range; it does not keep a promise.** Each
+candidate is now checked against the passage and against the paper, and one that
+fails either is not used.
+
+⛔ **A margin too narrow to read is refused**, with its width, rather than filled
+with one word per line. `ops` clips whatever does not fit its box, which is
+right for a box somebody chose and wrong for one this verb chose for them — and
+the reader cannot widen it from here.
+
+Two things the tests had to be talked out of:
+
+- the note test first demanded the **left** margin and failed on a correct
+  placement. The promise is not "the icon is on the left", it is "the icon is
+  not on the words" — an assertion about the implementation instead of the
+  behaviour.
+- the write-failure test first made `docBytes` fail and expected *"cannot be
+  written"*. Both verbs reported success, and they were **right**:
+  `changeSaying` applies the operation to the document in memory, and a failed
+  write-back does not unmake the comment — it spoils the preview, and Save is
+  what reports it. What the test pins down now is that the comment is in the
+  document even when the preview could not be rebuilt.
+
 ## Finding words, and why a match is a selection
 
 **Find** and **Find the next one** are on the Read tab, with the box beside

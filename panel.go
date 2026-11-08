@@ -154,8 +154,10 @@ type tools struct {
 	// every box.
 	allow map[string]*mvvm.Observable[bool]
 
-	// find is what the search is looking for.
-	find *mvvm.Observable[string]
+	// find is what the search is looking for, and comment what a sticky note or
+	// a margin comment will say.
+	find    *mvvm.Observable[string]
+	comment *mvvm.Observable[string]
 
 	// The Read group: which reading of the document is on the screen instead
 	// of the picture of it, or empty for the picture, and which of the
@@ -206,6 +208,7 @@ func newTools() *tools {
 		ownerPw: mvvm.NewObservable(""),
 		allow:   everythingAllowed(),
 		find:    mvvm.NewObservable(""),
+		comment: mvvm.NewObservable(""),
 		reading: mvvm.NewObservable(""),
 		picture: mvvm.NewObservable(0),
 	}

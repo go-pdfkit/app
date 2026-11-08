@@ -128,10 +128,19 @@ func (s *state) selectionMarks(kind ops.MarkupKind, r, g, b float64) (marks []op
 	return marks, lines
 }
 
-// pageQuads is one page and the part of the selection that lands on it.
+// pageQuads is one page, the part of the selection that lands on it, and that
+// page's size in its own points.
+//
+// ⛔ THE SIZE IS CARRIED RATHER THAN LOOKED UP AGAIN. eachVisiblePage has
+// already read it and already stepped over any page that declares a size of
+// nothing — so a caller that re-read it would be writing a guard against a
+// condition this slice cannot contain, which is an arm no test can reach and no
+// reader can trust. The comment verbs need the paper's size to place themselves
+// on it; this is where it comes from.
 type pageQuads struct {
-	page  int
-	quads []ops.Quad
+	page   int
+	quads  []ops.Quad
+	pw, ph float64
 }
 
 // selectionQuads is the selection as quadrilaterals of page space, a group per
@@ -160,7 +169,7 @@ func (s *state) selectionQuads() []pageQuads {
 		if len(quads) == 0 {
 			return // a page on screen that the selection does not reach
 		}
-		out = append(out, pageQuads{page: i, quads: quads})
+		out = append(out, pageQuads{page: i, quads: quads, pw: pw, ph: ph})
 	})
 	return out
 }
