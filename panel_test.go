@@ -26,8 +26,27 @@ import (
 // so these tables hold what the verbs are told and nothing else -- which is why
 // they are mostly labelled rows: a setting has a caption, a button had none.
 
+// ⛔⛔ THIS IS THE PAGES PANEL'S LAYOUT, WRITTEN DOWN TWICE. One entry per row,
+// and the tests below press rows by their POSITION — so inserting a row in
+// pagesGroup moves every row after it and the presses land on the wrong
+// control. It has already happened: adding "Set the paper to" and "Paint the
+// text" above the split row moved splitting from row 5 to row 7, and the
+// failure read "row 5 holds 0 spin buttons" rather than naming the cause.
+//
+// The rows, in order, so the indices below can be read against something:
+//
+//	0 Which pages   1 Turn them by   2 Move this page to   3 Crop to, in points
+//	4 Put a blank page before   5 Set the paper to   6 Paint the text
+//	7 Split into files of
+//
+// Finding a row by the label of the control on it would remove this copy
+// altogether, and is worth doing the next time one of these presses lands
+// somewhere unexpected.
 func pagesRows() []int {
-	return []int{labelledH(), labelledH(), labelledH(), labelledH(), labelledH(), labelledH()}
+	return []int{
+		labelledH(), labelledH(), labelledH(), labelledH(),
+		labelledH(), labelledH(), labelledH(), labelledH(),
+	}
 }
 
 func sheetRows() []int {
@@ -485,7 +504,8 @@ func TestMovingCroppingBlankingAndSplittingFromThePanel(t *testing.T) {
 	// Splitting hands over one file per piece and changes nothing. Two pages
 	// to a piece, pressed up from one.
 	pages := s.doc.PageCount()
-	x, y = plusAt(t, s, pagesRows(), 5)
+	// Row 7: the paper and the ink were added above it. See pagesRows.
+	x, y = plusAt(t, s, pagesRows(), 7)
 	press(s, x, y)
 	if s.tools.every.Get() != 2 {
 		t.Fatalf("a piece is to hold %d pages", s.tools.every.Get())
