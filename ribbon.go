@@ -101,11 +101,11 @@ var ribbonTabs = []struct {
 		{"Check", []string{"protection"}},
 	}},
 	{groupRead, []verbGroup{
-		{"Read", []string{"readText", "readImages", "readPage"}},
+		{"Read", []string{"readText", "readImages", "readPage", "readTables"}},
 		{"Selected", []string{"copyText"}},
 		{"Mark up", []string{"highlight", "underline", "strikeOut"}},
 		{"Remove", []string{"redactText"}},
-		{"Hand over", []string{"pagePicture", "zipped", "textFile"}},
+		{"Hand over", []string{"pagePicture", "zipped", "textFile", "csvFile", "jsonFile"}},
 	}},
 }
 
@@ -441,6 +441,27 @@ var verbs = map[string]verb{
 		label: "Hand over what this page says", tip: "Hand the page's text over as a file.",
 		icon: "page",
 		run:  (*state).textAsFile,
+	},
+	// ⛔ "the grids its words line up into", not "its tables". A PDF page holds
+	// no tables: it holds text put at places, and a table is what a reader sees
+	// when those places line up. The wording says inference because that is
+	// what it is, and a verb promising tables would be promising something the
+	// file cannot declare.
+	"readTables": {
+		label: "What lines up into a grid", tip: "Put the grids this page's words line up into where the page was. A PDF holds no tables — it holds text at places — so these are read off the alignment. Press it again for the page.",
+		icon: "table-2-columns",
+		run:  (*state).readTables,
+		when: func(s *state) bool { return s.doc != nil },
+	},
+	"csvFile": {
+		label: "Hand over the grids", tip: "Hand this page's grids over as one comma-separated file, with a blank line between them.",
+		icon: "table-rows",
+		run:  (*state).tablesAsCSV,
+	},
+	"jsonFile": {
+		label: "Hand over the page as data", tip: "Hand this page over as JSON: every piece of text with where it sits, and the grids its words line up into.",
+		icon: "code-brackets-square",
+		run:  (*state).pageAsJSON,
 	},
 }
 
