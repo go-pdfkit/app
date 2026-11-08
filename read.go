@@ -37,6 +37,8 @@ func (s *state) readGroup() *column {
 	box := newColumn()
 	box.add(s.entryRow("Find", "a word or a phrase", s.tools.find), labelledH())
 	box.add(s.commentRow(), labelledH())
+	box.add(s.entryRow("Replace with", "what the page should say instead",
+		s.tools.replacement), labelledH())
 	// ⛔ The promise is now narrower than it was, because two verbs on this tab
 	// DO change the document: a sticky note and a margin comment are
 	// annotations, written into the file. The marks and Redact were always here

@@ -158,6 +158,8 @@ type tools struct {
 	// a margin comment will say.
 	find    *mvvm.Observable[string]
 	comment *mvvm.Observable[string]
+	// replacement is what `Replace the words` puts in place of the selection.
+	replacement *mvvm.Observable[string]
 
 	// The Read group: which reading of the document is on the screen instead
 	// of the picture of it, or empty for the picture, and which of the
@@ -200,17 +202,18 @@ func newTools() *tools {
 		// is one point per pixel — right for `Picture`, where the picture IS the
 		// page, and wrong here, where a 1000-pixel logo would be laid down 1000
 		// points wide and run off the paper.
-		wide:    mvvm.NewObservable(144),
-		title:   mvvm.NewObservable(""),
-		author:  mvvm.NewObservable(""),
-		openPw:  mvvm.NewObservable(""),
-		userPw:  mvvm.NewObservable(""),
-		ownerPw: mvvm.NewObservable(""),
-		allow:   everythingAllowed(),
-		find:    mvvm.NewObservable(""),
-		comment: mvvm.NewObservable(""),
-		reading: mvvm.NewObservable(""),
-		picture: mvvm.NewObservable(0),
+		wide:        mvvm.NewObservable(144),
+		title:       mvvm.NewObservable(""),
+		author:      mvvm.NewObservable(""),
+		openPw:      mvvm.NewObservable(""),
+		userPw:      mvvm.NewObservable(""),
+		ownerPw:     mvvm.NewObservable(""),
+		allow:       everythingAllowed(),
+		find:        mvvm.NewObservable(""),
+		comment:     mvvm.NewObservable(""),
+		replacement: mvvm.NewObservable(""),
+		reading:     mvvm.NewObservable(""),
+		picture:     mvvm.NewObservable(0),
 	}
 }
 

@@ -121,7 +121,11 @@ var ribbonTabs = []struct {
 		{"Selected", []string{"copyText"}},
 		{"Mark up", []string{"highlight", "underline", "strikeOut", "squiggle"}},
 		{"Say something", []string{"noteOn", "marginComment"}},
-		{"Remove", []string{"redactText"}},
+		// ⛔ The two verbs that change what the document SAYS, together and
+		// apart from the marks and the comments: one takes words out, the other
+		// puts different words in. A reader deciding between them is deciding
+		// the same question, so they sit in one group.
+		{"Change the text", []string{"redactText", "replaceWords"}},
 	}},
 	{groupHandOver, []verbGroup{
 		{"This page", []string{"pagePicture", "textFile", "jsonFile"}},
@@ -439,6 +443,16 @@ var verbs = map[string]verb{
 		icon: "skip-next",
 		run:  (*state).findNext,
 		when: func(s *state) bool { return len(s.hits) > 1 },
+	},
+	// ⛔⛔ THE ONLY VERB THAT CHANGES WHAT THE DOCUMENT SAYS. Every other mark
+	// on this tab is a layer that comes off or a removal that announces itself;
+	// this puts words in the author's mouth, so its tip says what it is and its
+	// status line says both the old words and the new ones.
+	"replaceWords": {
+		label: "Replace the words", tip: "Put the text typed beside it in place of the words selected on the page. ⚠ This changes what the document says, and the page keeps its layout: whatever follows on the line stays where it was.",
+		icon: "edit-pencil",
+		run:  (*state).replaceWords,
+		when: func(s *state) bool { return !s.sel.IsEmpty() },
 	},
 	"copyText": {
 		label: "Copy the words", tip: "Put the text selected on the page on the clipboard. Drag across a page to select some.",

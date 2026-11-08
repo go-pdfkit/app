@@ -143,6 +143,31 @@ func linkTitle(runs []extract.Run, l ops.Link) string {
 // link whose rectangle is one point tighter than the text it underlines must
 // still find its words.
 func wordsUnder(runs []extract.Run, rect [4]float64) string {
+	found := runsUnder(runs, rect)
+	var b strings.Builder
+	for i, r := range found {
+		if i > 0 && needsSpace(found[i-1], r) {
+			b.WriteByte(' ')
+		}
+		b.WriteString(r.Text)
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// runsUnder is the runs overlapping a rectangle of page space, in reading
+// order.
+//
+// ⛔ LIFTED OUT OF wordsUnder RATHER THAN COPIED BESIDE IT. Two things now ask
+// which runs a rectangle covers — a link, to find the words that name it, and
+// `Replace the words`, to find the operation that drew them — and a second copy
+// of the overlap test would be a second set of edge decisions about a run that
+// touches a rectangle by a hair. One of them would be fixed one day and the
+// other not.
+//
+// ⛔ Down the page and then left to right, which is the order they are READ in.
+// Runs arrive in the order the page DRAWS them, and a page is free to draw its
+// last word first.
+func runsUnder(runs []extract.Run, rect [4]float64) []extract.Run {
 	var found []extract.Run
 	for _, r := range runs {
 		if r.Text == "" {
@@ -155,23 +180,13 @@ func wordsUnder(runs []extract.Run, rect [4]float64) string {
 		}
 		found = append(found, r)
 	}
-	// Down the page and then left to right, which is the order they are read
-	// in. Runs arrive in the order the page DRAWS them, and a page is free to
-	// draw its last word first.
 	sort.SliceStable(found, func(i, j int) bool {
 		if found[i].Y != found[j].Y {
 			return found[i].Y > found[j].Y
 		}
 		return found[i].X < found[j].X
 	})
-	var b strings.Builder
-	for i, r := range found {
-		if i > 0 && needsSpace(found[i-1], r) {
-			b.WriteByte(' ')
-		}
-		b.WriteString(r.Text)
-	}
-	return strings.TrimSpace(b.String())
+	return found
 }
 
 // needsSpace says whether two runs drawn side by side are separate words.

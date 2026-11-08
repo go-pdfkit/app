@@ -652,6 +652,54 @@ QOI, JP2 and JBIG2 as well, `ops.Picture` makes a page of any of them, and a
 dialog that hides a file the program would have opened is the same defect at a
 smaller size.
 
+## Replacing the words a page says
+
+**Replace the words**, beside Redact on the Read tab, puts the typed text in
+place of the selected words — over
+[`ops.Doc.ReplaceText`](https://github.com/go-pdfkit/ops), new in ops v0.30.0.
+
+⛔⛔ **The hard part is not the string, it is everything after it.** A page sets
+glyphs by advancing a pen, so a replacement of a different width silently moves
+the rest of the line. The spec supplies the remedy: a number in a `TJ` array is
+*"expressed in thousandths of a unit of text space"* and is **subtracted** from
+the horizontal coordinate (9.4.3), and 9.4.4's displacement formula multiplies
+*both* the glyph width and that number by the font size — so the kern needed is
+exactly the difference of the two raw width sums, **with no font size in it at
+all**. The library asserts that at 6, 12, 24 and 48pt, with a control showing
+the next word moving 18 points when the kern is left out; the workbench asserts
+that the word after the edit starts at the same x it started at before.
+
+⛔ **It replaces one piece of text as the page drew it**, which is not the same
+as "the words you selected". A PDF draws text in operations and a page is free
+to make each one a line, a word or a single glyph — TeX sets type glyph by
+glyph. So a selection covering several operations is **refused with the count**
+and a way forward, because on such a page a bare "cannot" would read as a broken
+verb rather than as a page shaped the wrong way for this:
+
+> this page draws those words in 15 separate operations, and they can only be
+> replaced one at a time: select one piece of the text, or redact the passage
+> and write the replacement in the margin
+
+⛔ `ops` refuses the rest **by name** and the refusal reaches the status line: a
+run inside a form (shared with every page that draws it), a composite font
+(whose byte codes a CMap defines and nothing can invert), a character the page's
+own font cannot draw, and a replacement that changes the number of spaces (word
+spacing adds a step per space that cannot be read back from the stream).
+
+Two things found writing the tests:
+
+- ⛔ **The selection layer merges adjacent operations.** `(Hello) Tj (World) Tj`
+  leaves no gap — the pen runs straight on — so the screen offers one word,
+  `HelloWorld`, covering both operations. A test that selected it was refused
+  for naming two operations, correctly, and never reached the arithmetic. What a
+  reader does there is drag across *part* of the line, so the test maps page
+  coordinates to the screen the way `placeRun` does.
+- ⛔ **Text with no span is refused rather than skipped**, as `ops`'s redaction
+  does. Taking the runs away entirely does not reach that: the selection comes
+  from the same runs, so a page with none has nothing selected and says so. What
+  reaches it is a run whose `Op` is empty, which is the state `extract`
+  documents for an operation it could not locate.
+
 ## Saying something about a passage
 
 **Put a note on it** attaches a sticky note; **Write in the margin** writes a
