@@ -36,6 +36,61 @@ func saidByTheFile(t *testing.T, s *state) string {
 	return sb.String()
 }
 
+// ⛔⛔ THE WORDS ARE GONE FROM THE BYTES THE WORKBENCH HANDS OVER, which is a
+// stronger question than the one below it and the only one that matches what
+// the status line promises: "the text is gone from the file, not covered".
+//
+// Everything else here asks the DOCUMENT what it says — through extract, which
+// follows the page's /Contents. That is exactly what could not see the defect
+// this covers: ops copied the page's original content stream into the output
+// before pointing the page at the rewritten one, so the removed words sat in
+// the file in an object nothing referenced, and `grep` found them while
+// extract could not (go-pdfkit/ops#73, fixed in ops v0.30.0).
+//
+// A reader who redacts a contract and sends it is handing over a FILE. So this
+// searches the saved bytes, crudely and on purpose: anything cleverer would
+// resolve references and become the test that missed it.
+//
+// ⛔⛔ AND IT USES wordyPDF, NOT perGlyphPDF, WHICH IS THE WHOLE DIFFICULTY OF
+// WRITING THIS TEST. perGlyphPDF draws one glyph per operator — `(t) Tj (h) Tj
+// (e) Tj` — so the word "chapter" is NEVER a contiguous run of bytes in that
+// file, and a search for it cannot fail whatever the writer does with the
+// stream. The first version of this test did exactly that and passed against
+// the leaking ops v0.29.0, which is a test that measures nothing while looking
+// like the one thing standing between a reader and a leak. wordyPDF draws
+// `(Hello there) Tj`: one operator, one contiguous string, and a search that
+// can actually find it.
+func TestNothingRedactedSurvivesInTheSavedBytes(t *testing.T) {
+	const secret = "Hello there"
+	h := &fakeHost{name: "contract.pdf", file: wordyPDF(t)}
+	s := newState(surfaceW, surfaceH, h)
+	s.open()
+	if s.doc == nil {
+		t.Fatalf("the document did not open: %q", s.note)
+	}
+	s.draw(buffer())
+	// ⛔ The precondition, which is what makes this test able to fail: the words
+	// are in the file as one string before anything is redacted.
+	if !strings.Contains(string(h.file), secret) {
+		t.Fatalf("the fixture does not hold %q as one string, so a search for "+
+			"it could not find a leak", secret)
+	}
+	selectFirstLine(t, s)
+	s.redactSelection()
+	if !strings.Contains(s.note, "removed") {
+		t.Fatalf("nothing was redacted: %q", s.note)
+	}
+	s.save()
+	if len(h.saved) == 0 {
+		t.Fatal("nothing was saved")
+	}
+	if i := strings.Index(string(h.saved), secret); i >= 0 {
+		from, to := max(i-60, 0), min(i+60, len(h.saved))
+		t.Errorf("the saved file still holds the redacted words at byte %d:\n%q",
+			i, h.saved[from:to])
+	}
+}
+
 // ⛔⛔ THE WORDS ARE GONE FROM THE FILE. Every other verb on the Read tab shows
 // the document or writes something over it; this one takes text out, and the
 // only way to ask whether it did is to read the document back.
