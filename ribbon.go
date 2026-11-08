@@ -84,7 +84,7 @@ var ribbonTabs = []struct {
 		{"To a sheet", []string{"nup", "booklet"}},
 		{"From a sheet", []string{"divide", "onepage"}},
 		{"Larger than the paper", []string{"poster"}},
-		{"Another file", []string{"merge", "overlay"}},
+		{"Another file", []string{"merge", "overlay", "interleave"}},
 	}},
 	{groupMarks, []verbGroup{
 		{"Watermark", []string{"watermark"}},
@@ -93,6 +93,7 @@ var ribbonTabs = []struct {
 	}},
 	{groupFile, []verbGroup{
 		{"Clean", []string{"sanitize", "flatten", "dropAnnots", "dropOutlines"}},
+		{"Files inside", []string{"attach", "showCarried"}},
 		{"Size", []string{"compress"}},
 		{"About it", []string{"setInfo", "showInfo", "clearInfo"}},
 	}},
@@ -228,6 +229,25 @@ var verbs = map[string]verb{
 		label: "Fold it into a booklet", tip: "Order the pages so the printed sheets fold into a booklet.",
 		icon: "book",
 		run:  (*state).booklet,
+	},
+	"interleave": {
+		label: "Mix another file in", tip: "Choose another PDF and take one page from each in turn — which is how two single-sided scans of the same document become one.",
+		icon: "vertical-split",
+		run:  (*state).interleave,
+	},
+	// ⛔ A DOCUMENT CAN CARRY OTHER FILES and the workbench never said so, so
+	// a PDF arriving with a spreadsheet inside it looked like a PDF with
+	// nothing inside it.
+	"attach": {
+		label: "Put a file inside it", tip: "Choose a file and carry it inside this document. A name already used is refused rather than replacing what is there.",
+		icon: "attachment", large: true,
+		run: (*state).attach,
+	},
+	"showCarried": {
+		label: "Show the files inside", tip: "Put the files travelling inside this document where the page was, with a way of taking each one out or dropping it. Press it again for the page.",
+		icon: "multiple-pages",
+		run:  (*state).readCarried,
+		when: func(s *state) bool { return s.doc != nil },
 	},
 	"divide": {
 		label: "Cut each page up", tip: "Cut every page into the grid of smaller pages chosen beside it, each holding its own part of the original.",

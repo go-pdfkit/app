@@ -88,15 +88,16 @@ What each tab commands, and what its panel holds:
   six sheets, paint the text one colour, split into files of *n* pages.
 - **Sheet** — *n* pages to a sheet, fold into a booklet, cut each page up into
   a grid of smaller pages, put every page onto one, print a page larger than
-  the paper across several sheets, add another file after this one, lay
-  another file over it.
+  the paper across several sheets, add another file after this one, lay another
+  file over it, mix another file's pages in one at a time.
 - **Marks** — a watermark, page numbers in a shape you choose, a Bates number
   padded and started where you say, and a stamp in one of nine places.
 - **File** — sanitize, flatten the annotations in, drop the annotations, the
   bookmarks or what the file says about itself, pack it smaller, give it a
   title and an author, and **show** what it already says: every entry of its
   information dictionary, how big each page is, and whether its structure had
-  to be rebuilt to read it.
+  to be rebuilt to read it. Files travelling inside the document are listed
+  here too, with a way of putting one in, taking one out or dropping it.
 - **Protect** — open a file that has a password, put a user and an owner
   password on this one and say what a reader may do with it, or take the
   protection off.
@@ -526,6 +527,32 @@ Three details it has to get right:
   to do about it — Saving writes the rebuilt document — because repair is
   something a PDF reader does on the way *in*, so a button offering to do it
   would be offering something that already happened.
+
+## A document can carry other files
+
+And the workbench never said so, so a PDF arriving with a spreadsheet inside it
+looked like a PDF with nothing inside it. `ops` has had `Attach`, `Attachments`
+and `Detach` throughout.
+
+**Put a file inside it** and **Show the files inside** are on the File tab; the
+list gives each one a **Take it out** and a **Drop it**.
+
+- the list is the **document's own**, not the saved file's — `s.doc` is what
+  would come out of Save, so a file attached a moment ago is in it and one just
+  dropped is gone from it. Reading it out of the written bytes would show the
+  list one refresh late, which for somebody attaching two files in a row means
+  showing them the wrong one.
+- a **name already used is refused**, not replaced: *"two files under one name
+  is a document that has lost one of them"*, which is `ops`'s own wording and
+  reaches the status line unchanged.
+- **dropping a name the document never carried says so.** `Detach` reports
+  whether it found anything, and a verb that said "dropped" either way would be
+  telling somebody their file is gone when it was never there.
+
+**Mix another file in**, on the Sheet tab, takes one page from each in turn —
+which is how two single-sided scans of the same document become one. It is
+three lines over the seam `merge` and `overlay` already asked the file picker
+through.
 
 ## The grids a page lines its words up into
 
