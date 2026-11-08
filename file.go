@@ -39,6 +39,23 @@ func (s *state) fileGroup() *column {
 	box.add(s.entryRow("Title", "what the document is called", s.tools.title), labelledH())
 	box.add(s.entryRow("Author", "who wrote it", s.tools.author), labelledH())
 
+	// ⛔ THE REDRAWING LIVES HERE AND NOT ON THE PAGES TAB, for two reasons and
+	// one of them is measured. A tab IS a panel, so a verb's controls have to
+	// sit on the verb's own tab — and the Pages panel is full: putting these
+	// three rows there laid it out "down to 789 but its box ends at 680", which
+	// a test says out loud rather than leaving somebody to scroll for a control
+	// they cannot see.
+	//
+	// The other reason is that it belongs here anyway. Redrawing replaces every
+	// page with a picture of it, which is the same kind of act as flattening,
+	// sanitizing or compressing: it changes what the document IS, not which
+	// pages it has.
+	box.add(s.chooseRow("Draw the pages on", groundNames(), s.tools.ground), labelledH())
+	box.add(buttons(
+		s.spinRow("Brightness %", 5, s.tools.bright),
+		s.spinRow("Contrast %", 5, s.tools.contrast),
+	), labelledH())
+
 	// ⛔ WHAT THE FILE SAYS, SHOWN. The panel used to write only, which is the
 	// smaller half of the problem: see setInfo, where not showing is what made
 	// writing destructive.
