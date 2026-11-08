@@ -229,16 +229,24 @@ func page1(t *testing.T, b []byte) *raster.Image {
 	return img
 }
 
-// Underline and strike out are the same path with another subtype and another
-// colour, and a reader reaches for all three.
-func TestUnderliningAndStrikingOutSayWhatTheyDid(t *testing.T) {
+// Underline, strike out and squiggle are the same path with another subtype and
+// another colour, and a reader reaches for all four.
+//
+// ⛔ EACH CASE ASSERTS ITS OWN SUBTYPE. Checking only that the file carries
+// /QuadPoints would pass for all four however the kind was wired — the four
+// would be indistinguishable, and a squiggle written as a highlight would look
+// like a working verb in every test here. The subtype is the only thing in the
+// file that says which mark it is (ISO 32000-1, Table 179).
+func TestTheFourMarksSayWhatTheyDidAndWriteTheirOwnSubtype(t *testing.T) {
 	for _, c := range []struct {
-		name string
-		run  func(*state)
-		says string
+		name    string
+		run     func(*state)
+		says    string
+		subtype string
 	}{
-		{"underline", (*state).underlineSelection, "underlined 17 characters on 1 page"},
-		{"strike out", (*state).strikeSelection, "struck out 17 characters on 1 page"},
+		{"underline", (*state).underlineSelection, "underlined 17 characters on 1 page", "/Underline"},
+		{"strike out", (*state).strikeSelection, "struck out 17 characters on 1 page", "/StrikeOut"},
+		{"squiggle", (*state).squiggleSelection, "squiggled under 17 characters on 1 page", "/Squiggly"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			s := shown(t, perGlyphPDF(t))
@@ -253,6 +261,9 @@ func TestUnderliningAndStrikingOutSayWhatTheyDid(t *testing.T) {
 			}
 			if !strings.Contains(string(out), "/QuadPoints") {
 				t.Error("the saved document carries no QuadPoints")
+			}
+			if !strings.Contains(string(out), c.subtype) {
+				t.Errorf("the saved document carries no %s annotation", c.subtype)
 			}
 		})
 	}

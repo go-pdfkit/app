@@ -619,6 +619,18 @@ apart by *which entry* it refuses, never the first. Asserting only the number
 would have passed on the wrong bound; a control marked the per-entry case the
 same way and failed, which is how the other is known to measure itself.
 
+### And the second file is whatever the first one may be
+
+**Add a file after this one**, **Lay another file over these** and **Mix another
+file in** go through the same dialog, so the moment Open accepted a picture, a
+drawing and an archive, those three started offering them — and refused them.
+That is the *other* direction of the same defect: a file the dialog shows and
+the code will not take is a file somebody chose for nothing.
+
+They take all of it now, which is also the useful behaviour. Putting a scan
+after a document, laying a signature over a page and interleaving a
+photographed back page are the three things anybody would try first.
+
 ### ⛔⛔ The file dialog is half of every one of these arms
 
 `web/index.html` carried `accept="application/pdf,.pdf"`.
@@ -639,6 +651,33 @@ It is also wider than the rows that asked for it. `codec` reads ICO, ICNS, PNM,
 QOI, JP2 and JBIG2 as well, `ops.Picture` makes a page of any of them, and a
 dialog that hides a file the program would have opened is the same defect at a
 smaller size.
+
+## Counting the library's own list against the ribbon's
+
+Two more verbs that were finished and unreachable, found by a different method
+from the tool-table reading: comparing an enum and a signature in `ops` against
+what the ribbon offers.
+
+- **Squiggle under** — `ops` has had **four** markup kinds since `Mark` existed
+  (`MarkHighlight`, `MarkUnderline`, `MarkStrikeOut`, `MarkSquiggly`) and the
+  ribbon offered three. The wavy line that means *look at this again* was
+  written, tested and released, and nobody using the workbench could draw one.
+  Each of the four now asserts **its own `/Subtype`** in the saved file: a test
+  that only checked for `/QuadPoints` passed for all four however the kind was
+  wired, so a squiggle written as a highlight would have looked like a working
+  verb.
+- **Draw a picture on them** — `ops.Place` was never called by this program at
+  all, though its own documentation says what it is for: *"a signature, a logo,
+  a stamp that is an image rather than a line of text"*. It is the *add images*
+  half of the one row the BentoPDF reading still calls `partly`.
+
+⛔ The picture is sized **by width**, not by its own pixels. `Place` falls back
+to one point per pixel, which is right where the picture *is* the page and wrong
+for a logo — a 1000-pixel badge would go down a metre wide. A width alone keeps
+the proportions, which is `Place`'s own promise, and the default is 144 points:
+two inches, a signature on a letter. The test measures the **rendered pixels**:
+144 wide and 72 tall for a 100×50 picture, with a second case at another width
+so that a hard-coded number anywhere in the chain fails.
 
 ## Redrawing the pages is a trade, and the workbench says so
 

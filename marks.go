@@ -59,6 +59,12 @@ func (s *state) marksGroup() *column {
 		s.chooseRow("Where it goes", placeNames(), s.tools.at),
 		s.spinRow("Points", 4, s.tools.size),
 	), labelledH())
+
+	// `Where it goes` above is shared with the picture on purpose: it is the
+	// same question about the same page, and two choosers holding the same nine
+	// answers would be two things to keep in step for a reader who thinks of it
+	// as one. The width is the picture's own, so it has a box of its own.
+	box.add(s.spinRow("Picture width", 12, s.tools.wide), labelledH())
 	return box
 }
 
@@ -111,4 +117,41 @@ func (s *state) stamp() {
 	}
 	s.changeSaying(fmt.Sprintf("stamped %s %s", spec, places[at].name),
 		func(d *ops.Doc) error { return d.Stamp(spec, mark) })
+}
+
+// placePicture draws a picture at a place on the pages: a signature on a
+// contract, a logo on a letterhead, a seal on a certificate.
+//
+// ⛔ ops.Place HAS BEEN THERE AND THE WORKBENCH NEVER CALLED IT. Its own
+// documentation says what it is for — "a signature, a logo, a stamp that is an
+// image rather than a line of text" — and it is the "add images" half of the
+// one row the BentoPDF reading still calls `partly` for the editor. Nothing
+// here is new work; it is a control over a verb that was finished.
+//
+// ⛔ The picture is sized by WIDTH and not by its own pixels. Place will size
+// it at one point per pixel when asked for neither, which is right for a scan
+// that IS the page and wrong for a logo: a 1000-pixel badge would be laid down
+// a metre wide. Giving the width alone keeps the picture's proportions, which
+// is Place's own promise for that case.
+func (s *state) placePicture() {
+	if s.doc == nil {
+		s.fail("open a document first")
+		return
+	}
+	spec := s.marked()
+	at := s.tools.at.Get()
+	if at < 0 || at >= len(places) {
+		at = 0
+	}
+	where, wide := places[at], float64(s.tools.wide.Get())
+	s.host.Open(func(name string, data []byte) {
+		s.changeSaying(fmt.Sprintf("drew %s on %s, %s", name, spec, where.name),
+			func(d *ops.Doc) error {
+				return d.Place(spec, ops.Placement{
+					Data:     data,
+					Position: where.where,
+					Width:    wide,
+				})
+			})
+	})
 }
