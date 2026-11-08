@@ -94,7 +94,9 @@ What each tab commands, and what its panel holds:
   padded and started where you say, and a stamp in one of nine places.
 - **File** — sanitize, flatten the annotations in, drop the annotations, the
   bookmarks or what the file says about itself, pack it smaller, give it a
-  title and an author.
+  title and an author, and **show** what it already says: every entry of its
+  information dictionary, how big each page is, and whether its structure had
+  to be rebuilt to read it.
 - **Protect** — open a file that has a password, put a user and an owner
   password on this one and say what a reader may do with it, or take the
   protection off.
@@ -491,6 +493,37 @@ verbs use. Marking and redacting are opposite acts — one is written over the
 page and comes off again, the other takes the text out of the file — but they are
 the same question about *where*, and a reader who highlights a line and then
 redacts it has to get the same words both times.
+
+## The panel could write and could not read
+
+Giving a document a title and an author has been on the File tab since the
+beginning. **Showing the title it already has was never there.** So a reader
+who wanted to know what a file claims about itself had to open it in something
+else — and anybody typing into those two boxes was overwriting a value the
+workbench had never shown them.
+
+**Show what it says** puts that where the page was: every entry of the
+information dictionary, how big each page is, and whether the file's structure
+had to be rebuilt to read it at all.
+
+Three details it has to get right:
+
+- it lists the entries it does **not** know. A producer may put anything in
+  there, and a readout that printed only the nine entries of ISO 32000-1
+  Table 317 would quietly hide the rest, which is the opposite of what a
+  readout is for. The nine come first, in the order the standard lists them;
+  anything else follows, sorted, so two openings of one file read the same.
+- the page size is the one the page is **shown** at — the crop box over the
+  media box, because a page cropped to half its paper is half its paper to
+  everybody looking at it, and a readout quoting the paper would disagree with
+  the picture beside it. It is read from the document written and read back, so
+  it follows a crop you have not saved yet.
+- a sound file **says** it is sound. *"This file was repaired"* is the useful
+  message, but its absence must not be silence: a reader cannot tell a file
+  that was fine from a readout that forgot to look. And a damaged one says what
+  to do about it — Saving writes the rebuilt document — because repair is
+  something a PDF reader does on the way *in*, so a button offering to do it
+  would be offering something that already happened.
 
 ## A verb with no control is not delivered
 
