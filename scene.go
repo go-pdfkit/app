@@ -254,6 +254,16 @@ type state struct {
 	selecting bool
 	runs      map[int][]extract.Run
 	runsDoc   [2]uint64
+	// hits is where the last search found what it was looking for, hitAt which
+	// of them is being shown, and found the needle those hits belong to.
+	//
+	// ⛔ `found` is NOT the box's contents. The box is a live binding, so what is
+	// typed and what was searched for can differ by the time `Find next` is
+	// pressed — and stepping through the matches of a word nobody is looking for
+	// any more is the bug that makes a search feel broken.
+	hits  []textMatch
+	hitAt int
+	found string
 	// stamp identifies the document on screen — the length of its bytes and a
 	// CRC over them, as thumbs.stamp is.
 	//

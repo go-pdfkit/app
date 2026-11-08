@@ -104,11 +104,28 @@ var ribbonTabs = []struct {
 		{"Check", []string{"protection"}},
 	}},
 	{groupRead, []verbGroup{
-		{"Read", []string{"readText", "readImages", "readPage", "readTables"}},
+		// ⛔ "Readings" and not "Read": a group whose label is its own TAB's
+		// label cannot be told from the tab's button, and the reachability gate
+		// excused this group for exactly that reason while its four controls
+		// were not drawn at all. See the gate for what it now refuses.
+		// ⛔⛔ "Readings" AND NOT "Read", WHICH IS THIS TAB'S OWN NAME. A group
+		// whose label is its tab's label is ambiguous to the ribbon: when the
+		// strip grew crowded enough to compact, these four controls reported NO
+		// RECTANGLE AT ALL — the fold that holds them is a button called "Read",
+		// which cannot be told from the tab called "Read". Renaming the group
+		// put all four back at full size with nothing else changed, measured
+		// twice in both directions. Width was only what triggered the
+		// compaction; the name is what made it a disappearance.
+		{"Readings", []string{"readText", "readImages", "readPage", "readTables"}},
+		{"Search", []string{"find", "findNext"}},
 		{"Selected", []string{"copyText"}},
 		{"Mark up", []string{"highlight", "underline", "strikeOut", "squiggle"}},
 		{"Remove", []string{"redactText"}},
-		{"Hand over", []string{"pagePicture", "zipped", "cbz", "textFile", "csvFile", "jsonFile"}},
+	}},
+	{groupHandOver, []verbGroup{
+		{"This page", []string{"pagePicture", "textFile", "jsonFile"}},
+		{"Every page", []string{"zipped", "cbz"}},
+		{"The grids", []string{"csvFile"}},
 	}},
 }
 
@@ -407,6 +424,21 @@ var verbs = map[string]verb{
 	// reaches it. A verb that quietly needed a chord the app cannot see would
 	// be a verb nobody could press. The chord is worth adding; it is a change
 	// to the host, not to this table.
+	// ⛔⛔ A MATCH BECOMES A SELECTION, which is why these two sit next to `Copy
+	// the words` and before the four marks. Finding a phrase lights it exactly
+	// as a drag would have, so Copy, Highlight, Underline, Strike out, Squiggle
+	// and Redact all act on what was found without knowing a search happened.
+	"find": {
+		label: "Find", tip: "Look for the word or phrase typed beside it, turn to the first page carrying it, and light it as though you had dragged across it.",
+		icon: "text-magnifying-glass", large: true,
+		run: (*state).find,
+	},
+	"findNext": {
+		label: "Find the next one", tip: "Show the match after this one, and start again at the first after the last.",
+		icon: "skip-next",
+		run:  (*state).findNext,
+		when: func(s *state) bool { return len(s.hits) > 1 },
+	},
 	"copyText": {
 		label: "Copy the words", tip: "Put the text selected on the page on the clipboard. Drag across a page to select some.",
 		icon: "copy", large: true,
@@ -498,8 +530,11 @@ var verbs = map[string]verb{
 	},
 	"zipped": {
 		label: "Hand over every page, zipped", tip: "Draw every page and hand them over in one zip.",
-		icon: "folder",
-		run:  (*state).everyPageZipped,
+		// Large because it now LEADS a group: every group on the strip leads
+		// with exactly one large control, and `Every page` is the group of the
+		// two verbs that hand over all of them at once.
+		icon: "folder", large: true,
+		run: (*state).everyPageZipped,
 	},
 	// ⛔ A REAL .cbz, which the zip beside it is not. Both hold one picture per
 	// page; a comic reader opens the one named for the format. The same bytes
@@ -527,9 +562,16 @@ var verbs = map[string]verb{
 		when: func(s *state) bool { return s.doc != nil },
 	},
 	"csvFile": {
-		label: "Hand over the grids", tip: "Hand this page's grids over as one comma-separated file, with a blank line between them.",
-		icon: "table-rows",
-		run:  (*state).tablesAsCSV,
+		// ⛔ The tip SAID "with a blank line between them", which is what this
+		// verb deliberately does not do: a CSV reader skips blank lines, so a
+		// file separated that way comes back as one grid with the next one's
+		// rows stuck to it (go-pdfkit/ops#71). The verb writes a one-cell
+		// marker row naming each grid, and the tip now says that — a tip that
+		// promises the behaviour we rejected is the defect described to the
+		// person instead of done to them.
+		label: "Hand over the grids", tip: "Hand this page's grids over as one comma-separated file, with a row naming each grid in front of it.",
+		icon: "table-rows", large: true,
+		run: (*state).tablesAsCSV,
 	},
 	"jsonFile": {
 		label: "Hand over the page as data", tip: "Hand this page over as JSON: every piece of text with where it sits, and the grids its words line up into.",

@@ -45,10 +45,27 @@ const (
 	groupFile    = "File"
 	groupProtect = "Protect"
 	groupRead    = "Read"
+	// ⛔ HAND OVER IS A TAB OF ITS OWN BECAUSE THE READ TAB HAD EIGHTEEN
+	// CONTROLS. The ribbon's answer to a crowded strip is to shrink a group to
+	// icon-sized buttons — measured: the four readings came out 28 pixels wide
+	// with no words on them — so nothing was unreachable, it was merely
+	// unreadable. Six verbs that all answer "give me a copy" are a tab, and
+	// splitting them off puts every control on both tabs back at full size.
+	//
+	// The split is the right one anyway: everything left on Read answers "what
+	// does this page say", and the picture-format chooser, which sat on the Read
+	// panel for want of anywhere else, is exactly what this tab is told.
+	//
+	// (What made the crowding a BUG rather than a squeeze was a name: the Read
+	// tab's first group was also called "Read". See ribbonTabs.)
+	groupHandOver = "Hand over"
 )
 
 // groupNames is the order they are offered in.
-var groupNames = []string{groupPages, groupSheet, groupMarks, groupFile, groupProtect, groupRead}
+var groupNames = []string{
+	groupPages, groupSheet, groupMarks, groupFile, groupProtect, groupRead,
+	groupHandOver,
+}
 
 // tools is the tool panel: which group is open, the widgets of every group
 // that has been opened, and what those widgets currently say.
@@ -137,6 +154,9 @@ type tools struct {
 	// every box.
 	allow map[string]*mvvm.Observable[bool]
 
+	// find is what the search is looking for.
+	find *mvvm.Observable[string]
+
 	// The Read group: which reading of the document is on the screen instead
 	// of the picture of it, or empty for the picture, and which of the
 	// writable picture formats a page is handed over in.
@@ -185,6 +205,7 @@ func newTools() *tools {
 		userPw:  mvvm.NewObservable(""),
 		ownerPw: mvvm.NewObservable(""),
 		allow:   everythingAllowed(),
+		find:    mvvm.NewObservable(""),
 		reading: mvvm.NewObservable(""),
 		picture: mvvm.NewObservable(0),
 	}
@@ -219,6 +240,8 @@ func (s *state) body() toolkit.Widget {
 		rows = s.protectGroup()
 	case groupRead:
 		rows = s.readGroup()
+	case groupHandOver:
+		rows = s.handOverGroup()
 	default:
 		rows = s.fileGroup()
 	}
