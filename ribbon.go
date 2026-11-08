@@ -93,7 +93,7 @@ var ribbonTabs = []struct {
 	{groupFile, []verbGroup{
 		{"Clean", []string{"sanitize", "flatten", "dropAnnots", "dropOutlines"}},
 		{"Size", []string{"compress"}},
-		{"About it", []string{"setInfo", "clearInfo"}},
+		{"About it", []string{"setInfo", "showInfo", "clearInfo"}},
 	}},
 	{groupProtect, []verbGroup{
 		{"Password", []string{"encrypt", "decrypt"}},
@@ -310,6 +310,19 @@ var verbs = map[string]verb{
 		label: "Pack it smaller", tip: "Rewrite the file's streams so it takes less room.",
 		icon: "archive", large: true,
 		run: (*state).compress,
+	},
+	// ⛔ THE GROUP LEADS WITH ITS LARGE CONTROL, which is why this sits after
+	// `setInfo` and not before it, however much the reading deserves to come
+	// first: for a long time only the writing was here, so a reader could give
+	// the document a title and not see the title it had, and anybody typing
+	// into those boxes was overwriting a value the workbench never showed them.
+	// The ribbon's own rule won the argument — a group whose first control is
+	// small reads as a wall of equal buttons, and a test says so.
+	"showInfo": {
+		label: "Show what it says", tip: "Put what the file says about itself where the page was — its title, author, producer and dates, how big each page is, and whether its structure had to be rebuilt to read it. Press it again for the page.",
+		icon: "page-search",
+		run:  (*state).readAbout,
+		when: func(s *state) bool { return s.doc != nil },
 	},
 	"setInfo": {
 		label: "Say so in the file", tip: "Write the title and author typed beside it into the document.",

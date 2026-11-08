@@ -59,8 +59,11 @@ func (s *state) read(what string) {
 
 // readingView is the page read rather than drawn.
 func (s *state) readingView(src *reader.Document) toolkit.Widget {
-	if s.tools.reading.Get() == readingText {
+	switch s.tools.reading.Get() {
+	case readingText:
 		return s.textView(src)
+	case readingAbout:
+		return s.aboutView(src)
 	}
 	return s.imagesView(src)
 }
