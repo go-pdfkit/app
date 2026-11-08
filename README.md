@@ -84,9 +84,12 @@ What each tab commands, and what its panel holds:
 
 - **Pages** — which pages to keep or drop, turn them a quarter, a half or
   three quarters, reverse the order, move the one on the screen, crop to a
-  box, put a blank page in, split into files of *n* pages.
-- **Sheet** — *n* pages to a sheet, fold into a booklet, add another file
-  after this one, lay another file over it.
+  box, put a blank page in, straighten a crooked scan, split into files of
+  *n* pages.
+- **Sheet** — *n* pages to a sheet, fold into a booklet, cut each page up into
+  a grid of smaller pages, put every page onto one, print a page larger than
+  the paper across several sheets, add another file after this one, lay
+  another file over it.
 - **Marks** — a watermark, page numbers in a shape you choose, a Bates number
   padded and started where you say, and a stamp in one of nine places.
 - **File** — sanitize, flatten the annotations in, drop the annotations, the
@@ -488,6 +491,36 @@ verbs use. Marking and redacting are opposite acts — one is written over the
 page and comes off again, the other takes the text out of the file — but they are
 the same question about *where*, and a reader who highlights a line and then
 redacts it has to get the same words both times.
+
+## A verb with no control is not delivered
+
+Four of the verbs above — cut each page up, put them on one page, print it
+larger than the paper, straighten the scan — were **already built** when they
+were added here. `ops` carries `Divide`, `OnePage`, `Poster` and `Deskew`, the
+workbench has always linked `ops`, and not one of them was on the ribbon. The
+fleet could do them; nobody using the workbench could.
+
+That is not an accident, it is a *measured* condition. Judged against
+BentoPDF's own tool tables, **40 of its 111 tools are in exactly that state**
+here — more than the 18 this fleet genuinely cannot do. So the cheapest
+equivalence available is not writing anything: it is putting a control on what
+is already finished.
+
+Two things the batch had to get right, and both are the kind of thing a ribbon
+gets wrong quietly:
+
+- ⛔ **Cutting and tiling keep their own numbers.** `Divide` cuts one page into
+  smaller pages of its own content; `Poster` spreads one page over several
+  sheets to be printed larger and taped together. Both take "across and down",
+  and *2 × 2* means halves in the first and quarters-enlarged in the second —
+  so one pair of spinners shared between them would show the wrong thing in
+  whichever was not last used.
+- ⛔ **Straightening says what it measured**, not that it ran: *"measured 12
+  pages, straightened 3"*. A page already level is left alone on purpose,
+  because turning it by a hundredth of a degree costs it a transformation it
+  did not need — so a verb that only said "done" would leave a reader unable to
+  tell a level scan from a verb that did nothing. A page that cannot be
+  measured at all is a third answer and is reported as one.
 
 ## The panel and its datum are the same value
 

@@ -89,6 +89,15 @@ type tools struct {
 	// The Sheet group.
 	up *mvvm.Observable[int] // how many pages to a sheet
 
+	// ⛔ CUTTING AND TILING KEEP THEIR OWN NUMBERS, and they look like the same
+	// two numbers. Divide cuts one page into smaller pages of its own content;
+	// Poster spreads one page over several sheets to print it larger. "2 × 2"
+	// means halves in the first and quarters-enlarged in the second, so one
+	// pair shared between them would show the wrong thing in whichever was not
+	// last used — the reason the Marks group has a range of its own.
+	cutAcross, cutDown     *mvvm.Observable[int]
+	tilesAcross, tilesDown *mvvm.Observable[int]
+
 	// The Marks group, which acts on a range of its own: the Pages group's
 	// box is that group's, and one box shared between two panels would show
 	// the wrong thing in whichever of them was not last used.
@@ -123,31 +132,35 @@ type tools struct {
 // newTools builds the panel's state with the defaults each control starts at.
 func newTools() *tools {
 	return &tools{
-		built:    map[string]toolkit.Widget{},
-		spec:     mvvm.NewObservable(""),
-		turn:     mvvm.NewObservable(90),
-		moveTo:   mvvm.NewObservable(1),
-		box:      mvvm.NewObservable(""),
-		before:   mvvm.NewObservable(1),
-		every:    mvvm.NewObservable(1),
-		up:       mvvm.NewObservable(2),
-		markSpec: mvvm.NewObservable(""),
-		mark:     mvvm.NewObservable("DRAFT"),
-		numbers:  mvvm.NewObservable("{page} / {pages}"),
-		prefix:   mvvm.NewObservable(""),
-		start:    mvvm.NewObservable(1),
-		digits:   mvvm.NewObservable(6),
-		stamp:    mvvm.NewObservable("COPY"),
-		at:       mvvm.NewObservable(0),
-		size:     mvvm.NewObservable(12),
-		title:    mvvm.NewObservable(""),
-		author:   mvvm.NewObservable(""),
-		openPw:   mvvm.NewObservable(""),
-		userPw:   mvvm.NewObservable(""),
-		ownerPw:  mvvm.NewObservable(""),
-		allow:    everythingAllowed(),
-		reading:  mvvm.NewObservable(""),
-		picture:  mvvm.NewObservable(0),
+		built:       map[string]toolkit.Widget{},
+		spec:        mvvm.NewObservable(""),
+		turn:        mvvm.NewObservable(90),
+		moveTo:      mvvm.NewObservable(1),
+		box:         mvvm.NewObservable(""),
+		before:      mvvm.NewObservable(1),
+		every:       mvvm.NewObservable(1),
+		up:          mvvm.NewObservable(2),
+		cutAcross:   mvvm.NewObservable(2),
+		cutDown:     mvvm.NewObservable(1),
+		tilesAcross: mvvm.NewObservable(2),
+		tilesDown:   mvvm.NewObservable(2),
+		markSpec:    mvvm.NewObservable(""),
+		mark:        mvvm.NewObservable("DRAFT"),
+		numbers:     mvvm.NewObservable("{page} / {pages}"),
+		prefix:      mvvm.NewObservable(""),
+		start:       mvvm.NewObservable(1),
+		digits:      mvvm.NewObservable(6),
+		stamp:       mvvm.NewObservable("COPY"),
+		at:          mvvm.NewObservable(0),
+		size:        mvvm.NewObservable(12),
+		title:       mvvm.NewObservable(""),
+		author:      mvvm.NewObservable(""),
+		openPw:      mvvm.NewObservable(""),
+		userPw:      mvvm.NewObservable(""),
+		ownerPw:     mvvm.NewObservable(""),
+		allow:       everythingAllowed(),
+		reading:     mvvm.NewObservable(""),
+		picture:     mvvm.NewObservable(0),
 	}
 }
 
@@ -281,6 +294,14 @@ func (s *state) pagesGroup() *column {
 func (s *state) sheetGroup() *column {
 	box := newColumn()
 	box.add(s.spinRow("Pages to a sheet", 1, s.tools.up), labelledH())
+	box.add(buttons(
+		s.spinRow("Cut across", 1, s.tools.cutAcross),
+		s.spinRow("and down", 1, s.tools.cutDown),
+	), labelledH())
+	box.add(buttons(
+		s.spinRow("Tiles across", 1, s.tools.tilesAcross),
+		s.spinRow("and down", 1, s.tools.tilesDown),
+	), labelledH())
 	return box
 }
 

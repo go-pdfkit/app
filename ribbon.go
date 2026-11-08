@@ -76,11 +76,13 @@ var ribbonTabs = []struct {
 		{"Which pages", []string{"keep", "drop"}},
 		{"Turn", []string{"turn", "reverse"}},
 		{"Order", []string{"move"}},
-		{"Shape", []string{"crop", "insert", "dropBlank"}},
+		{"Shape", []string{"crop", "insert", "dropBlank", "deskew"}},
 		{"Split", []string{"split"}},
 	}},
 	{groupSheet, []verbGroup{
 		{"To a sheet", []string{"nup", "booklet"}},
+		{"From a sheet", []string{"divide", "onepage"}},
+		{"Larger than the paper", []string{"poster"}},
 		{"Another file", []string{"merge", "overlay"}},
 	}},
 	{groupMarks, []verbGroup{
@@ -225,6 +227,30 @@ var verbs = map[string]verb{
 		label: "Fold it into a booklet", tip: "Order the pages so the printed sheets fold into a booklet.",
 		icon: "book",
 		run:  (*state).booklet,
+	},
+	"divide": {
+		label: "Cut each page up", tip: "Cut every page into the grid of smaller pages chosen beside it, each holding its own part of the original.",
+		icon: "split-area", large: true,
+		run: (*state).divide,
+	},
+	"onepage": {
+		label: "Put them on one page", tip: "Join every page into a single tall page.",
+		icon: "vertical-merge",
+		run:  (*state).onePage,
+	},
+	// ⛔ A SEPARATE GROUP FROM `divide`, AND SEPARATE NUMBERS, because the two
+	// take the same "across and down" and mean opposite things: one cuts a page
+	// into smaller pages, the other spreads one page over several sheets to be
+	// printed larger and taped together.
+	"poster": {
+		label: "Print it larger than the paper", tip: "Spread each page over the grid of sheets chosen beside it, to print it larger and join it up afterwards.",
+		icon: "scale-frame-enlarge", large: true,
+		run: (*state).poster,
+	},
+	"deskew": {
+		label: "Straighten the scan", tip: "Measure how far each page is tilted and turn the ones that are crooked. It says how many it measured and how many it straightened.",
+		icon: "crop-rotate-tl",
+		run:  (*state).deskew,
 	},
 	"merge": {
 		label: "Add a file after this one", tip: "Choose another PDF and put its pages after these.",
