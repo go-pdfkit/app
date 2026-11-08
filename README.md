@@ -652,6 +652,46 @@ QOI, JP2 and JBIG2 as well, `ops.Picture` makes a page of any of them, and a
 dialog that hides a file the program would have opened is the same defect at a
 smaller size.
 
+## Drawing on a passage
+
+**Box them**, **Ring them** and **Point at them** are on the Mark up tab, over
+`ops.Doc.AddShapes` (new in ops v0.31.0): `/Square`, `/Circle` and `/Line` with
+Table 176's `ClosedArrow`. They are annotations like the marks, so the page
+underneath is untouched and each comes off again by dropping it.
+
+⛔ **Each goes round the passage, never over it.** A box drawn on the glyphs
+hides exactly what it draws attention to — the same failure the sticky note had
+— so the rectangle is grown beyond the words and clamped to the paper. An arrow
+comes in from whichever margin has room and **stops short of the glyphs**: a line
+drawn *through* a passage would be a strike-out, and there is a verb for that two
+controls along.
+
+⛔ A margin too narrow for an arrow is **refused with the number it needs**, and
+points at the box instead, which needs no margin.
+
+### ⛔⛔ And the gate that found two tabs already broken
+
+Adding the three shapes made a seventh group on the Read tab, and seven of that
+tab's controls came out **28 pixels wide with no words on them** — the readings,
+the search and Copy, reduced to bare icons. Nothing was *dropped*, so
+`TestEveryVerbOnEveryTabIsReachable` passed: it measured reachability, which is
+not legibility.
+
+The gate now measures **width** too, and the first run of it found the **File
+tab already in that state** — six controls shrunk by the redraw group added in
+v0.32.0 and shipped without anyone looking. Two splits followed:
+
+- **Mark up** is its own tab: the marks, the shapes, the comments and the two
+  verbs that alter the text, with the boxes they read. Read keeps what answers
+  *"what does this page say"* — read it, search it, copy it — and its panel can
+  promise again that nothing on it changes the document, which was **false for
+  several releases** while Redact sat there.
+- **Redraw** is its own tab, with the ground chooser and the two spinners that
+  belong to it.
+
+A tab that trips the gate is a tab to split; the ribbon is doing the right thing
+with the room it was given. What was missing was anybody measuring it.
+
 ## Replacing the words a page says
 
 **Replace the words**, beside Redact on the Read tab, puts the typed text in

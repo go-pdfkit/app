@@ -23,6 +23,7 @@ import (
 
 	"github.com/go-pdfkit/convert"
 	"github.com/go-pdfkit/ops"
+	"github.com/go-widgets/toolkit"
 )
 
 // grounds are the colours a page can be drawn on, by name. nil is the
@@ -42,6 +43,27 @@ var grounds = []struct {
 	{"cream, for reading", &color.RGBA{R: 253, G: 246, B: 227, A: 255}},
 	{"grey, for proofing", &color.RGBA{R: 222, G: 222, B: 222, A: 255}},
 	{"black, for the night", &color.RGBA{R: 16, G: 16, B: 16, A: 255}},
+}
+
+// redrawGroup is the panel beside the five verbs that redraw the pages: the
+// colour to draw them on, and how bright and how deep.
+//
+// ⛔ THESE ROWS WERE ON THE FILE PANEL AND THE VERBS ON THE FILE TAB, which was
+// right until the tab ran out of room. A tab IS a panel, so moving the verbs
+// moves what they are told — and the measurement that forced the move found six
+// of the File tab's OTHER controls reduced to wordless icons by the group these
+// belong to. See groupRedraw.
+func (s *state) redrawGroup() *column {
+	box := newColumn()
+	box.add(s.chooseRow("Draw the pages on", groundNames(), s.tools.ground), labelledH())
+	box.add(buttons(
+		s.spinRow("Brightness %", 5, s.tools.bright),
+		s.spinRow("Contrast %", 5, s.tools.contrast),
+	), labelledH())
+	box.add(toolkit.NewLabel("⚠ Every verb here replaces the pages with "+
+		"pictures of them: their text can no longer be selected, searched or "+
+		"read out."), bareH())
+	return box
 }
 
 // groundNames is the list a person chooses from.

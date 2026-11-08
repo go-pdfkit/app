@@ -673,6 +673,24 @@ func TestEveryVerbOnEveryTabIsReachable(t *testing.T) {
 					t.Errorf("%q is laid out from %d to %d, and the ribbon is %d tall",
 						label, r.Y, r.Y+r.H, band.H)
 				}
+				// ⛔⛔ AND IT IS WIDE ENOUGH TO READ, which is a different
+				// question from "is it drawn" and the one that got through
+				// TWICE. The ribbon's answer to a crowded strip is to shrink a
+				// group to icon-sized buttons with no words on them: every
+				// control still has a rectangle, so everything above passes,
+				// and the tab is unusable. It cost the Hand over split and then
+				// the Mark up split, both found by a throwaway probe rather
+				// than by the suite.
+				//
+				// 40 pixels is the threshold because a shrunken control
+				// measures 28 and the narrowest labelled one here is well past
+				// 40. A tab that trips this is a tab to SPLIT — the ribbon is
+				// doing the right thing with the room it was given.
+				if r.W < 40 {
+					t.Errorf("%q on the %s tab is %dx%d — the strip is too "+
+						"crowded and the ribbon has shrunk it to a wordless "+
+						"icon; split the tab", label, tab.label, r.W, r.H)
+				}
 			}
 		}
 	}

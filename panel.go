@@ -59,12 +59,38 @@ const (
 	// (What made the crowding a BUG rather than a squeeze was a name: the Read
 	// tab's first group was also called "Read". See ribbonTabs.)
 	groupHandOver = "Hand over"
+	// ⛔⛔ MARK UP IS A TAB BECAUSE THE READ TAB CROWDED AGAIN, and this is the
+	// SECOND time the same measurement forced a split — the first produced
+	// `Hand over`. Adding the three shapes made a seventh group, and seven of
+	// the tab's controls came out 28 pixels wide with no words on them: the
+	// readings, the search and Copy all reduced to bare icons. Nothing was
+	// dropped, so the reachability gate passed; it does not measure legibility,
+	// and a probe does.
+	//
+	// The line to split on was already in the groups: Read answers "what does
+	// this page say" — read it, search it, copy it — and everything else on that
+	// tab CHANGED the document through the selection. So the marks, the shapes,
+	// the comments and the two verbs that alter the text moved here, and the
+	// boxes they read moved with them.
+	groupMarkUp = "Mark up"
+	// ⛔⛔ REDRAW IS A TAB BECAUSE THE GATE FOUND THE FILE TAB ALREADY BROKEN.
+	// The five redraw verbs were added to the File tab in v0.32.0 and shipped;
+	// the suite was green because every control still had a rectangle. The
+	// widened gate measured their WIDTH and found six of that tab's controls at
+	// 28 pixels with no words on them — Sanitize, Flatten, the two Drops and
+	// both Files-inside verbs, reduced to bare icons by a group I added and
+	// never looked at.
+	//
+	// It is the right tab anyway. Redrawing replaces every page with a picture
+	// of it, which is why each of its verbs carries a warning the others do not
+	// need, and the two spinners and the ground chooser are what it is told.
+	groupRedraw = "Redraw"
 )
 
 // groupNames is the order they are offered in.
 var groupNames = []string{
-	groupPages, groupSheet, groupMarks, groupFile, groupProtect, groupRead,
-	groupHandOver,
+	groupPages, groupSheet, groupMarks, groupFile, groupRedraw, groupProtect,
+	groupRead, groupMarkUp, groupHandOver,
 }
 
 // tools is the tool panel: which group is open, the widgets of every group
@@ -246,6 +272,10 @@ func (s *state) body() toolkit.Widget {
 		rows = s.protectGroup()
 	case groupRead:
 		rows = s.readGroup()
+	case groupMarkUp:
+		rows = s.markUpGroup()
+	case groupRedraw:
+		rows = s.redrawGroup()
 	case groupHandOver:
 		rows = s.handOverGroup()
 	default:
