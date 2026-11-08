@@ -103,6 +103,12 @@ type tools struct {
 	paper *mvvm.Observable[int]
 	ink   *mvvm.Observable[int]
 
+	// The redrawing: which colour the pages are drawn on, and the brightness
+	// and contrast, both as PERCENTAGES because a spin button holds whole
+	// numbers — 100 contrast means "leave it alone", which is convert's 1.
+	ground           *mvvm.Observable[int]
+	bright, contrast *mvvm.Observable[int]
+
 	// The Marks group, which acts on a range of its own: the Pages group's
 	// box is that group's, and one box shared between two panels would show
 	// the wrong thing in whichever of them was not last used.
@@ -151,6 +157,9 @@ func newTools() *tools {
 		tilesDown:   mvvm.NewObservable(2),
 		paper:       mvvm.NewObservable(0),
 		ink:         mvvm.NewObservable(0),
+		ground:      mvvm.NewObservable(0),
+		bright:      mvvm.NewObservable(0),
+		contrast:    mvvm.NewObservable(100),
 		markSpec:    mvvm.NewObservable(""),
 		mark:        mvvm.NewObservable("DRAFT"),
 		numbers:     mvvm.NewObservable("{page} / {pages}"),

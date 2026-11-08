@@ -585,6 +585,61 @@ Two things found while adding them:
   naming the grid — visible to every reader, including a spreadsheet — and
   writes none at all when there is only one grid.
 
+## Redrawing the pages is a trade, and the workbench says so
+
+**Turn them inside out**, **Drop the colour**, **Draw them on a colour**,
+**Brighten or deepen them** and **Make them look scanned** are the *Redraw the
+pixels* group on the File tab, over
+[`convert.Redraw`](https://github.com/go-pdfkit/convert). **Hand it over as a
+comic** is beside them in spirit and on the Read tab in fact, over
+`convert.ToArchive`.
+
+⛔ **Every one of them replaces each page with a picture of it**, and every tip
+and every status line says so: *"⚠ the pages are pictures now: their text cannot
+be selected, searched or read out any more"*. Turning light into dark is a pixel
+operation and there is no other way to do it — but a reader who inverts a
+contract to read it at night and then presses Save has quietly thrown away
+everything that made it a document. That warning is on the control, not in the
+release notes.
+
+- ⛔ **433 KiB, not 18.18 MB — and the delivered binary grew 1.07 MiB.**
+  `convert` measures about 18.18 MB on its own, which is roughly what the
+  browser engine costs and would have ruled this group out. Built as an
+  *increment* into the binary that was already there, by a control that names
+  `Redraw` and `ToArchive` and nothing else, it is **443,265 bytes**:
+  22,489,931 → 22,933,196. A package's standalone size is not its price in a
+  binary that already paid for its dependencies, and measuring the wrong one of
+  the two is how six finished verbs stay off a ribbon. (`go-pdfkit/document` is
+  the other answer: **26.9 MB** as an increment, which is why the rows behind it
+  wait on [document#11](https://github.com/go-pdfkit/document/issues/11).)
+
+  ⛔ But the whole batch is **+1,126,671 bytes** (22,489,931 → 23,616,602), so
+  **683,406 of them are not `convert`** and are not a dependency bump either —
+  the control's `go.mod` and this branch's are byte-identical. 134 lines of Go
+  do not weigh 667 KiB, so something else here reaches code the control does
+  not — filed as [app#85](https://github.com/go-pdfkit/app/issues/85) rather
+  than rounded away, because this batch was *gated* on an increment measurement
+  and a control that can under-report by 2.5× puts every decision taken on one
+  of those numbers in doubt, including the ones that said no. The figure to
+  count is the **1.07 MiB**, not the 433 KiB the probe promised.
+- ⛔ **The ground colour goes to the renderer, not under the raster.**
+  `convert`'s own note records the version that painted it afterwards and *"does
+  nothing at all, because the renderer has already filled the page with opaque
+  white"* — documented, shipped, and with no effect.
+- ⛔ **The scanner uses a fixed seed**, which is `convert`'s default and its
+  reason: *"two runs over the same file must produce the same bytes"*. The test
+  that holds it compares **rendered pixels**, because `doc.Bytes()` carries the
+  write's own date and so differs between two runs of the same verb — a
+  reproducibility test that compared files would have failed for the one reason
+  that is not about reproducibility.
+- ⛔ **The two spinners are percentages.** Brightness −100…+100 maps to
+  `convert`'s −1…+1, and contrast **100 means leave it alone**, because
+  `convert`'s neutral is 1 and a 0 there *"would turn every page into a flat
+  grey rectangle"* — so a zero never reaches it.
+- ⛔ **A `.cbz` and not a `.zip`.** The zip beside it holds the same one picture
+  per page; a comic reader opens the one named for the format, which is the
+  whole difference between a file somebody can use and one they have to rename.
+
 ## A verb with no control is not delivered
 
 Four of the verbs above — cut each page up, put them on one page, print it
@@ -594,10 +649,11 @@ workbench has always linked `ops`, and not one of them was on the ribbon. The
 fleet could do them; nobody using the workbench could.
 
 That is not an accident, it is a *measured* condition. Judged against
-BentoPDF's own tool tables, **40 of its 111 tools are in exactly that state**
-here — more than the 18 this fleet genuinely cannot do. So the cheapest
-equivalence available is not writing anything: it is putting a control on what
-is already finished.
+BentoPDF's own tool tables, **21 of its 111 tools are still in exactly that
+state** here — against 19 this fleet genuinely cannot do, and 59 it has. The
+figure was 40 when this section was written; most of the fall since is this
+reading repeated, not new code. So the cheapest equivalence available is not
+writing anything: it is putting a control on what is already finished.
 
 Four more followed the same way — **set the paper**, **paint the text**, and
 before them the two readings above. Each of these also says the thing the
@@ -705,7 +761,7 @@ a working verb as broken.
 
 ## Building
 
-```
+```sh
 GOOS=js GOARCH=wasm go build -o web/main.wasm .
 ```
 

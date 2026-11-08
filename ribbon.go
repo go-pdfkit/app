@@ -94,6 +94,7 @@ var ribbonTabs = []struct {
 	{groupFile, []verbGroup{
 		{"Clean", []string{"sanitize", "flatten", "dropAnnots", "dropOutlines"}},
 		{"Files inside", []string{"attach", "showCarried"}},
+		{"Redraw the pixels", []string{"invert", "greyscale", "onGround", "adjust", "scanned"}},
 		{"Size", []string{"compress"}},
 		{"About it", []string{"setInfo", "showInfo", "clearInfo"}},
 	}},
@@ -106,7 +107,7 @@ var ribbonTabs = []struct {
 		{"Selected", []string{"copyText"}},
 		{"Mark up", []string{"highlight", "underline", "strikeOut"}},
 		{"Remove", []string{"redactText"}},
-		{"Hand over", []string{"pagePicture", "zipped", "textFile", "csvFile", "jsonFile"}},
+		{"Hand over", []string{"pagePicture", "zipped", "cbz", "textFile", "csvFile", "jsonFile"}},
 	}},
 }
 
@@ -287,6 +288,37 @@ var verbs = map[string]verb{
 		icon: "fill-color", large: true,
 		run: (*state).recolourText,
 	},
+	// ⛔⛔ EVERY VERB IN THIS GROUP REPLACES THE PAGES WITH PICTURES OF THEM,
+	// and every tip says so. Turning light into dark is a pixel operation and
+	// there is no other way to do it — but a reader who inverts a contract to
+	// read it at night and then saves has thrown away everything that made it
+	// a document, so the warning belongs on the control and not only in the
+	// release notes.
+	"invert": {
+		label: "Turn them inside out", tip: "Draw every page with light and dark swapped, for reading at night. ⚠ The pages become pictures: their text can no longer be selected, searched or read out.",
+		icon: "half-moon", large: true,
+		run: (*state).invert,
+	},
+	"greyscale": {
+		label: "Drop the colour", tip: "Draw every page in grey. ⚠ The pages become pictures: their text can no longer be selected, searched or read out.",
+		icon: "droplet-half",
+		run:  (*state).greyscale,
+	},
+	"onGround": {
+		label: "Draw them on a colour", tip: "Draw every page on the colour chosen beside it — cream for reading, grey for proofing, black for the night. ⚠ The pages become pictures.",
+		icon: "color-filter",
+		run:  (*state).onGround,
+	},
+	"adjust": {
+		label: "Brighten or deepen them", tip: "Draw every page at the brightness and contrast chosen beside it. ⚠ The pages become pictures.",
+		icon: "sun-light",
+		run:  (*state).adjust,
+	},
+	"scanned": {
+		label: "Make them look scanned", tip: "Draw every page as a flatbed would: a little off square, a little faded, with grain. The same file always comes out the same way. ⚠ The pages become pictures.",
+		icon: "printing-page",
+		run:  (*state).scanned,
+	},
 	"merge": {
 		label: "Add a file after this one", tip: "Choose another PDF and put its pages after these.",
 		icon: "page-plus", large: true,
@@ -456,6 +488,15 @@ var verbs = map[string]verb{
 		label: "Hand over every page, zipped", tip: "Draw every page and hand them over in one zip.",
 		icon: "folder",
 		run:  (*state).everyPageZipped,
+	},
+	// ⛔ A REAL .cbz, which the zip beside it is not. Both hold one picture per
+	// page; a comic reader opens the one named for the format. The same bytes
+	// under the right name is the whole difference between a file somebody can
+	// use and one they have to rename first.
+	"cbz": {
+		label: "Hand it over as a comic", tip: "Draw every page and hand them over as a .cbz — the archive a comic reader opens as a book.",
+		icon: "book",
+		run:  (*state).asArchive,
 	},
 	"textFile": {
 		label: "Hand over what this page says", tip: "Hand the page's text over as a file.",
