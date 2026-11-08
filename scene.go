@@ -338,23 +338,29 @@ func newState(w, h int, h2 host) *state {
 // open asks for a file and takes it as the document.
 func (s *state) open() {
 	s.host.Open(func(name string, data []byte) {
-		fromPicture := false
+		converted := ""
 		d, err := ops.OpenWithPassword(data, s.tools.openPw.Get())
 		if err != nil {
-			// Somebody who hands a picture to a PDF workbench wants a PDF of
-			// it. Telling them it is not a PDF is true and useless: they knew.
-			pic, made := s.pictureDocument(data)
-			if made {
-				d, data, name, fromPicture = pic, nil, name+".pdf", true
-			} else {
+			// Somebody who hands a file to a PDF workbench wants a PDF of it.
+			// Telling them it is not a PDF is true and useless: they knew. See
+			// documentFrom for what else is accepted, and why in that order.
+			from, tried := s.documentFrom(data)
+			if !tried {
 				s.fail("cannot open " + name + ": " + err.Error())
 				return
 			}
+			if from.doc == nil {
+				// An arm that recognised the file and could not convert it has
+				// already said why, in its own words.
+				return
+			}
+			d, data, name, converted = from.doc, from.pdf, pdfNamed(name), from.said
 		}
 		if data == nil {
 			// A document begun from a picture has no file behind it yet, so it
 			// is written once here to be the file the rest of the workbench
-			// reads back.
+			// reads back. An arm that went through convert already holds one
+			// and carries it, so this is not a second conversion.
 			out, msg := docBytes(d)
 			if msg != nil {
 				s.fail("this picture cannot be made into a document: " + msg.Error())
@@ -364,8 +370,8 @@ func (s *state) open() {
 		}
 		s.doc, s.name, s.at, s.raw = d, name, 1, data
 		s.note = ""
-		if fromPicture {
-			s.note = "this was a picture, and is now a page"
+		if converted != "" {
+			s.note = converted
 		}
 		s.showingForm = false
 		s.reopenPw = ""

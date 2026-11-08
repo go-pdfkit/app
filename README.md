@@ -585,6 +585,61 @@ Two things found while adding them:
   naming the grid — visible to every reader, including a spreadsheet — and
   writes none at all when there is only one grid.
 
+## What Open accepts that is not a PDF
+
+Somebody who hands a file to a PDF workbench wants a PDF of it. A **picture**
+has opened as a page since the workbench could open anything; a **drawing**
+(SVG) and a **comic archive** (`.cbz`, or any zip of pictures) now do too, over
+[`convert`](https://github.com/go-pdfkit/convert).
+
+Each arm says *which* it was, because the three keep different amounts of the
+original:
+
+- a drawing goes on the page **as paths**, so it stays sharp at any size — and
+  when it uses a gradient, a clip path or an embedded picture, which cannot
+  become path operators, the page is **drawn** instead and the status line
+  warns. ⛔ The code asks `SVGToPDFVector` first even though `SVGToPDF` falls
+  back by itself: the fallback is right, but `convert` cannot tell the person
+  standing at the workbench which of the two they just got, and that difference
+  is everything they can do with the result.
+- an archive becomes its pages **in the order their names put them** —
+  `page10` after `page2`, which a byte-wise sort gets wrong and which is the
+  one defect every naive reader of the format has.
+- the archive arm is **last**, because a `.docx` and an `.odt` are zips too. What
+  reaches the status line for one of those is `convert`'s own sentence — *"no
+  pictures in the archive: 1 entry held nothing readable"* — rather than a guess
+  at what was meant.
+
+The ceilings are `convert`'s (`MaxArchiveEntries`, `MaxArchiveEntryBytes`,
+`MaxArchiveBytes`), and they are *variables* so a test can reach them. A test
+here lowers each one and checks the refusal arrives naming the bound. ⛔ Two of
+the three print the same sentence, because the room left is the smaller of the
+per-entry ceiling and what remains of the whole — so the cumulative case is told
+apart by *which entry* it refuses, never the first. Asserting only the number
+would have passed on the wrong bound; a control marked the per-entry case the
+same way and failed, which is how the other is known to measure itself.
+
+### ⛔⛔ The file dialog is half of every one of these arms
+
+`web/index.html` carried `accept="application/pdf,.pdf"`.
+
+So the picture arm — there from the beginning, tested, counted as delivered —
+was behind a dialog that **would not show a PNG**. The code was right. Every
+test passed, because a test hands bytes straight to `open`. Six rows of the
+BentoPDF reading were ticked off on a path a person could not take.
+
+A filter list is the picker's half of a verb and has to change in the same
+breath as the arm it admits. So the list lives in Go now, as `openSuffixes`, and
+a test reads the HTML and compares the two **in both directions**: a suffix the
+code accepts and the dialog hides is unreachable, and a suffix the dialog offers
+and the code refuses is a file somebody chose for nothing. Run against this
+morning's HTML the gate names all **21** shapes that were hidden.
+
+It is also wider than the rows that asked for it. `codec` reads ICO, ICNS, PNM,
+QOI, JP2 and JBIG2 as well, `ops.Picture` makes a page of any of them, and a
+dialog that hides a file the program would have opened is the same defect at a
+smaller size.
+
 ## Redrawing the pages is a trade, and the workbench says so
 
 **Turn them inside out**, **Drop the colour**, **Draw them on a colour**,
@@ -649,8 +704,8 @@ workbench has always linked `ops`, and not one of them was on the ribbon. The
 fleet could do them; nobody using the workbench could.
 
 That is not an accident, it is a *measured* condition. Judged against
-BentoPDF's own tool tables, **21 of its 111 tools are still in exactly that
-state** here — against 19 this fleet genuinely cannot do, and 59 it has. The
+BentoPDF's own tool tables, **19 of its 111 tools are still in exactly that
+state** here — against 19 this fleet genuinely cannot do, and 61 it has. The
 figure was 40 when this section was written; most of the fall since is this
 reading repeated, not new code. So the cheapest equivalence available is not
 writing anything: it is putting a control on what is already finished.
