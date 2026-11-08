@@ -84,8 +84,8 @@ What each tab commands, and what its panel holds:
 
 - **Pages** — which pages to keep or drop, turn them a quarter, a half or
   three quarters, reverse the order, move the one on the screen, crop to a
-  box, put a blank page in, straighten a crooked scan, split into files of
-  *n* pages.
+  box, put a blank page in, straighten a crooked scan, set the paper to one of
+  six sheets, paint the text one colour, split into files of *n* pages.
 - **Sheet** — *n* pages to a sheet, fold into a booklet, cut each page up into
   a grid of smaller pages, put every page onto one, print a page larger than
   the paper across several sheets, add another file after this one, lay
@@ -539,8 +539,23 @@ here — more than the 18 this fleet genuinely cannot do. So the cheapest
 equivalence available is not writing anything: it is putting a control on what
 is already finished.
 
-Two things the batch had to get right, and both are the kind of thing a ribbon
-gets wrong quietly:
+Four more followed the same way — **set the paper**, **paint the text**, and
+before them the two readings above. Each of these also says the thing the
+library knows and a button would swallow:
+
+- the paper is the **sheet**, not the crop box: cropping cuts a page down to
+  part of itself, this says which sheet it is on, and a page cropped to a
+  postcard on A4 is still on A4. The sizes are the standard's — A4 is
+  **595.276 × 841.89** points, because rounding it to 595 × 842 is a tenth of
+  a millimetre that shows as a hairline against a trimmed edge.
+- painting the text says **what it could not reach**. Text drawn through a Form
+  XObject is shared with every page that draws it, so recolouring one would
+  change pages nobody named; the library leaves those alone and counts them,
+  and the status line passes the count on. A document that came back looking
+  unchanged with nothing said would be worse than a refusal.
+
+Two things the first batch had to get right, and both are the kind of thing a
+ribbon gets wrong quietly:
 
 - ⛔ **Cutting and tiling keep their own numbers.** `Divide` cuts one page into
   smaller pages of its own content; `Poster` spreads one page over several

@@ -98,6 +98,11 @@ type tools struct {
 	cutAcross, cutDown     *mvvm.Observable[int]
 	tilesAcross, tilesDown *mvvm.Observable[int]
 
+	// paper is which sheet size the pages are set to, and ink which colour
+	// their text is painted. Both are the position in their own list.
+	paper *mvvm.Observable[int]
+	ink   *mvvm.Observable[int]
+
 	// The Marks group, which acts on a range of its own: the Pages group's
 	// box is that group's, and one box shared between two panels would show
 	// the wrong thing in whichever of them was not last used.
@@ -144,6 +149,8 @@ func newTools() *tools {
 		cutDown:     mvvm.NewObservable(1),
 		tilesAcross: mvvm.NewObservable(2),
 		tilesDown:   mvvm.NewObservable(2),
+		paper:       mvvm.NewObservable(0),
+		ink:         mvvm.NewObservable(0),
 		markSpec:    mvvm.NewObservable(""),
 		mark:        mvvm.NewObservable("DRAFT"),
 		numbers:     mvvm.NewObservable("{page} / {pages}"),
@@ -285,6 +292,11 @@ func (s *state) pagesGroup() *column {
 	box.add(s.spinRow("Move this page to", 1, s.tools.moveTo), labelledH())
 	box.add(s.entryRow("Crop to, in points", "x0,y0,x1,y1", s.tools.box), labelledH())
 	box.add(s.spinRow("Put a blank page before", 1, s.tools.before), labelledH())
+	// ⛔ The paper and the crop box are different things and sit apart: the box
+	// above cuts the page down to part of itself, this sets the sheet it is on.
+	// A page cropped to a postcard on A4 paper is still on A4.
+	box.add(s.chooseRow("Set the paper to", paperNames(), s.tools.paper), labelledH())
+	box.add(s.chooseRow("Paint the text", inkNames(), s.tools.ink), labelledH())
 	box.add(s.spinRow("Split into files of", 1, s.tools.every), labelledH())
 	return box
 }

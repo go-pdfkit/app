@@ -76,7 +76,8 @@ var ribbonTabs = []struct {
 		{"Which pages", []string{"keep", "drop"}},
 		{"Turn", []string{"turn", "reverse"}},
 		{"Order", []string{"move"}},
-		{"Shape", []string{"crop", "insert", "dropBlank", "deskew"}},
+		{"Shape", []string{"crop", "insert", "dropBlank", "deskew", "resize"}},
+		{"Ink", []string{"recolour"}},
 		{"Split", []string{"split"}},
 	}},
 	{groupSheet, []verbGroup{
@@ -251,6 +252,20 @@ var verbs = map[string]verb{
 		label: "Straighten the scan", tip: "Measure how far each page is tilted and turn the ones that are crooked. It says how many it measured and how many it straightened.",
 		icon: "crop-rotate-tl",
 		run:  (*state).deskew,
+	},
+	// ⛔ A DIFFERENT THING FROM `crop`, and they sit in the same group because
+	// a reader will reach for the wrong one: cropping cuts the page down to
+	// part of itself, this sets the sheet it is on. A page cropped to a
+	// postcard on A4 paper is still on A4.
+	"resize": {
+		label: "Set the paper", tip: "Put the pages the range names on the sheet size chosen beside it. It changes the paper, not what is drawn on it.",
+		icon: "ruler-combine",
+		run:  (*state).setPaper,
+	},
+	"recolour": {
+		label: "Paint the text", tip: "Paint the text of the pages the range names in the colour chosen beside it, leaving everything else alone. It says how much it could not reach, because text inside a form is shared with other pages.",
+		icon: "fill-color", large: true,
+		run: (*state).recolourText,
 	},
 	"merge": {
 		label: "Add a file after this one", tip: "Choose another PDF and put its pages after these.",
