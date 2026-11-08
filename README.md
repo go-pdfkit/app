@@ -105,6 +105,8 @@ What each tab commands, and what its panel holds:
   says what it holds. And the page itself the other way round — drawn at twice
   the size it is shown at and handed over as a **PNG, JPEG, GIF, TIFF or BMP**,
   one page or every page zipped, with the words on their own as a text file.
+  The grids its words line up into are shown too, and handed over as CSV or as
+  JSON with every piece of text and where it sits.
   The formats offered are the ones `gfx` can write, asked of it rather than
   listed here; a page that ran out of time is still handed over, and the status
   line says how far it got.
@@ -524,6 +526,37 @@ Three details it has to get right:
   to do about it — Saving writes the rebuilt document — because repair is
   something a PDF reader does on the way *in*, so a button offering to do it
   would be offering something that already happened.
+
+## The grids a page lines its words up into
+
+**What lines up into a grid** shows them where the page was; **Hand over the
+grids** writes them as CSV, and **Hand over the page as data** writes every
+piece of text with where it sits, plus the grids, as JSON.
+
+⛔ **A PDF page holds no tables.** It holds text put at places, and a table is
+what a reader sees when those places line up — so these are an inference, and
+the labels say so rather than promising something the file cannot declare.
+
+Two things found while adding them:
+
+- ⛔ **Anchoring on the repository a verdict cites nearly cost 33.5 MB.** These
+  three rows were recorded against `go-pdfkit/document`, and that package is
+  about 33.5 MB in a wasm binary *in either direction*, because it imports
+  `html2pdf` and so the browser engine behind it — 3.50 MB for `ooxml`'s writer
+  alone, 37.05 MB once `document.Parse` is so much as named.
+  [`extract.Tables`](https://github.com/go-pdfkit/extract) answers the same
+  question and has been linked since the Read tab could read text, so the three
+  rows cost nothing at all.
+- ⛔ **A blank line between two grids is invisible.** It is the obvious
+  separator and `encoding/csv` *skips blank lines when reading*, so a file
+  written that way comes back as one grid with the next one's rows stuck to it.
+  `pdfops tables -as csv` does exactly that, with a comment saying "so a reader
+  can see where each ended"
+  ([ops#71](https://github.com/go-pdfkit/ops/issues/71)). The test here found
+  it by reading its own output back with a CSV reader instead of comparing
+  bytes. RFC 4180 has no table separator, so this writes a one-cell marker row
+  naming the grid — visible to every reader, including a spreadsheet — and
+  writes none at all when there is only one grid.
 
 ## A verb with no control is not delivered
 

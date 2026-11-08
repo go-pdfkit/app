@@ -64,6 +64,8 @@ func (s *state) readingView(src *reader.Document) toolkit.Widget {
 		return s.textView(src)
 	case readingAbout:
 		return s.aboutView(src)
+	case readingTables:
+		return s.tablesView(src)
 	}
 	return s.imagesView(src)
 }
