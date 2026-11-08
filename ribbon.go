@@ -120,6 +120,7 @@ var ribbonTabs = []struct {
 		{"Search", []string{"find", "findNext"}},
 		{"Selected", []string{"copyText"}},
 		{"Mark up", []string{"highlight", "underline", "strikeOut", "squiggle"}},
+		{"Say something", []string{"noteOn", "marginComment"}},
 		{"Remove", []string{"redactText"}},
 	}},
 	{groupHandOver, []verbGroup{
@@ -466,6 +467,22 @@ var verbs = map[string]verb{
 		label: "Strike out", tip: "Strike through the words selected on the page. The text itself is untouched.",
 		icon: "strikethrough",
 		run:  (*state).strikeSelection,
+		when: func(s *state) bool { return !s.sel.IsEmpty() },
+	},
+	// ⛔ THESE TWO WRITE SOMETHING OF THEIR OWN, which is what separates them
+	// from the four marks above: a mark says "look here" about words the author
+	// wrote, a note and a margin comment say something nobody wrote yet. Both
+	// still leave the page itself untouched.
+	"noteOn": {
+		label: "Put a note on it", tip: "Attach a sticky note to the words selected on the page, saying what is typed beside it. The note sits in the margin, so it does not cover them.",
+		icon: "chat-bubble", large: true,
+		run:  (*state).noteOnSelection,
+		when: func(s *state) bool { return !s.sel.IsEmpty() },
+	},
+	"marginComment": {
+		label: "Write in the margin", tip: "Write what is typed beside it in the margin next to the words selected on the page, where a reader would pencil a comment.",
+		icon: "notes",
+		run:  (*state).commentInMargin,
 		when: func(s *state) bool { return !s.sel.IsEmpty() },
 	},
 	"squiggle": {
