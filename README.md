@@ -652,6 +652,69 @@ QOI, JP2 and JBIG2 as well, `ops.Picture` makes a page of any of them, and a
 dialog that hides a file the program would have opened is the same defect at a
 smaller size.
 
+## Finding words, and why a match is a selection
+
+**Find** and **Find the next one** are on the Read tab, with the box beside
+them. A match turns to its page and **lights up exactly as though you had
+dragged across it**.
+
+⛔ That is the whole design, not a flourish. The workbench already knows how to
+light a stretch of a page's text, copy it, mark it four ways and redact it. A
+search that drew its own highlight would be a *second* answer to where words
+are — a second set of rounding decisions against a second layout, which is the
+one way a mark lands somewhere other than where the reader saw it. So this finds
+the words, turns the page and drives the **same selection** a drag would have
+built. Copy, Highlight, Underline, Strike out, Squiggle and Redact then work on
+what was found without knowing a search happened.
+
+⛔ **And it searches the way the selection reads.** A PDF never draws a space; it
+moves the pen, and the word grouping is where gaps become boundaries. The
+toolkit's `SelectedText` joins the words of a line with one space — so a phrase
+is looked for in exactly that text, by the same `needsSpace` rule the selection
+uses. Anything else would find phrases a reader cannot then select, or miss ones
+they can see.
+
+⛔ **A phrase never spans a line break.** Different lines are joined with a
+newline, not a space, and one selection covers one stretch of one line — so a
+match reported across a break could not be lit, copied or marked as what it
+claims to be. The test asserts the refusal *and* the control: the same two words
+on one line are found.
+
+`Find the next one` re-searches when the box has changed since the last Find,
+because the box is a live binding and stepping through the matches of a word
+nobody is looking for any more is what makes a search feel broken.
+
+## ⛔⛔ A group named like its own tab disappears
+
+Adding the search pushed the Read tab to eighteen controls, and a test failed
+naming **`What this page says`** — a verb nobody had touched.
+
+The cause was not width. The Read tab's first group was itself called *Read*, and
+`Ribbon.ControlRect` is keyed by label, so that group could not be told from its
+own tab's button. While the strip had room this was harmless; once it was
+crowded enough to compact, all four of that group's controls reported **no
+rectangle at all**. Renaming the group to *Readings* put them back at full size
+with nothing else changed — measured twice, in both directions.
+
+Two things came out of it, and the second is the uncomfortable one:
+
+- the hand-over verbs are their own tab now. Six verbs that all answer *"give me
+  a copy"* are a tab, and the picture-format chooser that sat on the Read panel
+  for want of anywhere else is exactly what that tab is told. The ribbon's answer
+  to a crowded strip is to shrink a group to **28-pixel icon buttons with no
+  words on them** — reachable, unreadable — and splitting puts everything on both
+  tabs back at full size.
+- **the reachability gate passed through this.** It excused a group whenever
+  `ControlRect(group.label)` answered, on the reasoning that a folded group is
+  drawn as one button bearing its name. The tab's own button answered. Narrowing
+  it to "a label the tab does not share" was not enough either: the next
+  arrangement had a *group* called "Hand over" on the Read tab and a *tab* called
+  "Hand over" beside it, and that tab's button answered just as happily. The
+  excuse is gone — every verb on every tab must now be drawn — and the
+  ambiguity is filed as
+  [toolkit#543](https://github.com/go-widgets/toolkit/issues/543), because an
+  API keyed by label cannot tell a fold from a coincidence.
+
 ## Counting the library's own list against the ribbon's
 
 Two more verbs that were finished and unreachable, found by a different method

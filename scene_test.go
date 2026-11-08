@@ -617,26 +617,52 @@ func TestEveryVerbOnEveryTabIsReachable(t *testing.T) {
 	// true by construction. What is worth asserting is that every verb is
 	// still REACHABLE -- shown as itself, or inside a group that is shown --
 	// and that nothing is laid out past the edges it was given.
+	// ⛔⛔ AND THE `folded` ESCAPE HATCH IS GONE, because it let a real
+	// regression through twice over.
+	//
+	// It excused a group whenever `ControlRect(g.label)` answered, on the
+	// reasoning that the ribbon folds a group into one button bearing its name
+	// when the surface is too narrow. But that lookup cannot tell a fold button
+	// from ANY other control or tab of the same name — and the Read tab's first
+	// group was itself called "Read", like its tab. The tab's own button
+	// answered, so the group was excused permanently; when one group too many
+	// pushed that tab past the surface, the ribbon compacted from the left and
+	// dropped all four readings while this gate passed. What failed was an
+	// unrelated test pressing `What this page says`, a verb nobody had touched.
+	//
+	// Narrowing it to "a label the tab does not share" was not enough either:
+	// the next arrangement had a GROUP called "Hand over" on the Read tab and a
+	// TAB called "Hand over" beside it, and that tab's button answered for the
+	// group just as happily.
+	//
+	// So the rule is now the plain one, with nothing to satisfy it by accident:
+	// at the surface this suite draws at, EVERY verb on every tab is shown. A
+	// tab too full for that is a tab to split — which is what the hand-over
+	// verbs got — and not a condition for a test to make allowances for.
 	s, _ := opened(t, 2)
 	for i, tab := range ribbonTabs {
 		s.ribbon.ActiveTab().Set(i)
 		s.draw(buffer())
 		band := s.ribbon.Bounds()
 		for _, g := range tab.groups {
-			folded := false
-			if _, ok := s.ribbon.ControlRect(g.label); ok {
-				// The whole group folded into one button that opens it, which
-				// is the ribbon's own answer to a surface too narrow.
-				folded = true
+			// ⛔ The cause of the disappearance above, asserted directly: a
+			// group named like its own tab cannot be told from the tab's button,
+			// and when the ribbon folds it, its controls answer nothing. It is
+			// one line here and it is the thing that actually broke.
+			if g.label == tab.label {
+				t.Errorf("the %s tab has a group called %q: a group named like "+
+					"its own tab is ambiguous to the ribbon, and its controls "+
+					"report no rectangle once the strip compacts",
+					tab.label, g.label)
 			}
 			for _, id := range g.ids {
 				label := verbs[id].label
 				r, shown := s.ribbon.ControlRect(label)
 				if !shown {
-					if !folded {
-						t.Errorf("%q is neither shown on the %s tab nor folded into its %q group",
-							label, tab.label, g.label)
-					}
+					t.Errorf("%q is not drawn on the %s tab, in its %q group: "+
+						"the tab is too full for the surface and the ribbon has "+
+						"dropped it",
+						label, tab.label, g.label)
 					continue
 				}
 				if r.X < band.X || r.X+r.W > band.X+band.W {

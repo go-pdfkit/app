@@ -31,8 +31,17 @@ const (
 	readingImages = "images"
 )
 
-// readGroup is the panel.
+// readGroup is the panel: what to look for, and the promise that nothing here
+// writes anything.
 func (s *state) readGroup() *column {
+	box := newColumn()
+	box.add(s.entryRow("Find", "a word or a phrase", s.tools.find), labelledH())
+	box.add(toolkit.NewLabel("Nothing on this tab changes the document."), bareH())
+	return box
+}
+
+// handOverGroup is the panel beside the verbs that give you a copy.
+func (s *state) handOverGroup() *column {
 	box := newColumn()
 	// One chooser, governing both the single page and the zip of all of them:
 	// both draw the page and write it, and two choosers saying different things
@@ -42,7 +51,7 @@ func (s *state) readGroup() *column {
 	// index-to-index binding rather than the mapping one.
 	tkbind.BindCycle(s.tools.picture, formats, s.repaint)
 	box.add(toolkit.NewFormField("Hand pictures over as", formats), labelledH())
-	box.add(toolkit.NewLabel("Nothing on this tab changes the document."), bareH())
+	box.add(toolkit.NewLabel("Nothing on this tab changes the document either."), bareH())
 	return box
 }
 
