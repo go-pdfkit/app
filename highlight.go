@@ -39,8 +39,14 @@ const (
 	markRedR, markRedG, markRedB          = 0.85, 0.1, 0.1
 )
 
-// highlightSelection, underlineSelection and strikeSelection are the three
-// things a reader does to a passage they have just selected.
+// highlightSelection, underlineSelection, strikeSelection and squiggleSelection
+// are the four things a reader does to a passage they have just selected.
+//
+// ⛔ FOUR, because ops has had four since the Mark verb existed and this offered
+// three. ops.MarkSquiggly was written, tested and released, and nobody using the
+// workbench could reach it — the same condition as the four Sheet verbs and the
+// six redraw verbs before them, found this time by counting the library's enum
+// against the ribbon's rather than by reading a tool table.
 func (s *state) highlightSelection() {
 	s.markSelection(ops.MarkHighlight, "highlighted", markYellowR, markYellowG, markYellowB)
 }
@@ -51,6 +57,17 @@ func (s *state) underlineSelection() {
 
 func (s *state) strikeSelection() {
 	s.markSelection(ops.MarkStrikeOut, "struck out", markRedR, markRedG, markRedB)
+}
+
+// squiggleSelection draws the wavy underline that means "look at this again" —
+// what a spelling checker puts under a word, and what a reviewer puts under a
+// sentence they are not striking out.
+//
+// ⛔ In red and not in highlighter yellow: a squiggle is a LINE, drawn at the
+// annotation's own colour, and a yellow line on white paper is a line nobody
+// can see. The same reasoning as the underline and the strike-out beside it.
+func (s *state) squiggleSelection() {
+	s.markSelection(ops.MarkSquiggly, "squiggled under", markRedR, markRedG, markRedB)
 }
 
 // markSelection writes one markup annotation per page the selection reaches.

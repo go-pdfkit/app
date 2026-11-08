@@ -90,6 +90,7 @@ var ribbonTabs = []struct {
 		{"Watermark", []string{"watermark"}},
 		{"Numbers", []string{"number", "bates"}},
 		{"Stamp", []string{"stamp"}},
+		{"Picture", []string{"placePicture"}},
 	}},
 	{groupFile, []verbGroup{
 		{"Clean", []string{"sanitize", "flatten", "dropAnnots", "dropOutlines"}},
@@ -105,7 +106,7 @@ var ribbonTabs = []struct {
 	{groupRead, []verbGroup{
 		{"Read", []string{"readText", "readImages", "readPage", "readTables"}},
 		{"Selected", []string{"copyText"}},
-		{"Mark up", []string{"highlight", "underline", "strikeOut"}},
+		{"Mark up", []string{"highlight", "underline", "strikeOut", "squiggle"}},
 		{"Remove", []string{"redactText"}},
 		{"Hand over", []string{"pagePicture", "zipped", "cbz", "textFile", "csvFile", "jsonFile"}},
 	}},
@@ -351,6 +352,11 @@ var verbs = map[string]verb{
 		icon: "label", large: true,
 		run: (*state).stamp,
 	},
+	"placePicture": {
+		label: "Draw a picture on them", tip: "Choose a picture and draw it where it is placed beside it, at the width beside it — a signature, a logo, a seal.",
+		icon: "media-image", large: true,
+		run: (*state).placePicture,
+	},
 
 	// File.
 	"sanitize": {
@@ -428,6 +434,12 @@ var verbs = map[string]verb{
 		label: "Strike out", tip: "Strike through the words selected on the page. The text itself is untouched.",
 		icon: "strikethrough",
 		run:  (*state).strikeSelection,
+		when: func(s *state) bool { return !s.sel.IsEmpty() },
+	},
+	"squiggle": {
+		label: "Squiggle under", tip: "Draw a wavy line under the words selected on the page — the mark that means look at this again. The text itself is untouched.",
+		icon: "sine-wave",
+		run:  (*state).squiggleSelection,
 		when: func(s *state) bool { return !s.sel.IsEmpty() },
 	},
 	// ⛔⛔ THE ONE VERB ON THIS TAB THAT DESTROYS SOMETHING, and its tip says so

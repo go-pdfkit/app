@@ -121,6 +121,10 @@ type tools struct {
 	stamp    *mvvm.Observable[string] // what a stamp says
 	at       *mvvm.Observable[int]    // where on the page it goes
 	size     *mvvm.Observable[int]    // how large, in points
+	// wide is how wide a PLACED PICTURE is drawn, in points, and it is its own
+	// box rather than `size`: that one is a font size, and 12-point type beside
+	// a 12-point logo would be two different meanings of one control.
+	wide *mvvm.Observable[int]
 
 	// The File group.
 	title, author *mvvm.Observable[string]
@@ -169,14 +173,20 @@ func newTools() *tools {
 		stamp:       mvvm.NewObservable("COPY"),
 		at:          mvvm.NewObservable(0),
 		size:        mvvm.NewObservable(12),
-		title:       mvvm.NewObservable(""),
-		author:      mvvm.NewObservable(""),
-		openPw:      mvvm.NewObservable(""),
-		userPw:      mvvm.NewObservable(""),
-		ownerPw:     mvvm.NewObservable(""),
-		allow:       everythingAllowed(),
-		reading:     mvvm.NewObservable(""),
-		picture:     mvvm.NewObservable(0),
+		// 144 points is two inches: a signature or a logo on a letter, which is
+		// what a placed picture nearly always is. ⛔ NOT ops' own default, which
+		// is one point per pixel — right for `Picture`, where the picture IS the
+		// page, and wrong here, where a 1000-pixel logo would be laid down 1000
+		// points wide and run off the paper.
+		wide:    mvvm.NewObservable(144),
+		title:   mvvm.NewObservable(""),
+		author:  mvvm.NewObservable(""),
+		openPw:  mvvm.NewObservable(""),
+		userPw:  mvvm.NewObservable(""),
+		ownerPw: mvvm.NewObservable(""),
+		allow:   everythingAllowed(),
+		reading: mvvm.NewObservable(""),
+		picture: mvvm.NewObservable(0),
 	}
 }
 
@@ -607,8 +617,26 @@ func (s *state) withAnother(said string, join func(d, other *ops.Doc) error) {
 	s.host.Open(func(name string, data []byte) {
 		other, err := ops.Open(data)
 		if err != nil {
-			s.fail("cannot open " + name + ": " + err.Error())
-			return
+			// ⛔⛔ THE SECOND FILE IS WHATEVER THE FIRST ONE MAY BE. There is one
+			// file dialog and one filter list behind it, so the moment Open
+			// accepted a picture, a drawing and a comic archive, this chooser
+			// started offering them too — and this refused them, which is the
+			// SECOND direction of the gate in opened.go: a file the dialog shows
+			// and the code will not take is a file somebody chose for nothing.
+			//
+			// It is also the useful behaviour. Putting a scan after a document,
+			// laying a signature over a page and interleaving a photographed
+			// back page are the three things anybody would try.
+			from, tried := s.documentFrom(data)
+			if !tried {
+				s.fail("cannot open " + name + ": " + err.Error())
+				return
+			}
+			if from.doc == nil {
+				// The arm that recognised it has already said why.
+				return
+			}
+			other = from.doc
 		}
 		s.changeSaying(said+" "+name, func(d *ops.Doc) error { return join(d, other) })
 	})
