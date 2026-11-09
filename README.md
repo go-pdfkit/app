@@ -507,10 +507,19 @@ two controls away: a reader drags across a passage and the verb has to be where
 their eye already is. A redaction they had to go and find on another tab is one
 they would do with a rectangle instead, which is the thing this exists to stop.
 
+**A picture the region crosses is taken apart rather than covered.** Since
+[ops v0.35.0](https://github.com/go-pdfkit/ops/releases/tag/v0.35.0) the samples
+under the region are **destroyed** and the picture written back, which is what
+ISO 32000-1 §12.5.6.23 asks for — *"clipping or image masks shall not be used to
+hide that data"*. That is done for a picture whose samples are plain, eight bits
+a component, in `DeviceGray` or `DeviceRGB`, drawn upright and drawn once; the
+rest — a JPEG, a turned one, one drawn twice, one carrying a mask — are refused
+**by name**, with the reason, so the reader learns which kind of page they have.
+
 ⛔ **And it refuses, out loud, where it cannot remove the words completely.**
 [`ops.Doc.Redact`](https://github.com/go-pdfkit/ops) will not take out text that
-is inside a form, across an image, under an annotation, or drawn by an operator
-that also draws words outside the selection — and its message goes to the status
+is inside a form, under an annotation, or drawn by an operator that also draws
+words outside the selection — and its message goes to the status
 line unchanged, because that message is the useful part. A reader told *"this
 line is drawn in one piece, and taking it would take more than you asked for"*
 can select the whole line instead. A workbench that swallowed the refusal and
