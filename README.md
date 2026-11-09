@@ -97,8 +97,8 @@ What each tab commands, and what its panel holds:
 - **Marks** — a watermark, page numbers in a shape you choose, a Bates number
   padded and started where you say, and a stamp in one of nine places.
 - **File** — sanitize, flatten the annotations in, drop the annotations or what
-  the file says about itself, pack it smaller, give it a
-  title and an author, and **show** what it already says: every entry of its
+  the file says about itself, pack it smaller, give it a title, an author, a
+  subject, keywords, a creator and a producer, and **show** what it already says: every entry of its
   information dictionary, how big each page is, and whether its structure had
   to be rebuilt to read it. Files travelling inside the document are listed
   here too, with a way of putting one in, taking one out or dropping it.
@@ -534,6 +534,29 @@ Three details it has to get right:
   to do about it — Saving writes the rebuilt document — because repair is
   something a PDF reader does on the way *in*, so a button offering to do it
   would be offering something that already happened.
+
+### And then it could read and could only half write
+
+The File panel showed the file's **Subject**, **Keywords**, **Creator** and
+**Producer** as labels while *Say so in the file* wrote the title and the author
+— four entries of the document's own information dictionary sitting there
+read-only for no reason but that nothing had been wired to them. They are boxes
+now, and the verb writes all six.
+
+- **the boxes are filled from the UNCUT value.** The panel clips what it shows
+  to 120 runes and an ellipsis, which is right for a label and destructive for a
+  box that gets written back: a long title would have come back as the ellipsis
+  the panel drew. Showing and editing are two readings of the same entry, and
+  only one of them may be abridged.
+- **an entry longer than that is shown and not offered**, under a caption saying
+  so, and its value is still loaded — so writing the other boxes puts it back
+  exactly as it came. A file may carry a subject a megabyte long; no box can
+  usefully hold one, and silently cutting it down by way of displaying it is the
+  same bug one step along.
+- **the two dates are shown as the file wrote them.** A PDF date is
+  `D:YYYYMMDDHHmmSSOHH'mm` (ISO 32000-1, 7.9.4) and nothing in this fleet parses
+  one, so a box to type a date into is a box in which a reader writes something
+  no PDF reader will show. *Drop what it says about itself* is how they go.
 
 ## Writing the table of contents
 

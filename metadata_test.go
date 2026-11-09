@@ -139,6 +139,11 @@ func TestThePanelShowsWhatElseTheFileSays(t *testing.T) {
 	d.SetInfo("Subject", "What it is about")
 	d.SetInfo("Creator", "The program that made it")
 	d.SetInfo("Producer", "The library that wrote it")
+	// ⛔ A DATE AS THE FILE WROTE IT (ISO 32000-1, 7.9.4). It is shown and not
+	// offered as a box: nothing in this fleet parses one, so a box to type a
+	// date into is a box in which a reader writes something no PDF reader will
+	// show.
+	d.SetInfo("CreationDate", "D:20260101120000+01'00'")
 	out, err := docBytes(d)
 	if err != nil {
 		t.Fatal(err)
@@ -146,19 +151,96 @@ func TestThePanelShowsWhatElseTheFileSays(t *testing.T) {
 	s := openedWith(t, out)
 	s.draw(buffer())
 
-	// ⛔ The VALUES. A FormField draws its own caption and does not hold it as
-	// a child label, so this walk cannot see "Subject" — the same caption
-	// mechanism the Title and Author rows have always used. What it can see is
-	// what the file said, which is the part that was missing.
-	said := joined(s.fileGroup().box)
+	// ⛔ IN THE BOXES, which is where they moved: for a while these were labels,
+	// and the panel displayed four entries of the file's own information
+	// dictionary that nobody could change. A FormField draws its own caption
+	// and does not hold it as a child widget, so neither this walk nor the one
+	// over the labels can see "Subject"; what they can see is what the file
+	// said, which is the part that matters.
+	var typed []string
+	for _, e := range entriesIn(s.fileGroup().box) {
+		typed = append(typed, e.Text().Get())
+	}
+	said := strings.Join(typed, "\n")
 	for _, want := range []string{
 		"What it is about",
 		"The program that made it",
 		"The library that wrote it",
 	} {
 		if !strings.Contains(said, want) {
-			t.Errorf("the panel does not say %q; it says:\n%s", want, said)
+			t.Errorf("no box in the panel holds %q; they hold:\n%s", want, said)
 		}
+	}
+	if shown := joined(s.fileGroup().box); !strings.Contains(shown, "D:20260101120000+01'00'") {
+		t.Errorf("the panel does not show the file's own creation date; it shows:\n%s", shown)
+	}
+}
+
+// TestTheFourOtherEntriesAreWrittenBack is the verb behind those boxes: the
+// panel showed them for four versions and `Say so in the file` wrote only the
+// title and the author, so the subject a reader typed went nowhere.
+func TestTheFourOtherEntriesAreWrittenBack(t *testing.T) {
+	s := openedWith(t, describedPDF(t, "A title", "Someone"))
+	s.draw(buffer())
+
+	s.tools.info["Subject"].Set("What it is about")
+	s.tools.info["Keywords"].Set("one two three")
+	s.tools.info["Creator"].Set("The program that made it")
+	s.tools.info["Producer"].Set("The library that wrote it")
+	s.setInfo()
+
+	for _, c := range []struct{ key, want string }{
+		{"Subject", "What it is about"},
+		{"Keywords", "one two three"},
+		{"Creator", "The program that made it"},
+		{"Producer", "The library that wrote it"},
+		// ⛔ And the two the panel never touched are still there, because every
+		// box is written every time and these were filled when the file opened.
+		{"Title", "A title"},
+		{"Author", "Someone"},
+	} {
+		if got := s.infoFull(reader.Name(c.key)); got != c.want {
+			t.Errorf("after writing, %s reads %q, want %q", c.key, got, c.want)
+		}
+	}
+}
+
+// TestAnEntryTooLongToEditIsNotCutDownByWritingTheOthers is the trap this verb
+// walks past: the panel clips a value to show it, and `Say so in the file`
+// writes every box. A box filled from the CLIPPED text would turn the file's
+// own two-thousand-character subject into a hundred and twenty runes and an
+// ellipsis, by way of displaying it.
+func TestAnEntryTooLongToEditIsNotCutDownByWritingTheOthers(t *testing.T) {
+	long := strings.Repeat("long ", 400)
+	d, err := ops.OpenWithPassword(samplePDF(t, 2), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.SetInfo("Subject", long)
+	out, err := docBytes(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := openedWith(t, out)
+	s.draw(buffer())
+
+	// The precondition: it IS too long to be offered as a box, so this test is
+	// about the value surviving and not about a box nobody filled.
+	if tooLong, _ := s.infoTooLongToEdit("Subject"); !tooLong {
+		t.Fatalf("a %d-rune subject was offered as a box; this test needs one that is not",
+			len([]rune(long)))
+	}
+	// And the panel SAYS why there is no box for it, rather than leaving a row
+	// out and reading like a file that has no subject at all.
+	if shown := joined(s.fileGroup().box); !strings.Contains(shown, outlineEllipsis) {
+		t.Errorf("the panel shows no clipped value for the long subject; it shows:\n%s", shown)
+	}
+	s.tools.title.Set("A new title")
+	s.setInfo()
+
+	if got := s.infoFull("Subject"); got != long {
+		t.Errorf("writing the other boxes left the subject %d runes long, want %d",
+			len([]rune(got)), len([]rune(long)))
 	}
 }
 
