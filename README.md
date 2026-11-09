@@ -80,6 +80,14 @@ sits in the panel beside the page. A tab **is** a panel: choosing **Marks**
 opens the Marks settings beside the page, because a group of verbs and the
 settings those verbs read are the same subject seen twice.
 
+⛔ **A panel can be full, and the Pages panel is.** *Turn them by an angle* —
+the verb that takes the angles the cycle button cannot say — was first given a
+row of its own, and `TestNoPanelOverflowsTheRoomItIsGiven` reported the panel
+laid out **44 pixels past the bottom of its box**: the last control could only
+be scrolled to, which is a control people do not find. So the free angle shares
+the turning row with the cycle, the way *Cut across* and *and down* already
+share one. The gate is why that was a measurement rather than an opinion.
+
 This replaced a strip of thirteen buttons, six of which were not verbs at all
 but switches that opened a panel of verbs — so the twenty-five things the
 library does were two presses away and named nowhere a reader could see them.
@@ -89,7 +97,8 @@ scrolling column that ran off its own bottom edge.
 What each tab commands, and what its panel holds:
 
 - **Pages** — which pages to keep or drop, turn them a quarter, a half or
-  three quarters, reverse the order, **arrange** them as a grid and put one in
+  three quarters — or **by any angle at all**, with the paper growing so no
+  corner is cut off — reverse the order, **arrange** them as a grid and put one in
   front of another, move the one on the screen by its number, crop to a box,
   put a blank page in, straighten a crooked scan, set the paper to one of six
   sheets, paint the text one colour.

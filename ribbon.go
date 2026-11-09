@@ -74,7 +74,7 @@ var ribbonTabs = []struct {
 	}},
 	{groupPages, []verbGroup{
 		{"Which pages", []string{"keep", "drop"}},
-		{"Turn", []string{"turn", "reverse"}},
+		{"Turn", []string{"turn", "turnBy", "reverse"}},
 		{"Order", []string{"arrange", "move"}},
 		{"Shape", []string{"crop", "insert", "dropBlank", "deskew", "resize"}},
 		{"Ink", []string{"recolour"}},
@@ -262,6 +262,17 @@ var verbs = map[string]verb{
 		label: "Turn them", tip: "Turn the pages the range names by the quarter chosen beside it.",
 		icon: "crop-rotate-tr", large: true,
 		run: (*state).turnRange,
+	},
+	// ⛔ ITS OWN VERB, BESIDE `Turn them` RATHER THAN INSTEAD OF IT. The two do
+	// different things to the file: a quarter turn is a number written on the
+	// page, and any other angle rewrites the page onto a bigger sheet. The
+	// quarter is what almost everybody means, and it would be a poor trade to
+	// make them type 90 into a box to get it — so the cycle button keeps the
+	// three quarters, and this takes the angles it cannot say.
+	"turnBy": {
+		label: "Turn them by an angle", tip: "Turn the pages the range names by the angle beside it, clockwise. The paper grows so no corner is cut off.",
+		icon: "angle-tool",
+		run:  (*state).turnByAngle,
 	},
 	"reverse": {
 		label: "Reverse the order", tip: "Put the pages in the opposite order.",
