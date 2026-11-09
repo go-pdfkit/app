@@ -261,7 +261,7 @@ var verbs = map[string]verb{
 		run:  (*state).dropBlank,
 	},
 	"split": {
-		label: "Split and hand them over", tip: "Hand over one file per piece. What is open is not changed.",
+		label: "Split and hand them over", tip: "Hand the pieces over in one zip, or as a PDF when there is only one piece. What is open is not changed.",
 		icon: "scissor", large: true,
 		run: (*state).split,
 	},

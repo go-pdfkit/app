@@ -16,6 +16,8 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"fmt"
 	"strconv"
 	"strings"
@@ -627,8 +629,20 @@ func (s *state) insertBlank() {
 		func(d *ops.Doc) error { return d.InsertBlank(at) })
 }
 
-// split hands over one file per piece. Nothing is changed here: what was open
-// stays open, and the pieces are copies of it.
+// split hands the pieces over. Nothing is changed here: what was open stays
+// open, and the pieces are copies of it.
+//
+// ⛔⛔ SEVERAL PIECES GO IN ONE ZIP, and that is the whole of BentoPDF's "PDFs
+// to ZIP". This handed over one download per piece and said so itself —
+// "a browser may ask before it takes more than one" — which is an apology for
+// the verb rather than a verb: a document of two hundred pages split into
+// twenties is ten prompts, each of which can be refused separately, and the
+// person who refuses the fourth has no way of knowing which four they have.
+// `Hand over every page, zipped` had reached the same conclusion about
+// pictures; this is the same answer for documents.
+//
+// ⛔ One piece is still one PDF. A zip holding a single file is a wrapper
+// somebody has to open for nothing.
 func (s *state) split() {
 	if s.doc == nil {
 		s.fail("open a document first")
@@ -639,15 +653,31 @@ func (s *state) split() {
 		s.fail(err.Error())
 		return
 	}
+	written := make([][]byte, 0, len(parts))
 	for i, part := range parts {
 		out, perr := docBytes(part)
 		if perr != nil {
 			s.fail("part " + strconv.Itoa(i+1) + " cannot be written: " + perr.Error())
 			return
 		}
-		s.host.Save(partName(s.name, i+1), out)
+		written = append(written, out)
 	}
-	s.note = fmt.Sprintf("handed over %d files — a browser may ask before it takes more than one", len(parts))
+	if len(written) == 1 {
+		s.handOver(partName(s.name, 1), written[0])
+		return
+	}
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for i, out := range written {
+		// The zip is built in memory: Create only refuses a name already used
+		// or a writer already closed, neither of which can happen with one
+		// entry per piece, and a bytes.Buffer never fails to take bytes.
+		w, _ := zw.Create(partName(s.name, i+1))
+		w.Write(out)
+	}
+	zw.Close()
+	s.handOver(strings.TrimSuffix(saveName(s.name), "-edited.pdf")+"-pieces.zip", buf.Bytes())
+	s.note = fmt.Sprintf("handed over %d pieces in one zip", len(written))
 	s.refresh()
 }
 

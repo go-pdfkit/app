@@ -153,6 +153,32 @@ func TestABookmarkThatGoesNowhereTakesItsChildrenWithIt(t *testing.T) {
 	}
 }
 
+// TestAddingAFileAfterThisOneKeepsBOTHTablesOfContents settles a verdict rather
+// than a defect. The gap inventory said of `Add a file after this one` that
+// "the added file's bookmarks are not carried", which was read off nothing: ops
+// carries EVERY source's outline, in the order the documents first contribute a
+// page, and the only way to know which of those two sentences is true is to
+// merge two outlined documents and read the result.
+//
+// ⛔ A claim about somebody else's code, written in my own notes, is not a
+// measurement. This is the measurement.
+func TestAddingAFileAfterThisOneKeepsBOTHTablesOfContents(t *testing.T) {
+	s := openOutlined(t, 2, []mark{{"This one", 1, -1}}, nil)
+	s.host.(*fakeHost).name = "other.pdf"
+	s.host.(*fakeHost).file = writeOutlined(t, 2, []mark{{"The other one", 1, -1}}, nil)
+
+	s.merge()
+
+	if s.doc == nil || s.doc.PageCount() != 4 {
+		t.Fatalf("the merge left %q", s.note)
+	}
+	got := titlesOf(marksOf(t, s))
+	want := []string{"This one@1", "The other one@3"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("the merged document's contents are\n%v\nwant\n%v", got, want)
+	}
+}
+
 func TestATableOfContentsIsWrittenFromAFile(t *testing.T) {
 	s := openOutlined(t, 5, []mark{{"Whatever was there", 1, -1}}, nil)
 	s.host.(*fakeHost).name = "toc.txt"
