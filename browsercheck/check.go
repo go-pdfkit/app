@@ -301,6 +301,11 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 // one of them. So the files go in through DOM.setFileInputFiles, which is how
 // Open is already driven here, with two paths instead of one.
 func mergeTakesSeveralFiles(ctx context.Context, c *conn, sid, sample string, was int, dl string, notThis []byte) error {
+	rows, err := contentsOf(ctx, c, sid)
+	if err != nil {
+		return err
+	}
+	wasRows := len(rows)
 	at, err := controls(ctx, c, sid)
 	if err != nil {
 		return err
@@ -335,6 +340,35 @@ func mergeTakesSeveralFiles(ctx context.Context, c *conn, sid, sample string, wa
 	}
 	fmt.Printf("the merge verb's picker opened and was handed %s twice\n", filepath.Base(sample))
 
+	// ⛔⛔ WAIT FOR THE MERGE BEFORE PRESSING SAVE. Handing the files over is
+	// not the merge happening: a browser reads each one through a promise, so
+	// the verb finishes some time after setFileInputFiles returns. The first
+	// version of this pressed Save at once and PASSED on an ordinary display
+	// and FAILED on a Retina one, where everything is slower — it saved the
+	// document as it was, three pages, and called that the merge's answer. A
+	// check whose result depends on which display it runs on is measuring the
+	// display.
+	//
+	// The contents pane is the signal, and it is read as "MORE THAN BEFORE"
+	// rather than as a number: what it lists is this sample's LINKS, not its
+	// pages, and how many of them survive a merge is the library's business
+	// rather than this check's. The page count is asserted below, on the file
+	// itself, which is where that question belongs.
+	want := was * 3
+	if err := until(ctx, 20*time.Second, func() (bool, error) {
+		rows, err := contentsOf(ctx, c, sid)
+		if err != nil {
+			return false, nil
+		}
+		return len(rows) > wasRows, nil
+	}); err != nil {
+		say(c)
+		rows, _ := contentsOf(ctx, c, sid)
+		return fmt.Errorf("after two files were chosen the contents pane still lists %d rows, "+
+			"as it did before them: the merge never happened", len(rows))
+	}
+	fmt.Println("the contents pane grew, so the merge landed before Save was pressed")
+
 	at, err = controls(ctx, c, sid)
 	if err != nil {
 		return err
@@ -351,7 +385,7 @@ func mergeTakesSeveralFiles(ctx context.Context, c *conn, sid, sample string, wa
 	if err != nil {
 		return fmt.Errorf("what the tab saved after the merge does not open: %w", err)
 	}
-	if got, want := back.PageCount(), was*3; got != want {
+	if got := back.PageCount(); got != want {
 		return fmt.Errorf("merging two copies of a %d-page document gave %d pages, want %d",
 			was, got, want)
 	}
