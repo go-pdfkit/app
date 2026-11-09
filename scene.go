@@ -218,6 +218,9 @@ type state struct {
 	// state of the GESTURE rather than of the document: a press picks a page up
 	// and the press after it says where that page goes.
 	held int
+	// grid is the arranging grid's tiles with the page each stands for, kept so
+	// that a press can be answered after the layout has given them rectangles.
+	grid []gridTile
 	note string
 
 	// dirty says something has changed since the canvas last showed it. A

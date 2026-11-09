@@ -288,6 +288,57 @@ func TestPickingAPageUpMakesItThePageTheVerbsActOn(t *testing.T) {
 	}
 }
 
+// TestThePageMenuOpensOverAGridTile is the rest of what a multi-tool grid is
+// for: turning or dropping the page you can SEE, without leaving the view that
+// shows you which it is.
+//
+// ⛔ The grid REPLACES the pages with tiles, so without this the one view that
+// shows every page at once was the one view where the page menu did not open.
+func TestThePageMenuOpensOverAGridTile(t *testing.T) {
+	s := arranged(t, 5)
+	s.draw(buffer())
+	tiles := tilesIn(s.shown)
+	if len(tiles) != 5 {
+		t.Fatalf("the grid shows %d tiles", len(tiles))
+	}
+	r := tiles[3].Bounds() // page 4
+
+	if !s.handleContext(r.X+r.W/2, r.Y+r.H/2) {
+		t.Fatal("a secondary press on a grid tile was not answered")
+	}
+	if s.menu == nil {
+		t.Fatal("no menu opened over a grid tile")
+	}
+	got := menuLabels(s)
+	if len(got) == 0 || got[0] != "Page 4" {
+		t.Fatalf("the menu offers %v; its first row should name page 4", got)
+	}
+	// ⛔ And the menu went to that page first, so its verbs — and the ribbon's —
+	// act on the tile that was pressed rather than on whatever was being read.
+	if s.at != 4 {
+		t.Errorf("the menu says page 4 and the workbench is on %d", s.at)
+	}
+	// The grid is still the view: a menu is not a reason to put it away.
+	if s.tools.reading.Get() != readingArrange {
+		t.Errorf("opening the menu left the reading as %q", s.tools.reading.Get())
+	}
+}
+
+// TestASecondaryPressAwayFromEveryTileOpensNothing: a menu about a page has to
+// be about a page.
+func TestASecondaryPressAwayFromEveryTileOpensNothing(t *testing.T) {
+	s := arranged(t, 3)
+	s.draw(buffer())
+
+	// The strip of ribbon at the very top is over no tile and no minipage.
+	if !s.handleContext(surfaceW/2, 2) {
+		t.Fatal("a secondary press must be answered wherever it lands")
+	}
+	if s.menu != nil {
+		t.Errorf("a menu opened over the ribbon, offering %v", menuLabels(s))
+	}
+}
+
 // TestTheGridIsGreyedForADocumentOfOnePage: there is nothing to arrange.
 func TestTheGridIsGreyedForADocumentOfOnePage(t *testing.T) {
 	s, _ := opened(t, 1)

@@ -110,6 +110,14 @@ func (s *state) pageUnder(x, y int) (int, bool) {
 	if page, ok := s.tileUnder(x, y); ok {
 		return page, true
 	}
+	// ⛔ The arranging grid answers too, and it has to: that view REPLACES the
+	// pages with tiles, so without this the one place a reader can see every
+	// page at once is the one place the page menu did not open — and turning or
+	// dropping the page they are looking at meant leaving the view that showed
+	// them which it was.
+	if page, ok := s.gridUnder(x, y); ok {
+		return page, true
+	}
 	if b := s.pv.Bounds(); b.Contains(x, y) {
 		// PageAt wants a point local to the widget and answers 0 for the
 		// toolbar strip, a gap between cards or the scrollbar gutter — all of
