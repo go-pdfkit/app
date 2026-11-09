@@ -85,12 +85,25 @@ const (
 	// of it, which is why each of its verbs carries a warning the others do not
 	// need, and the two spinners and the ground chooser are what it is told.
 	groupRedraw = "Redraw"
+	// ⛔⛔ CONTENTS IS A TAB BECAUSE THE GATE REFUSED THE FOURTH SPLIT OF THE
+	// FILE TAB. Writing the bookmarks needed two verbs beside `Drop the
+	// bookmarks`, and a fifth group on File took Sanitize, Flatten and `Drop
+	// every annotation` down to 28 pixels with no words on them — the same
+	// measurement that produced `Hand over`, `Mark up` and `Redraw`, firing for
+	// the third tab in two days. The gate names the fix in its own message:
+	// split the tab.
+	//
+	// The line to split on was in the groups again. Clean, `Files inside` and
+	// Size are what a file is stripped of and how big it ends up; a reader
+	// deciding what a document's table of contents SAYS is asking about the
+	// document, and the rail beside them is already showing the answer.
+	groupContents = "Contents"
 )
 
 // groupNames is the order they are offered in.
 var groupNames = []string{
-	groupPages, groupSheet, groupMarks, groupFile, groupRedraw, groupProtect,
-	groupRead, groupMarkUp, groupHandOver,
+	groupPages, groupSheet, groupMarks, groupFile, groupContents, groupRedraw,
+	groupProtect, groupRead, groupMarkUp, groupHandOver,
 }
 
 // tools is the tool panel: which group is open, the widgets of every group
@@ -270,6 +283,8 @@ func (s *state) body() toolkit.Widget {
 		rows = s.marksGroup()
 	case groupProtect:
 		rows = s.protectGroup()
+	case groupContents:
+		rows = s.contentsGroup()
 	case groupRead:
 		rows = s.readGroup()
 	case groupMarkUp:

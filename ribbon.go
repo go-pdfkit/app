@@ -93,10 +93,18 @@ var ribbonTabs = []struct {
 		{"Picture", []string{"placePicture"}},
 	}},
 	{groupFile, []verbGroup{
-		{"Clean", []string{"sanitize", "flatten", "dropAnnots", "dropOutlines"}},
+		{"Clean", []string{"sanitize", "flatten", "dropAnnots"}},
 		{"Files inside", []string{"attach", "showCarried"}},
 		{"Size", []string{"compress"}},
 		{"About it", []string{"setInfo", "showInfo", "clearInfo"}},
+	}},
+	{groupContents, []verbGroup{
+		// ⛔ `dropOutlines` CAME HERE OUT OF CLEAN, where it was the only thing
+		// the workbench could do to a table of contents. Clean is what a file is
+		// stripped of before it is sent; a reader deciding what the bookmarks
+		// should SAY is asking a different question, and the three answers to it
+		// belong together — the ribbon's own rule is one command on one tab.
+		{"Bookmarks", []string{"bookmarkPage", "bookmarksFromFile", "dropOutlines"}},
 	}},
 	{groupRedraw, []verbGroup{
 		// ⛔ "The pixels", not "Redraw": a group may not be named like its own
@@ -410,6 +418,22 @@ var verbs = map[string]verb{
 		label: "Drop every annotation", tip: "Remove every note, highlight and form field.",
 		icon: "trash",
 		run:  (*state).dropAnnots,
+	},
+	// ⛔ THE GROUP LEADS WITH THE ONE THAT WRITES, not with the one that drops.
+	// `Drop the bookmarks` was the only thing this workbench could do to a table
+	// of contents for twelve versions: the rail showed one and the ribbon could
+	// delete it. A group whose large control is the destructive one says that is
+	// the main thing to do here, and it is not.
+	"bookmarkPage": {
+		label: "Bookmark this page", tip: "Add a bookmark for the page on the screen, keeping the ones the document already has. Select a passage first and it is titled with those words and points at the page they are on.",
+		icon: "bookmark-circle", large: true,
+		run: (*state).bookmarkPage,
+	},
+	"bookmarksFromFile": {
+		label: "Bookmarks from a file", tip: "Replace the table of contents with one written as text: a title, a tab and a page number a line, two spaces of indent for each level under another — the file `pdfops outline -from` takes.",
+		icon: "numbered-list-left",
+		run:  (*state).bookmarksFromFile,
+		when: func(s *state) bool { return s.doc != nil },
 	},
 	"dropOutlines": {
 		label: "Drop the bookmarks", tip: "Remove the table of contents a reader navigates by.",
