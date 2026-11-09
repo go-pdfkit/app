@@ -52,6 +52,12 @@ func (s *state) markUpGroup() *column {
 	box.add(s.commentRow(), labelledH())
 	box.add(s.entryRow("Replace with", "what the page should say instead",
 		s.tools.replacement), labelledH())
+	// The two boxes a field is made from: what it is called, and what it takes.
+	// An empty name means "the words themselves", which is what a question on a
+	// printed form already is.
+	box.add(s.entryRow("Field name", "the selected words, if left empty", s.tools.fieldName), labelledH())
+	box.add(s.chooseRow("A field that takes", fieldKindNames(), s.tools.fieldKind), labelledH())
+
 	box.add(toolkit.NewLabel("Drag across words on the page first. "+
 		"Everything here is written into the document."), bareH())
 	return box

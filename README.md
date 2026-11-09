@@ -581,6 +581,38 @@ now, and the verb writes all six.
   one, so a box to type a date into is a box in which a reader writes something
   no PDF reader will show. *Drop what it says about itself* is how they go.
 
+## Turning a printed form into one somebody can fill in
+
+`Fill in` has filled the fields a document already carries since the form panel
+existed, and `ops.AddFields` has been able to **put** fields into a document for
+as long — `pdfops addfields -fields <description.json>` is the command for it.
+Nothing in the workbench called it: a capability written, tested, released and
+unreachable from the only interface most people will ever use. That is the gap
+inventory's *Create Fillable Forms* row.
+
+**Make a field for this**, on the Mark up tab, puts a fillable field under the
+words you selected. A blank printed form is a page of **questions** — *Surname*,
+*Date of birth* — and what somebody wants is a box to answer each in, so
+selecting the question names the field and places it in one gesture. A box to
+type in, or a tick; the kind is chosen beside it.
+
+- **the name is the words, without the punctuation.** A field's name travels
+  outside the document — into exported data, into whatever script fills the form
+  — and a name holding a colon or a bracket is one every reader of it has to
+  quote. `Surname:` becomes `Surname`. A name typed in the box is cleaned the
+  same way, for the same reason, and one that cleans down to nothing is a
+  refusal rather than a quiet fall back on the words: somebody typed that on
+  purpose.
+- **under the words, or above them at the foot of the page** — each candidate
+  **checked** against the paper rather than clamped onto it, which is the lesson
+  a sticky note taught: a field clamped to the bottom edge of a page whose last
+  line is four points from it would be drawn across the very words it answers.
+- **a tick is a square.** A checkbox as wide as the question it follows is a box
+  nobody reads as a checkbox.
+- **a second field of the same name is refused by the library**, and the refusal
+  is the useful answer: two fields under one name is a form that has lost one of
+  them.
+
 ## Putting the pages in another order by looking at them
 
 `Move it there` has moved a page since the Pages tab existed — by its **number**,
@@ -828,6 +860,9 @@ The gate now measures **width** too, and the first run of it found the **File
 tab already in that state** — six controls shrunk by the redraw group added in
 v0.32.0 and shipped without anyone looking. Two splits followed:
 
+- **Make a field for this** is there too: a fillable field under the selected
+  words, which is *Create Fillable Forms* and was reachable only from the
+  command line.
 - **Mark up** is its own tab: the marks, the shapes, the comments and the two
   verbs that alter the text, with the boxes they read. Read keeps what answers
   *"what does this page say"* — read it, search it, copy it — and its panel can
