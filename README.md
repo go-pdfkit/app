@@ -645,6 +645,12 @@ view answers and a mark meaning both would answer neither.
 - **leaving the grid lets go of what was held**, whichever reading is asked for
   next. A page held in a view nobody is looking at is a move the next press would
   finish by surprise.
+- **the page menu opens over a tile.** A secondary press on one names that page
+  and offers what the ribbon offers for a single page — turn it, drop it, put a
+  blank one in front of it, hand it over, read it. The grid *replaces* the pages
+  with tiles, so without that the one view showing every page at once was the one
+  view where the menu did not open, and turning the page you were looking at
+  meant leaving the view that showed you which it was.
 - **the page picked up is the page the verbs act on.** Rotate, Delete, Crop and
   the rest act on *the page*, so without that a reader who could **see** the
   upside-down page in the grid still had to find it again in the rail to turn

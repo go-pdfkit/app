@@ -58,12 +58,21 @@ func (s *state) arrangeView(src *reader.Document) toolkit.Widget {
 	across := max(1, (wide+thumbGap)/(s.picW()+thumbGap))
 	col := newColumn()
 	col.add(toolkit.NewLabel(s.arrangeSays(n)), bareH())
+	// ⛔ THE TILES ARE REMEMBERED WITH THEIR PAGE NUMBERS, because a press is
+	// answered long after this builds them: the page menu asks "which page is
+	// under this point", and reading the number back off a tile's LABEL would be
+	// a second spelling of the same fact, two files apart. A widget knows its
+	// own rectangle once it has been laid out; what it does not know is which
+	// page it stands for, so that is what is kept beside it.
+	s.grid = s.grid[:0]
 	for i := 1; i <= n; i += across {
 		row := toolkit.NewHBox()
 		row.Spacing = thumbGap
 		tall := 0
 		for j := i; j < i+across && j <= n; j++ {
-			row.AddFixed(s.arrangeTile(j, n), s.picW())
+			th := s.arrangeTile(j, n)
+			s.grid = append(s.grid, gridTile{page: j, at: th})
+			row.AddFixed(th, s.picW())
 			if h := s.tileH(src, j); h > tall {
 				tall = h
 			}
@@ -71,6 +80,32 @@ func (s *state) arrangeView(src *reader.Document) toolkit.Widget {
 		col.add(row, tall)
 	}
 	return col.scrollerOf(wide)
+}
+
+// A gridTile is one tile of the arranging grid and the page it stands for.
+type gridTile struct {
+	page int
+	at   toolkit.Widget
+}
+
+// gridUnder is the page whose tile is under the point, if the grid is the view
+// and the point is on one of its tiles.
+//
+// ⛔ It is what lets the PAGE MENU work in the grid, and the menu is the whole
+// of BentoPDF's multi-tool that the grid did not already answer: turn this one,
+// drop that one, without leaving the view that shows which is which. The menu
+// goes to the page it names first, so every verb on it — and every verb on the
+// ribbon after it — acts on the tile that was pressed.
+func (s *state) gridUnder(x, y int) (int, bool) {
+	if s.tools.reading.Get() != readingArrange {
+		return 0, false
+	}
+	for _, t := range s.grid {
+		if t.at.Bounds().Contains(x, y) {
+			return t.page, true
+		}
+	}
+	return 0, false
 }
 
 // arrangeSays is the line above the grid: what to do, or what is held and what
