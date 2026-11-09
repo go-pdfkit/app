@@ -282,7 +282,7 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 	}
 	fmt.Println("the mark written from the ribbon is in the saved file")
 
-	if err := mergeTakesSeveralFiles(ctx, c, sid, sample, doc.PageCount(), dl, again); err != nil {
+	if err := mergeTakesSeveralFiles(ctx, c, sid, sample, doc.PageCount(), dl); err != nil {
 		return err
 	}
 
@@ -300,7 +300,7 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 // page hands it one: a picker that opened and never called back would pass every
 // one of them. So the files go in through DOM.setFileInputFiles, which is how
 // Open is already driven here, with two paths instead of one.
-func mergeTakesSeveralFiles(ctx context.Context, c *conn, sid, sample string, was int, dl string, notThis []byte) error {
+func mergeTakesSeveralFiles(ctx context.Context, c *conn, sid, sample string, was int, dl string) error {
 	rows, err := contentsOf(ctx, c, sid)
 	if err != nil {
 		return err
@@ -376,21 +376,55 @@ func mergeTakesSeveralFiles(ctx context.Context, c *conn, sid, sample string, wa
 	if err := pressControl(ctx, c, sid, at, "save"); err != nil {
 		return err
 	}
-	merged, err := waitForPDF(ctx, dl, notThis, 20*time.Second)
+	// ⛔⛔ WAITED FOR BY ITS PAGE COUNT, not by "a PDF that is not that one".
+	// waitForPDF answers with the first file in the download directory whose
+	// bytes differ from the one named — and by now that directory holds every
+	// save this check has made, so it can answer with an EARLIER one and the
+	// assertion then reads a document from before the merge. It did exactly
+	// that on main at 13ec97ca, after the contents pane had already said the
+	// merge landed: "gave 3 pages, want 9". The thing being asserted is the
+	// page count, so the page count is what the wait is bound to.
+	merged, seen, err := waitForPages(ctx, dl, want, 20*time.Second)
 	if err != nil {
 		say(c)
-		return fmt.Errorf("the merge of two files handed nothing back: %w", err)
+		return fmt.Errorf("merging two copies of a %d-page document never handed back %d pages "+
+			"(the files offered held %v): %w", was, want, seen, err)
 	}
-	back, err := reader.Open(merged)
-	if err != nil {
-		return fmt.Errorf("what the tab saved after the merge does not open: %w", err)
-	}
-	if got := back.PageCount(); got != want {
-		return fmt.Errorf("merging two copies of a %d-page document gave %d pages, want %d",
-			was, got, want)
-	}
-	fmt.Printf("two files chosen at once became %d pages from %d\n", back.PageCount(), was)
+	fmt.Printf("two files chosen at once became %d pages from %d\n", merged, was)
 	return nil
+}
+
+// waitForPages waits for a PDF in the download directory with exactly that many
+// pages, and says what it saw while waiting.
+//
+// ⛔ Every file is re-read on every pass rather than remembered: a download
+// arrives as a part-written file that may parse and then grow, so a file judged
+// once and skipped for ever is a file judged before it was finished.
+func waitForPages(ctx context.Context, dl string, want int, patience time.Duration) (int, []int, error) {
+	var seen []int
+	err := until(ctx, patience, func() (bool, error) {
+		seen = seen[:0]
+		files, _ := os.ReadDir(dl)
+		for _, f := range files {
+			b, err := os.ReadFile(filepath.Join(dl, f.Name()))
+			if err != nil || len(b) < 4 || string(b[:4]) != "%PDF" {
+				continue
+			}
+			doc, err := reader.Open(b)
+			if err != nil {
+				continue
+			}
+			seen = append(seen, doc.PageCount())
+			if doc.PageCount() == want {
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+	if err != nil {
+		return 0, seen, err
+	}
+	return want, seen, nil
 }
 
 // A contentsRow is one row of the contents pane as the workbench publishes it.
