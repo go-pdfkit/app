@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/go-pdfkit/ops"
+	"github.com/go-widgets/toolkit"
 )
 
 // places is where a stamp can sit, in the words somebody would use, and in the
@@ -40,10 +41,10 @@ func placeNames() []string {
 	return out
 }
 
-// marksGroup is the panel.
+// marksGroup is the panel beside the marks written across every page by a rule.
 func (s *state) marksGroup() *column {
 	box := newColumn()
-	box.add(s.entryRow("Which pages", "1-3,7 — empty means all of them", s.tools.markSpec), labelledH())
+	box.add(s.whichPages(), labelledH())
 
 	box.add(s.entryRow("Watermark", "what it says", s.tools.mark), labelledH())
 	box.add(s.entryRow("Page numbers", "{page} and {pages} are filled in", s.tools.numbers), labelledH())
@@ -53,6 +54,14 @@ func (s *state) marksGroup() *column {
 		s.spinRow("Starting at", 1, s.tools.start),
 		s.spinRow("Padded to", 1, s.tools.digits),
 	), labelledH())
+	return box
+}
+
+// stampGroup is the panel beside the marks put at a place of the reader's
+// choosing: a stamp, a header and a footer, a picture.
+func (s *state) stampGroup() *column {
+	box := newColumn()
+	box.add(s.whichPages(), labelledH())
 
 	// ⛔ THE HINT NAMES THE TOKENS, because the stamp has always filled them in
 	// and nothing said so. ops.expand runs over EVERY stamp's text, not only a
@@ -66,12 +75,32 @@ func (s *state) marksGroup() *column {
 		s.spinRow("Points", 4, s.tools.size),
 	), labelledH())
 
+	// The header and the footer have boxes of their own rather than sharing the
+	// stamp's: they are written together, and a reader who has typed a header
+	// should not lose it by stamping something else. The size above governs all
+	// three, because it is the same question about the same page.
+	box.add(s.entryRow("Header", "the line at the top — {page} too", s.tools.header), labelledH())
+	box.add(s.entryRow("Footer", "the line at the foot", s.tools.footer), labelledH())
+
 	// `Where it goes` above is shared with the picture on purpose: it is the
 	// same question about the same page, and two choosers holding the same nine
 	// answers would be two things to keep in step for a reader who thinks of it
 	// as one. The width is the picture's own, so it has a box of its own.
 	box.add(s.spinRow("Picture width", 12, s.tools.wide), labelledH())
 	return box
+}
+
+// whichPages is the range both panels act on, shown on both and bound to ONE
+// datum.
+//
+// ⛔ ONE DATUM AND TWO BOXES, which is the opposite of the Pages panel's rule
+// and right for the same reason. The Pages box asks a different question from
+// this one — which pages to KEEP, against which pages to MARK — so they are
+// two values. Marks and Stamp ask the same question, split across two tabs for
+// room; a reader who typed 1-3 before stamping must not find it gone after
+// choosing the other tab, and the two-way binding keeps both boxes showing it.
+func (s *state) whichPages() toolkit.Widget {
+	return s.entryRow("Which pages", "1-3,7 — empty means all of them", s.tools.markSpec)
 }
 
 // marked is the range the Marks group acts on: what was typed, or every page
@@ -123,6 +152,53 @@ func (s *state) stamp() {
 	}
 	s.changeSaying(fmt.Sprintf("stamped %s %s", spec, places[at].name),
 		func(d *ops.Doc) error { return d.Stamp(spec, mark) })
+}
+
+// headFoot puts a line at the top of the pages and a line at the foot, in one
+// change.
+//
+// ⛔ ONE PRESS FOR BOTH, which is the whole of it: `Stamp them` could already
+// write either — ops.Stamp takes nine positions and fills {page} in for any of
+// them — so a reader who wanted a header AND a footer had to stamp twice,
+// changing the box and the chooser in between, and the second press is the one
+// people forget. The verb exists because the gesture is one gesture.
+//
+// ⛔ A text left empty is not stamped. ops refuses a stamp with no text, and
+// the useful reading of an empty footer box is "no footer", not an error.
+func (s *state) headFoot() {
+	spec := s.marked()
+	head, foot := s.tools.header.Get(), s.tools.footer.Get()
+	size := float64(s.tools.size.Get())
+	if strings.TrimSpace(head) == "" && strings.TrimSpace(foot) == "" {
+		s.fail("type a header or a footer first — {page} and {pages} are filled in")
+		return
+	}
+	said := "put a header and a footer on " + spec
+	switch {
+	case strings.TrimSpace(foot) == "":
+		said = "put a header on " + spec
+	case strings.TrimSpace(head) == "":
+		said = "put a footer on " + spec
+	}
+	s.changeSaying(said, func(d *ops.Doc) error {
+		for _, m := range []struct {
+			text  string
+			where ops.Position
+		}{{head, ops.TopCenter}, {foot, ops.BottomCenter}} {
+			if strings.TrimSpace(m.text) == "" {
+				continue
+			}
+			if err := d.Stamp(spec, ops.Stamp{
+				Text:     m.text,
+				Font:     ops.Helvetica,
+				Size:     size,
+				Position: m.where,
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // placePicture draws a picture at a place on the pages: a signature on a

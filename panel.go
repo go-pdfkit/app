@@ -42,9 +42,21 @@ var (
 // it does to the file rather than by which library call it makes: somebody
 // looking for "two to a sheet" is thinking about the sheet, not about NUp.
 const (
-	groupPages   = "Pages"
-	groupSheet   = "Sheet"
-	groupMarks   = "Marks"
+	groupPages = "Pages"
+	groupSheet = "Sheet"
+	groupMarks = "Marks"
+	// ⛔⛔ STAMP IS A TAB BECAUSE THE MARKS PANEL WAS 21 PIXELS FROM ITS LIMIT.
+	// Adding a header and a footer box took it 109 pixels past the room it is
+	// given, and TestNoPanelOverflowsTheRoomItIsGiven refuses that outright:
+	// a control that can only be scrolled to is one a reader does not know is
+	// there. The split is the gate's own answer, as it was for `Hand over`,
+	// `Mark up`, `Redraw` and `Contents`.
+	//
+	// The line was in the groups: Marks writes the same thing across every page
+	// by a rule — a watermark, a page number, a running serial — and Stamp puts
+	// something at a place you CHOOSE, which is the question the `Where it goes`
+	// chooser asks and the one a picture asks too.
+	groupStamp   = "Stamp"
 	groupFile    = "File"
 	groupProtect = "Protect"
 	groupRead    = "Read"
@@ -105,7 +117,7 @@ const (
 
 // groupNames is the order they are offered in.
 var groupNames = []string{
-	groupPages, groupSheet, groupMarks, groupFile, groupContents, groupRedraw,
+	groupPages, groupSheet, groupMarks, groupStamp, groupFile, groupContents, groupRedraw,
 	groupProtect, groupRead, groupMarkUp, groupHandOver,
 }
 
@@ -178,8 +190,12 @@ type tools struct {
 	start    *mvvm.Observable[int]    // the first Bates number
 	digits   *mvvm.Observable[int]    // how many digits it is padded to
 	stamp    *mvvm.Observable[string] // what a stamp says
-	at       *mvvm.Observable[int]    // where on the page it goes
-	size     *mvvm.Observable[int]    // how large, in points
+	// header and footer are the two lines `Head and foot them` writes, which
+	// are their own boxes rather than the stamp's: a reader who has typed a
+	// header should not lose it by stamping something else.
+	header, footer *mvvm.Observable[string]
+	at             *mvvm.Observable[int] // where on the page it goes
+	size           *mvvm.Observable[int] // how large, in points
 	// wide is how wide a PLACED PICTURE is drawn, in points, and it is its own
 	// box rather than `size`: that one is a font size, and 12-point type beside
 	// a 12-point logo would be two different meanings of one control.
@@ -245,6 +261,8 @@ func newTools() *tools {
 		start:       mvvm.NewObservable(1),
 		digits:      mvvm.NewObservable(6),
 		stamp:       mvvm.NewObservable("COPY"),
+		header:      mvvm.NewObservable(""),
+		footer:      mvvm.NewObservable("{page} of {pages}"),
 		at:          mvvm.NewObservable(0),
 		size:        mvvm.NewObservable(12),
 		// 144 points is two inches: a signature or a logo on a letter, which is
@@ -292,6 +310,8 @@ func (s *state) body() toolkit.Widget {
 		rows = s.pagesGroup()
 	case groupSheet:
 		rows = s.sheetGroup()
+	case groupStamp:
+		rows = s.stampGroup()
 	case groupMarks:
 		rows = s.marksGroup()
 	case groupProtect:

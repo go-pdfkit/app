@@ -55,12 +55,14 @@ event's is the tag.
 
 ## What is on the ribbon, and what is beside the page
 
-Eleven tabs: **Home** · **Pages** · **Sheet** · **Marks** · **File** ·
-**Contents** · **Redraw** · **Protect** · **Read** · **Mark up** ·
-**Hand over**. Four of them exist because a measurement forced a split rather
-than because a list was planned: a crowded strip shrinks its controls to
-wordless 28-pixel icons, and the gate that measures their width named the fix
-in its own message. Home carries the page itself — **Rotate**,
+Twelve tabs: **Home** · **Pages** · **Sheet** · **Marks** · **Stamp** ·
+**File** · **Contents** · **Redraw** · **Protect** · **Read** · **Mark up** ·
+**Hand over**. Five of them exist because a measurement forced a split rather
+than because a list was planned. Two different gates do the forcing: a crowded
+*strip* shrinks its controls to wordless 28-pixel icons, and a crowded *panel*
+runs its last rows past the room it is given, where a control can only be
+scrolled to — which is a control a reader does not know is there. Both name the
+fix in their own message. Home carries the page itself — **Rotate**,
 **Previous**, **Next**, **Delete**, and **Fill in** for a document that carries
 a form. The arrow keys turn pages too.
 
@@ -99,8 +101,14 @@ What each tab commands, and what its panel holds:
   a grid of smaller pages, put every page onto one, print a page larger than
   the paper across several sheets, add another file after this one, lay another
   file over it, mix another file's pages in one at a time.
-- **Marks** — a watermark, page numbers in a shape you choose, a Bates number
-  padded and started where you say, and a stamp in one of nine places.
+- **Marks** — what is written across every page by a rule: a watermark, page
+  numbers in a shape you choose, a Bates number padded and started where you
+  say.
+- **Stamp** — what is put where you *choose*: a line of text in one of nine
+  places, a **header and a footer together** in one press, and a picture at a
+  place and a width — a signature, a logo, a seal. `{page}`, `{pages}` and
+  `{n}` are filled in for any of them, which is what makes a stamp at *top
+  centre* a header with a page number in it.
 - **File** — sanitize, flatten the annotations in, drop the annotations or what
   the file says about itself, pack it smaller, give it a title, an author, a
   subject, keywords, a creator and a producer, and **show** what it already says: every entry of its
@@ -939,6 +947,29 @@ Two things came out of it, and the second is the uncomfortable one:
   ambiguity is filed as
   [toolkit#543](https://github.com/go-widgets/toolkit/issues/543), because an
   API keyed by label cannot tell a fold from a coincidence.
+
+## ⛔⛔ And a panel has its own limit, which is not the strip's
+
+A header and a footer need two boxes to type them into, and adding those to the
+Marks panel took it **109 pixels past the room it is given**. The strip was
+fine; the gate that caught it was a different one —
+`TestNoPanelOverflowsTheRoomItIsGiven`, which refuses a panel whose last rows
+can only be *scrolled to*, on the reasoning that a control a reader has to
+discover by scrolling is one they do not know is there.
+
+The Marks panel was **21 pixels** from that limit before the two boxes went in:
+the next addition of any kind would have broken it. So the split is not about
+the header and footer — they are what measured it.
+
+The line was in the groups, as it was every other time. **Marks** writes the
+same thing across every page by a rule: a watermark, a page number, a running
+serial. **Stamp** puts something where you *choose*, which is the question the
+*Where it goes* chooser asks — and a picture asks it too, so the picture moved
+with it. The range box is shown on **both** panels, bound to one datum: a reader
+who typed `1-3` before stamping must not find it gone after choosing the other
+tab, and that is the opposite of the Pages panel's rule for the opposite reason
+— *which pages to keep* and *which pages to mark* are two questions, so they are
+two values.
 
 ## Counting the library's own list against the ribbon's
 
