@@ -55,8 +55,12 @@ event's is the tag.
 
 ## What is on the ribbon, and what is beside the page
 
-Seven tabs: **Home** · **Pages** · **Sheet** · **Marks** · **File** ·
-**Protect** · **Read**. Home carries the page itself — **Rotate**,
+Eleven tabs: **Home** · **Pages** · **Sheet** · **Marks** · **File** ·
+**Contents** · **Redraw** · **Protect** · **Read** · **Mark up** ·
+**Hand over**. Four of them exist because a measurement forced a split rather
+than because a list was planned: a crowded strip shrinks its controls to
+wordless 28-pixel icons, and the gate that measures their width named the fix
+in its own message. Home carries the page itself — **Rotate**,
 **Previous**, **Next**, **Delete**, and **Fill in** for a document that carries
 a form. The arrow keys turn pages too.
 
@@ -92,12 +96,15 @@ What each tab commands, and what its panel holds:
   file over it, mix another file's pages in one at a time.
 - **Marks** — a watermark, page numbers in a shape you choose, a Bates number
   padded and started where you say, and a stamp in one of nine places.
-- **File** — sanitize, flatten the annotations in, drop the annotations, the
-  bookmarks or what the file says about itself, pack it smaller, give it a
+- **File** — sanitize, flatten the annotations in, drop the annotations or what
+  the file says about itself, pack it smaller, give it a
   title and an author, and **show** what it already says: every entry of its
   information dictionary, how big each page is, and whether its structure had
   to be rebuilt to read it. Files travelling inside the document are listed
   here too, with a way of putting one in, taking one out or dropping it.
+- **Contents** — the table of contents a reader navigates by: bookmark the page
+  on the screen, write a whole tree from a text file, or drop the bookmarks.
+  See *Writing the table of contents* below.
 - **Protect** — open a file that has a password, put a user and an owner
   password on this one and say what a reader may do with it, or take the
   protection off.
@@ -527,6 +534,49 @@ Three details it has to get right:
   to do about it — Saving writes the rebuilt document — because repair is
   something a PDF reader does on the way *in*, so a button offering to do it
   would be offering something that already happened.
+
+## Writing the table of contents
+
+The rail has shown a document's bookmarks since the rail existed, and for twelve
+versions the only thing the ribbon could do to them was **Drop the bookmarks**.
+The **Contents** tab answers the other half.
+
+- **Bookmark this page** adds one entry to the tree the document already
+  carries, pointing at the page on the screen. Select a passage first and the
+  entry is titled with those words and points at the page *they* are on —
+  not at the page being looked at, because a reader can select a heading on page
+  three and scroll to page two before pressing the button, and a bookmark that
+  says one thing and goes somewhere else is worse than no bookmark.
+- **Bookmarks from a file** replaces the tree with one written as text: a title,
+  a **tab** and a page number on each line, two spaces of indent for each level
+  under another.
+
+      Introduction<TAB>1
+        Why<TAB>2
+      Chapter one<TAB>7
+
+  It is the same file `pdfops outline -from toc.txt` takes, and the same parser:
+  `ops.ParseOutline` was lifted out of `cmd/pdfops` into the library so that the
+  command and the workbench accept one grammar by construction rather than by
+  care. A line it cannot read is a refusal **naming the line**, handed on
+  unchanged — a table of contents quietly missing an entry is worse than one
+  that refuses to be written.
+
+⛔ **Adding one bookmark means handing over the whole tree.** `SetOutline`
+writes what it is given *instead of* the sources' own, so the existing
+bookmarks are read back out of the document and nested again with the new one
+among them. A verb that passed only the new entry would have read as *bookmark
+this page* and acted as *replace the table of contents with this page*.
+
+⛔⛔ **And a bookmark that points nowhere takes its children with it.** The rail
+keeps such a row, so that the shape of a document's contents is not a lie about
+what the file holds; a tree being *written* cannot keep it, because there is no
+page to write. Dropping the row and keeping what hung off it was measured: a
+sub-section under a heading that pointed nowhere came out under the *previous*
+heading instead — depth 1 after a kept row at depth 0 is a rung
+`ops.Nest` has no reason to question — so the entry changed chapter silently.
+Deeper down the same fault is refused outright and the whole outline is written
+as nothing. Either way the status line would have said a bookmark was added.
 
 ## A document can carry other files
 
