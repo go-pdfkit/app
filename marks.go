@@ -54,7 +54,13 @@ func (s *state) marksGroup() *column {
 		s.spinRow("Padded to", 1, s.tools.digits),
 	), labelledH())
 
-	box.add(s.entryRow("Stamp", "what it says", s.tools.stamp), labelledH())
+	// ⛔ THE HINT NAMES THE TOKENS, because the stamp has always filled them in
+	// and nothing said so. ops.expand runs over EVERY stamp's text, not only a
+	// page number's — so a stamp at `top centre` reading "Report — {page} of
+	// {pages}" is a header with a page number in it, which is the whole of what
+	// a "header and footer" tool does. The capability was there and
+	// undiscoverable, which for a reader is the same as absent.
+	box.add(s.entryRow("Stamp", "what it says — {page} and {pages} too", s.tools.stamp), labelledH())
 	box.add(buttons(
 		s.chooseRow("Where it goes", placeNames(), s.tools.at),
 		s.spinRow("Points", 4, s.tools.size),

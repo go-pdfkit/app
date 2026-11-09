@@ -89,7 +89,12 @@ What each tab commands, and what its panel holds:
 - **Pages** — which pages to keep or drop, turn them a quarter, a half or
   three quarters, reverse the order, move the one on the screen, crop to a
   box, put a blank page in, straighten a crooked scan, set the paper to one of
-  six sheets, paint the text one colour, split into files of *n* pages.
+  six sheets, paint the text one colour, split into files of *n* pages —
+  handed over in **one zip**, because a browser asks about each download
+  separately and ten prompts can be refused one at a time, leaving somebody
+  with four pieces and no way of knowing which four. One piece is handed over
+  as the PDF itself; a zip holding a single file is a wrapper to open for
+  nothing.
 - **Sheet** — *n* pages to a sheet, fold into a booklet, cut each page up into
   a grid of smaller pages, put every page onto one, print a page larger than
   the paper across several sheets, add another file after this one, lay another

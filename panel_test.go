@@ -1,7 +1,10 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -501,7 +504,7 @@ func TestMovingCroppingBlankingAndSplittingFromThePanel(t *testing.T) {
 		t.Errorf("%d pages after inserting a blank one", s.doc.PageCount())
 	}
 
-	// Splitting hands over one file per piece and changes nothing. Two pages
+	// Splitting hands the pieces over in ONE zip and changes nothing. Two pages
 	// to a piece, pressed up from one.
 	pages := s.doc.PageCount()
 	// Row 7: the paper and the ink were added above it. See pagesRows.
@@ -515,17 +518,57 @@ func TestMovingCroppingBlankingAndSplittingFromThePanel(t *testing.T) {
 		t.Error("splitting changed the document it was asked about")
 	}
 	want := (pages + 1) / 2
-	if h.savedAll != want {
+	// ⛔ ONE handover, not one per piece: a browser asked about each of them
+	// separately, and a person who refused the fourth prompt had no way of
+	// knowing which four they had.
+	if h.savedAll != 1 {
 		t.Errorf("%d files were handed over for %d pages, two to a piece", h.savedAll, pages)
 	}
-	if h.as != partName("sample.pdf", want) {
-		t.Errorf("the last piece was called %q", h.as)
+	if h.as != "sample-pieces.zip" {
+		t.Errorf("the pieces came over as %q", h.as)
+	}
+	z, err := zip.NewReader(bytes.NewReader(h.saved), int64(len(h.saved)))
+	if err != nil {
+		t.Fatalf("what was handed over is not a zip: %v", err)
+	}
+	if len(z.File) != want {
+		t.Fatalf("the zip holds %d pieces for %d pages, two to a piece", len(z.File), pages)
+	}
+	if got := z.File[want-1].Name; got != partName("sample.pdf", want) {
+		t.Errorf("the last piece is called %q", got)
 	}
 	// The last piece holds whatever was left over, and reads back as a
 	// document of its own.
 	last := pages - 2*(want-1)
-	if back, err := reader.Open(h.saved); err != nil || back.PageCount() != last {
+	f, err := z.File[want-1].Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	piece, err := io.ReadAll(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back, err := reader.Open(piece); err != nil || back.PageCount() != last {
 		t.Errorf("the last piece does not read back as %d pages: %v", last, err)
+	}
+}
+
+// TestSplittingIntoOnePieceHandsOverThePdfItself: a zip holding a single file
+// is a wrapper somebody has to open for nothing.
+func TestSplittingIntoOnePieceHandsOverThePdfItself(t *testing.T) {
+	s, h := opened(t, 3)
+	s.tools.every.Set(3)
+
+	s.split()
+
+	if h.savedAll != 1 {
+		t.Fatalf("%d files were handed over", h.savedAll)
+	}
+	if h.as != partName("sample.pdf", 1) {
+		t.Errorf("one piece came over as %q", h.as)
+	}
+	if back, err := reader.Open(h.saved); err != nil || back.PageCount() != 3 {
+		t.Errorf("it does not read back as the three pages it was: %v", err)
 	}
 }
 
