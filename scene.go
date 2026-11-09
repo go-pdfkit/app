@@ -498,6 +498,12 @@ func (s *state) changeSaying(said string, apply func(*ops.Doc) error) bool {
 		s.fail(err.Error())
 		return false
 	}
+	// ⛔ WHATEVER THE ARRANGING GRID WAS HOLDING IS PUT DOWN HERE, because a
+	// change to the document can mean the page that number named is not that
+	// page any anymore: delete page 3 while holding page 5 and the next press
+	// would move what is now a different page. One line, in the one place every
+	// verb goes through, rather than a line in each of them.
+	s.held = 0
 	s.note = said
 	s.refresh()
 	return true

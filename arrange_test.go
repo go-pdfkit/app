@@ -261,6 +261,33 @@ func TestLeavingTheGridLetsGoOfWhatWasHeld(t *testing.T) {
 	}
 }
 
+// TestPickingAPageUpMakesItThePageTheVerbsActOn is what makes the grid a place
+// to work rather than a place to look: Rotate, Delete and the rest act on "the
+// page", and without this a reader who could SEE the upside-down page in the
+// grid had to find it again in the rail to turn it.
+func TestPickingAPageUpMakesItThePageTheVerbsActOn(t *testing.T) {
+	s := arranged(t, 5)
+	if s.at != 1 {
+		t.Fatalf("precondition: the workbench is on page %d", s.at)
+	}
+
+	s.pressArranged(4)
+
+	if s.at != 4 {
+		t.Errorf("picking page 4 up left the workbench on page %d", s.at)
+	}
+	// ⛔ AND A VERB PUTS IT DOWN, because a change to the document can mean the
+	// page that number named is not that page any more: the press after a
+	// deletion would otherwise move something nobody pointed at.
+	s.rotate()
+	if s.held != 0 {
+		t.Errorf("turning the page left %d held", s.held)
+	}
+	if rot, err := s.doc.Rotation(4); err != nil || rot != 90 {
+		t.Errorf("page 4 is turned %d degrees (%v); the verb acted on another page", rot, err)
+	}
+}
+
 // TestTheGridIsGreyedForADocumentOfOnePage: there is nothing to arrange.
 func TestTheGridIsGreyedForADocumentOfOnePage(t *testing.T) {
 	s, _ := opened(t, 1)

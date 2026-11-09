@@ -79,6 +79,10 @@ func (s *state) read(what string) {
 		what = ""
 	}
 	s.tools.reading.Set(what)
+	// ⛔ Whatever the arranging grid was holding is put down by CHANGING THE
+	// VIEW, whichever reading is being asked for: a page held in a view nobody
+	// is looking at is a move the next press would finish by surprise.
+	s.held = 0
 	s.note = ""
 	s.refresh()
 }

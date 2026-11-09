@@ -34,10 +34,11 @@ const readingArrange = "arrange"
 // ⛔ `arrangePages` and not `arrange`: the band's own layout function is called
 // arrange, and this is the verb. Two methods of one type cannot share a name,
 // which is the compiler saying what a reader would have had to work out.
-func (s *state) arrangePages() {
-	s.held = 0
-	s.read(readingArrange)
-}
+//
+// ⛔ The letting go happens in `read`, not here, because the grid can be left by
+// any of the other readings' verbs as well as by this one — and a page held in a
+// view nobody is looking at is a move the next press would finish by surprise.
+func (s *state) arrangePages() { s.read(readingArrange) }
 
 // arrangeView is every page of the document as a tile.
 //
@@ -103,7 +104,14 @@ func (s *state) pressArranged(i int) {
 	switch {
 	case s.held == 0:
 		s.held = i
-		s.note = fmt.Sprintf("page %d picked up — press the page it should go in front of", i)
+		// ⛔ AND IT IS THE PAGE BEING READ NOW, which is what makes the grid a
+		// place to work rather than a place to look. Rotate, Delete and every
+		// other verb that acts on "the page" acts on s.at, so without this a
+		// reader who could SEE the upside-down page in the grid still had to
+		// find it again in the rail to turn it.
+		s.at = i
+		s.note = fmt.Sprintf("page %d picked up — press the page it should go in front of, "+
+			"or use a verb: it is the page being read now", i)
 		s.refresh()
 	case s.held == i:
 		s.held = 0
