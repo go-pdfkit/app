@@ -378,49 +378,61 @@ func TestTheFileDialogOffersEveryShapeOpenAcceptsAndNothingElse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	accept, ok := acceptList(string(page))
-	if !ok {
-		t.Fatal("web/index.html has no file input with an accept list")
+	// ⛔⛔ EVERY input, not the first one. The page carries two — one for the
+	// verbs that take a file, one carrying `multiple` for the verb that takes
+	// several — and a gate that read only the first would let the second drift
+	// into offering something the workbench refuses after somebody chose it,
+	// which is the very defect this test was written for, one input along.
+	lists := acceptLists(string(page))
+	if len(lists) < 2 {
+		t.Fatalf("web/index.html carries %d file inputs with an accept list, want the single one and the multiple one", len(lists))
 	}
-	offered := map[string]bool{}
-	for _, item := range strings.Split(accept, ",") {
-		item = strings.TrimSpace(item)
-		switch {
-		case item == "":
-			t.Error("the accept list has an empty entry")
-		case strings.HasPrefix(item, "."):
-			offered[item] = true
-		case strings.Contains(item, "/"):
-			// A media type, which mobile pickers honour where they ignore a
-			// suffix. Checked for shape only: the suffixes are the contract.
-		default:
-			t.Errorf("the accept list holds %q, which is neither a suffix nor a media type", item)
+	for i, accept := range lists {
+		offered := map[string]bool{}
+		for _, item := range strings.Split(accept, ",") {
+			item = strings.TrimSpace(item)
+			switch {
+			case item == "":
+				t.Errorf("input %d: the accept list has an empty entry", i+1)
+			case strings.HasPrefix(item, "."):
+				offered[item] = true
+			case strings.Contains(item, "/"):
+				// A media type, which mobile pickers honour where they ignore a
+				// suffix. Checked for shape only: the suffixes are the contract.
+			default:
+				t.Errorf("input %d: the accept list holds %q, which is neither a suffix nor a media type", i+1, item)
+			}
 		}
-	}
-	for _, want := range openSuffixes {
-		if !offered[want] {
-			t.Errorf("Open accepts %s and the file dialog does not offer it", want)
+		for _, want := range openSuffixes {
+			if !offered[want] {
+				t.Errorf("input %d: Open accepts %s and the file dialog does not offer it", i+1, want)
+			}
+			delete(offered, want)
 		}
-		delete(offered, want)
-	}
-	for left := range offered {
-		t.Errorf("the file dialog offers %s and Open does not accept it", left)
+		for left := range offered {
+			t.Errorf("input %d: the file dialog offers %s and Open does not accept it", i+1, left)
+		}
 	}
 }
 
-// acceptList is the value of the accept attribute on the page's file input.
-func acceptList(page string) (string, bool) {
+// acceptLists is the value of every accept attribute on the page, in the order
+// they appear: one per file input.
+func acceptLists(page string) []string {
 	const key = `accept="`
-	at := strings.Index(page, key)
-	if at < 0 {
-		return "", false
+	var out []string
+	for {
+		at := strings.Index(page, key)
+		if at < 0 {
+			return out
+		}
+		page = page[at+len(key):]
+		end := strings.IndexByte(page, '"')
+		if end < 0 {
+			return out
+		}
+		out = append(out, page[:end])
+		page = page[end+1:]
 	}
-	rest := page[at+len(key):]
-	end := strings.IndexByte(rest, '"')
-	if end < 0 {
-		return "", false
-	}
-	return rest[:end], true
 }
 
 func TestHowAConvertedFileIsNamed(t *testing.T) {

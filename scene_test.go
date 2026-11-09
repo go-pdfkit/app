@@ -16,8 +16,12 @@ import (
 // fakeHost stands in for the browser: it hands over a document that was made
 // here, and keeps whatever the workbench saves.
 type fakeHost struct {
-	name  string
-	file  []byte
+	name string
+	file []byte
+	// many is what the multiple picker hands back, for the one verb that takes
+	// several files; nil means "the single file, once", so the tests written
+	// before it existed are unchanged.
+	many  []chosen
 	saved []byte
 	as    string
 	asked int
@@ -55,6 +59,21 @@ func (h *fakeHost) Open(done func(string, []byte)) {
 		return // the person changed their mind, which is not an error
 	}
 	done(h.name, h.file)
+}
+
+// OpenMany hands back `many` when a test has set it, and otherwise the single
+// file — so every test written before the multiple picker existed keeps saying
+// what it said.
+func (h *fakeHost) OpenMany(done func([]chosen)) {
+	h.asked++
+	if h.many != nil {
+		done(h.many)
+		return
+	}
+	if h.file == nil {
+		return // the person changed their mind, which is not an error
+	}
+	done([]chosen{{name: h.name, data: h.file}})
 }
 
 func (h *fakeHost) Save(name string, data []byte) {

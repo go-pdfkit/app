@@ -64,6 +64,13 @@
      feature nobody can reach, which reads exactly like one that was never
      written. -->
 <input type="file" id="file" accept="application/pdf,image/png,image/jpeg,image/gif,image/webp,image/tiff,image/bmp,image/svg+xml,application/vnd.comicbook+zip,.pdf,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp,.ico,.icns,.pnm,.pbm,.pgm,.ppm,.qoi,.jp2,.jbig2,.jb2,.svg,.cbz,.zip">
+<!-- ⛔ A SECOND INPUT, carrying `multiple`, for the one verb that takes several
+     files at once: `Add a file after this one`. The input above stays single on
+     purpose — every other verb that asks for a file wants exactly one, and an
+     input that allowed several would hand them a list it then took the first of,
+     in silence. Its accept list is the same one and is held to it by the same
+     gate, in both directions. -->
+<input type="file" id="files" multiple accept="application/pdf,image/png,image/jpeg,image/gif,image/webp,image/tiff,image/bmp,image/svg+xml,application/vnd.comicbook+zip,.pdf,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp,.ico,.icns,.pnm,.pbm,.pgm,.ppm,.qoi,.jp2,.jbig2,.jb2,.svg,.cbz,.zip">
 <script src="wasm_exec.js"></script>
 <script>
 // Stream the wasm so the progress bar means something, then start it.

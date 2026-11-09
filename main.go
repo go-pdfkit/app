@@ -82,6 +82,54 @@ func (browser) Open(done func(name string, data []byte)) {
 	input.Call("click")
 }
 
+// OpenMany shows the picker that takes several files and calls back with all of
+// them, in the order the picker reports.
+//
+// ⛔ A SECOND INPUT, carrying `multiple`. The one above stays single because
+// every other verb that asks for a file wants exactly one, and a picker that
+// allowed several would hand back a list the code took the first of in silence.
+//
+// ⛔ THE BYTES ARRIVE OUT OF ORDER AND LEAVE IN ORDER. Each file is read through
+// a promise of its own, so a small one chosen second can arrive first; each
+// result is written to its own slot and the callback waits for the count rather
+// than for the last promise. Appending as they arrived would merge five scans
+// in the order of their SIZES.
+func (browser) OpenMany(done func([]chosen)) {
+	input := js.Global().Get("document").Call("getElementById", "files")
+	if input.IsNull() || input.IsUndefined() {
+		return
+	}
+	var onChange js.Func
+	onChange = js.FuncOf(func(this js.Value, _ []js.Value) any {
+		files := input.Get("files")
+		n := files.Length()
+		if n == 0 {
+			return nil
+		}
+		out := make([]chosen, n)
+		left := n
+		for i := range n {
+			file := files.Index(i)
+			out[i].name = file.Get("name").String()
+			read(file, func(data []byte) {
+				out[i].data = data
+				left--
+				if left > 0 {
+					return
+				}
+				// The same files may be chosen twice running; clearing the
+				// value makes the second choice raise an event of its own.
+				input.Set("value", "")
+				done(out)
+			})
+		}
+		onChange.Release()
+		return nil
+	})
+	input.Call("addEventListener", "change", onChange, map[string]any{"once": true})
+	input.Call("click")
+}
+
 // read pulls the bytes out of a File, which the browser only hands over
 // through a promise.
 func read(file js.Value, done func([]byte)) {

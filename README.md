@@ -95,8 +95,8 @@ What each tab commands, and what its panel holds:
   sheets, paint the text one colour.
 - **Sheet** — *n* pages to a sheet, fold into a booklet, cut each page up into
   a grid of smaller pages, put every page onto one, print a page larger than
-  the paper across several sheets, add another file after this one, lay another
-  file over it, mix another file's pages in one at a time.
+  the paper across several sheets, add **one or more** files after this one, lay
+  another file over it, mix another file's pages in one at a time.
 - **Marks** — what is written across every page by a rule: a watermark, page
   numbers in a shape you choose, a Bates number padded and started where you
   say.
@@ -706,6 +706,36 @@ heading instead — depth 1 after a kept row at depth 0 is a rung
 `ops.Nest` has no reason to question — so the entry changed chapter silently.
 Deeper down the same fault is refused outright and the whole outline is written
 as nothing. Either way the status line would have said a bookmark was added.
+
+## Several files at once, and only where several are meant
+
+A merge is nearly always *"these five scans into one document"*, and
+**Add files after this one** took them one at a time: five presses, five dialogs,
+each of which can be cancelled — leaving somebody with a document part-way
+through a job and no record of how far. It takes as many as you choose now, in
+the order you chose them.
+
+- **a second `<input type=file>`, carrying `multiple`**, rather than `multiple`
+  on the one every verb shares. Everything else that asks for a file wants
+  exactly one, and a picker that allowed several would hand back a list the code
+  then took the first of, in silence. Both inputs carry the same accept list and
+  the gate that holds the list to what `Open` takes now reads **every** input on
+  the page, in both directions — a gate that read only the first would let the
+  second drift into offering what the workbench refuses after somebody chose it,
+  which is the very defect it was written for, one input along.
+- **the order is the picker's, not the order the bytes arrive in.** In a browser
+  each file is read through a promise of its own, so a small one chosen second
+  can arrive first. Each result is written into its own slot and the callback
+  waits for the count: appending as they arrived would merge five scans in the
+  order of their **sizes**.
+- **a file among them that cannot be read stops the merge and says which one.**
+  Appending the ones before it and dropping the rest would leave a document
+  nobody asked for.
+- **the browser check drives it with two files.** The multiple picker and the
+  host method behind it live in the js/wasm half of this program, which `go test`
+  never compiles; the unit tests drive the verb through a fake host, which says
+  what the verb does with a list and nothing about whether the page hands it one.
+  A picker that opened and never called back would pass all of them.
 
 ## A document can carry other files
 
