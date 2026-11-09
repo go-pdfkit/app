@@ -200,7 +200,11 @@ type state struct {
 	shown  toolkit.Widget
 	typing []*toolkit.Entry
 	at     int // the page being shown, counting from one
-	note   string
+	// held is the page picked up in the arranging grid, or zero for none. It is
+	// state of the GESTURE rather than of the document: a press picks a page up
+	// and the press after it says where that page goes.
+	held int
+	note string
 
 	// dirty says something has changed since the canvas last showed it. A
 	// file arrives from the browser long after the press that asked for it,

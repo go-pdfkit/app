@@ -94,6 +94,8 @@ func (s *state) readingView(src *reader.Document) toolkit.Widget {
 		return s.tablesView(src)
 	case readingCarried:
 		return s.carriedView()
+	case readingArrange:
+		return s.arrangeView(src)
 	}
 	return s.imagesView(src)
 }

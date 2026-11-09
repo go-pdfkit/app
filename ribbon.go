@@ -75,10 +75,9 @@ var ribbonTabs = []struct {
 	{groupPages, []verbGroup{
 		{"Which pages", []string{"keep", "drop"}},
 		{"Turn", []string{"turn", "reverse"}},
-		{"Order", []string{"move"}},
+		{"Order", []string{"arrange", "move"}},
 		{"Shape", []string{"crop", "insert", "dropBlank", "deskew", "resize"}},
 		{"Ink", []string{"recolour"}},
-		{"Split", []string{"split"}},
 	}},
 	{groupSheet, []verbGroup{
 		{"To a sheet", []string{"nup", "booklet"}},
@@ -172,6 +171,12 @@ var ribbonTabs = []struct {
 		{"This page", []string{"pagePicture", "textFile", "jsonFile"}},
 		{"Every page", []string{"zipped", "cbz"}},
 		{"The grids", []string{"csvFile"}},
+		// ⛔ `split` CAME HERE FROM THE PAGES TAB, where the arranging grid left
+		// it no room — and it belongs here by its own behaviour, which says so in
+		// its own words: "Nothing is changed here: what was open stays open, and
+		// the pieces are copies of it". Every other verb on this tab is that
+		// sentence. The Pages tab is what pages there ARE and in what order.
+		{"Pieces", []string{"split"}},
 	}},
 }
 
@@ -258,10 +263,20 @@ var verbs = map[string]verb{
 		icon: "sort",
 		run:  (*state).reverse,
 	},
+	// ⛔ THE LARGE ONE OF THE PAIR, because it is the one somebody means. `Move
+	// it there` asks for a page by its NUMBER, typed into a box, which is the
+	// one thing nobody has in mind when they want a page somewhere else — what
+	// they have in mind is the picture of it.
+	"arrange": {
+		label: "Arrange the pages", tip: "Put the pages where the page was, as a grid of every one of them. Press a page to pick it up, then press the page it should go in front of. Press it again to show the page instead.",
+		icon: "view-grid", large: true,
+		run:  (*state).arrangePages,
+		when: func(s *state) bool { return s.doc != nil && s.doc.PageCount() > 1 },
+	},
 	"move": {
 		label: "Move it there", tip: "Take the page on the screen to the place chosen beside it, and follow it.",
-		icon: "drag", large: true,
-		run: (*state).movePage,
+		icon: "drag",
+		run:  (*state).movePage,
 	},
 	"crop": {
 		label: "Crop them", tip: "Cut the pages the range names down to the box beside it.",

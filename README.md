@@ -89,14 +89,10 @@ scrolling column that ran off its own bottom edge.
 What each tab commands, and what its panel holds:
 
 - **Pages** — which pages to keep or drop, turn them a quarter, a half or
-  three quarters, reverse the order, move the one on the screen, crop to a
-  box, put a blank page in, straighten a crooked scan, set the paper to one of
-  six sheets, paint the text one colour, split into files of *n* pages —
-  handed over in **one zip**, because a browser asks about each download
-  separately and ten prompts can be refused one at a time, leaving somebody
-  with four pieces and no way of knowing which four. One piece is handed over
-  as the PDF itself; a zip holding a single file is a wrapper to open for
-  nothing.
+  three quarters, reverse the order, **arrange** them as a grid and put one in
+  front of another, move the one on the screen by its number, crop to a box,
+  put a blank page in, straighten a crooked scan, set the paper to one of six
+  sheets, paint the text one colour.
 - **Sheet** — *n* pages to a sheet, fold into a booklet, cut each page up into
   a grid of smaller pages, put every page onto one, print a page larger than
   the paper across several sheets, add another file after this one, lay another
@@ -132,6 +128,14 @@ What each tab commands, and what its panel holds:
   The formats offered are the ones `gfx` can write, asked of it rather than
   listed here; a page that ran out of time is still handed over, and the status
   line says how far it got.
+- **Hand over** — a copy of the document in some other form, and nothing on it
+  changes what is open: this page or every page as a picture, the words as a
+  text file, the grids as CSV or JSON, every page zipped or as a `.cbz`, and
+  **the pieces** of a document split into files of *n* pages — in one zip,
+  because a browser asks about each download separately and ten prompts can be
+  refused one at a time, leaving somebody with four pieces and no way of knowing
+  which four. One piece is handed over as the PDF itself; a zip holding a single
+  file is a wrapper to open for nothing.
 
 A protected document is still drawn, because the workbench reads its own
 output back with the password it was just given. It is not the same bytes
@@ -571,6 +575,38 @@ now, and the verb writes all six.
   `D:YYYYMMDDHHmmSSOHH'mm` (ISO 32000-1, 7.9.4) and nothing in this fleet parses
   one, so a box to type a date into is a box in which a reader writes something
   no PDF reader will show. *Drop what it says about itself* is how they go.
+
+## Putting the pages in another order by looking at them
+
+`Move it there` has moved a page since the Pages tab existed — by its **number**,
+typed into a box, which is the one thing nobody has in mind when they want a page
+somewhere else. What they have in mind is the picture of it.
+
+**Arrange the pages** puts every page where the page was, as a grid of tiles.
+Press one to pick it up, press the page it should go in front of, and it goes
+there; press it again to put it back. The tile that is lit is the one being
+**held**, not the one being read — in the rail the mark means *you are here*, and
+here it means *this is the one you picked up*, because that is the question this
+view answers and a mark meaning both would answer neither.
+
+- **two presses, not a drag.** A drag over a grid inside a scroll view has to
+  hit-test tiles against a moving viewport and decide what a press that moved
+  four pixels meant. Two presses say the same thing — this page, then where it
+  goes — and a reader can see what is held between them, because the tile says so
+  and the status line says so. It is also the gesture a touch screen gives for
+  nothing.
+- **in front of the page pressed, which is not the same as "to its number".**
+  `ops.Move` takes the page out *first*, so moving page 2 to position 5 of six
+  leaves it **after** the page that was fifth — and a reader who pressed the fifth
+  tile meant *before this one*. The number asked for is one less when the page
+  moves forwards, and the status line says where it landed rather than where it
+  was asked to go.
+- **the pictures are the rail's own**, at the rail's width and already drawn.
+  Rendering a second set at another size would double what a forty-page document
+  costs to look at, and the tiles further out are a frame and a number either way
+  — which, for putting pages in order, is most of what a tile is for.
+- **leaving the grid lets go of what was held.** A page picked up in a view that
+  is no longer on the screen is a move nobody can finish.
 
 ## Writing the table of contents
 
