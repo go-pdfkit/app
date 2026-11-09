@@ -117,7 +117,12 @@ What each tab commands, and what its panel holds:
   See *Writing the table of contents* below.
 - **Protect** — open a file that has a password, put a user and an owner
   password on this one and say what a reader may do with it, or take the
-  protection off.
+  protection off. A file protected with an **owner password only** opens for
+  anybody — the user password is empty — and what that password buys is a list
+  of things a reader is asked not to do: print it, copy out of it, annotate it.
+  Taking those off needs no password at all, because the file was already open.
+  A file nobody can *open* without one is encryption rather than a restriction,
+  and that one does need it.
 - **Read** — what the page says, and what it carries: every picture on it,
   listed with its size and its shape, each one handed over under a name that
   says what it holds. And the page itself the other way round — drawn at twice

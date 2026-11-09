@@ -373,6 +373,54 @@ func TestProtectingAFileAndTakingItOffAgain(t *testing.T) {
 	}
 }
 
+// TestTakingTheRestrictionsOffAFileThatOpensForAnybody settles a verdict rather
+// than a defect: the gap inventory said of `Take the protection off` that "it
+// needs the password first", which is true of a file with a USER password and
+// not of the case the tool it is measured against is for.
+//
+// ⛔ A file protected with an OWNER password only opens for anybody — the user
+// password is empty — and what the owner password buys is a list of things a
+// reader is asked not to do: print it, copy out of it, annotate it. Removing
+// those needs no password at all, because the file was already open.
+func TestTakingTheRestrictionsOffAFileThatOpensForAnybody(t *testing.T) {
+	d, err := ops.OpenWithPassword(samplePDF(t, 2), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Encrypt(reader.Encryption{
+		OwnerPassword: "owner",
+		Permissions:   reader.PermPrint,
+	})
+	locked, err := docBytes(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The precondition, which is the whole point: it opens with no password and
+	// is restricted all the same.
+	src, err := reader.Open(locked)
+	if err != nil {
+		t.Fatalf("a file with only an owner password did not open for anybody: %v", err)
+	}
+	if p, ok := src.Protection(); !ok || p.Permissions.Allows(reader.PermCopy) {
+		t.Fatalf("protected %v, allowing %s — this test needs a restricted file", ok, p.Permissions)
+	}
+
+	s := openedWith(t, locked)
+	if s.doc == nil {
+		t.Fatalf("the workbench did not open it: %q", s.note)
+	}
+	s.decrypt()
+	s.save()
+
+	back, err := reader.Open(s.host.(*fakeHost).saved)
+	if err != nil {
+		t.Fatalf("what was saved does not open: %v", err)
+	}
+	if p, ok := back.Protection(); ok {
+		t.Errorf("the restrictions are still on it: %s", p.Permissions)
+	}
+}
+
 func TestWhatAFileIsProtectedWith(t *testing.T) {
 	// A document opened from a protected file says how it was protected; one
 	// opened from a file that was not says that instead.
