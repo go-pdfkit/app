@@ -653,22 +653,23 @@ func (s *state) split() {
 		s.fail(err.Error())
 		return
 	}
-	written := make([][]byte, 0, len(parts))
+	// ⛔ ONE PIECE'S BYTES AT A TIME, written into the zip as it is produced.
+	// Collecting them all first and zipping afterwards holds the whole document
+	// twice over — every piece plus the archive of them — and this runs inside a
+	// browser tab, on a file somebody chose, split as finely as they like: a
+	// hundred-megabyte scan split a page at a time is the case that decides it.
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
 	for i, part := range parts {
 		out, perr := docBytes(part)
 		if perr != nil {
 			s.fail("part " + strconv.Itoa(i+1) + " cannot be written: " + perr.Error())
 			return
 		}
-		written = append(written, out)
-	}
-	if len(written) == 1 {
-		s.handOver(partName(s.name, 1), written[0])
-		return
-	}
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-	for i, out := range written {
+		if len(parts) == 1 {
+			s.handOver(partName(s.name, 1), out)
+			return
+		}
 		// The zip is built in memory: Create only refuses a name already used
 		// or a writer already closed, neither of which can happen with one
 		// entry per piece, and a bytes.Buffer never fails to take bytes.
@@ -677,7 +678,7 @@ func (s *state) split() {
 	}
 	zw.Close()
 	s.handOver(strings.TrimSuffix(saveName(s.name), "-edited.pdf")+"-pieces.zip", buf.Bytes())
-	s.note = fmt.Sprintf("handed over %d pieces in one zip", len(written))
+	s.note = fmt.Sprintf("handed over %d pieces in one zip", len(parts))
 	s.refresh()
 }
 
