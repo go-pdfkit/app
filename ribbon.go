@@ -459,7 +459,7 @@ var verbs = map[string]verb{
 		when: func(s *state) bool { return s.doc != nil },
 	},
 	"setInfo": {
-		label: "Say so in the file", tip: "Write the title and author typed beside it into the document.",
+		label: "Say so in the file", tip: "Write what is typed beside it into the document: its title, author, subject, keywords, creator and producer. A box left empty removes that entry.",
 		icon: "edit-pencil", large: true,
 		run: (*state).setInfo,
 	},

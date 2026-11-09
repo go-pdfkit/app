@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/go-pdfkit/ops"
+	"github.com/go-pdfkit/reader"
 	"github.com/go-widgets/mvvm"
 	"github.com/go-widgets/mvvm/tkbind"
 	"github.com/go-widgets/toolkit"
@@ -182,8 +183,12 @@ type tools struct {
 	// a 12-point logo would be two different meanings of one control.
 	wide *mvvm.Observable[int]
 
-	// The File group.
+	// The File group. info holds the other entries of the information
+	// dictionary the panel offers a box for, one Observable per KEY rather
+	// than one over a map: a map is not comparable, so one Observable over the
+	// whole of it could not tell a change from a re-set.
 	title, author *mvvm.Observable[string]
+	info          map[reader.Name]*mvvm.Observable[string]
 
 	// The Protect group.
 	openPw, userPw, ownerPw *mvvm.Observable[string]
@@ -244,6 +249,7 @@ func newTools() *tools {
 		wide:        mvvm.NewObservable(144),
 		title:       mvvm.NewObservable(""),
 		author:      mvvm.NewObservable(""),
+		info:        emptyInfo(),
 		openPw:      mvvm.NewObservable(""),
 		userPw:      mvvm.NewObservable(""),
 		ownerPw:     mvvm.NewObservable(""),
