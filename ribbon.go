@@ -105,6 +105,11 @@ var ribbonTabs = []struct {
 		// should SAY is asking a different question, and the three answers to it
 		// belong together — the ribbon's own rule is one command on one tab.
 		{"Bookmarks", []string{"bookmarkPage", "bookmarksFromFile", "dropOutlines"}},
+		// ⛔ Its own group, and not a fourth control under Bookmarks: those three
+		// change the tree a reader NAVIGATES by, this one writes a page of the
+		// document that gets printed. Same subject, different act — and the one
+		// that adds a page belongs where that is plain.
+		{"Printed", []string{"contentsPage"}},
 	}},
 	{groupRedraw, []verbGroup{
 		// ⛔ "The pixels", not "Redraw": a group may not be named like its own
@@ -428,6 +433,15 @@ var verbs = map[string]verb{
 		label: "Bookmark this page", tip: "Add a bookmark for the page on the screen, keeping the ones the document already has. Select a passage first and it is titled with those words and points at the page they are on.",
 		icon: "bookmark-circle", large: true,
 		run: (*state).bookmarkPage,
+	},
+	// ⛔ THE PRINTED KIND, beside the kind a reader navigates by, because they
+	// answer the same question and a reader deciding between them is deciding
+	// one thing. The rail's bookmarks are what this is built from, so a document
+	// with none is told to make some rather than handed a blank page.
+	"contentsPage": {
+		label: "Write a contents page", tip: "Write the bookmarks out as a printed table of contents: a page at the front with a line for each entry, its page number at the right and dots leading to it. The numbers account for the page it adds.",
+		icon: "list", large: true,
+		run: (*state).contentsPage,
 	},
 	"bookmarksFromFile": {
 		label: "Bookmarks from a file", tip: "Replace the table of contents with one written as text: a title, a tab and a page number a line, two spaces of indent for each level under another — the file `pdfops outline -from` takes.",

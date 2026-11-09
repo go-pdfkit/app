@@ -165,7 +165,45 @@ func (s *state) bookmarksFromFile() {
 	})
 }
 
-// contentsGroup is the panel beside the three bookmark verbs.
+// contentsPage writes the document's own bookmarks out as a PRINTED table of
+// contents: a page at the front with a line per entry, its page number at the
+// right and dots leading to it.
+//
+// ⛔ IT DOES NOT TOUCH THE BOOKMARKS. ops carries a document's own outline over
+// and remaps each entry's destination to the page object it still points at, so
+// the tree follows its pages across an insertion without being rewritten —
+// whereas SetOutline with this walk's own copy would REPLACE it, losing the
+// entries that point nowhere (which the rail keeps) and anything past the
+// thousand this program reads. The numbers PRINTED are moved by ops, which
+// knows how many pages it added.
+func (s *state) contentsPage() {
+	rows := s.levelsNow()
+	if len(rows) == 0 {
+		s.fail("this document carries no bookmarks to make a contents from: " +
+			"bookmark a page, or write a whole tree from a file")
+		return
+	}
+	// ⛔ Nest cannot refuse these rows, for the reason given in bookmarkPage:
+	// the walk they come from descends one level at a time and levelsNow drops
+	// an unreachable entry with its children.
+	marks, _ := ops.Nest(rows)
+	added := 0
+	if !s.changeSaying("wrote a contents page", func(d *ops.Doc) error {
+		n, err := d.ContentsPage(marks, ops.ContentsOptions{Title: s.tools.heading.Get()})
+		added = n
+		return err
+	}) {
+		return // the library's refusal is already on the status line
+	}
+	pages := "page"
+	if added != 1 {
+		pages = "pages"
+	}
+	s.note = fmt.Sprintf("wrote a contents of %d entries on %d %s", len(rows), added, pages)
+	s.refresh()
+}
+
+// contentsGroup is the panel beside the bookmark verbs.
 //
 // ⛔ IT SAYS WHAT THE FILE LOOKS LIKE AND NOTHING ABOUT THIS DOCUMENT. A panel
 // is built once and kept — what was typed into it has to still be there when a
@@ -175,6 +213,7 @@ func (s *state) bookmarksFromFile() {
 // lives, and it is rebuilt on every change.
 func (s *state) contentsGroup() *column {
 	box := newColumn()
+	box.add(s.entryRow("Heading", "Contents", s.tools.heading), labelledH())
 	box.add(toolkit.NewLabel("The rail shows the bookmarks this document carries."), bareH())
 	box.add(toolkit.NewLabel("A bookmark file is one entry a line: a title, a TAB, "+
 		"then the page number. Two spaces of indent for each level under another."), bareH())

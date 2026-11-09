@@ -200,6 +200,10 @@ type tools struct {
 	// every box.
 	allow map[string]*mvvm.Observable[bool]
 
+	// heading is what a printed table of contents is titled. Empty means the
+	// library's own "Contents", which is what the box's placeholder shows.
+	heading *mvvm.Observable[string]
+
 	// find is what the search is looking for, and comment what a sticky note or
 	// a margin comment will say.
 	find    *mvvm.Observable[string]
@@ -252,6 +256,7 @@ func newTools() *tools {
 		title:       mvvm.NewObservable(""),
 		author:      mvvm.NewObservable(""),
 		info:        emptyInfo(),
+		heading:     mvvm.NewObservable(""),
 		openPw:      mvvm.NewObservable(""),
 		userPw:      mvvm.NewObservable(""),
 		ownerPw:     mvvm.NewObservable(""),

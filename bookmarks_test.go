@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -248,6 +249,135 @@ func TestBookmarksFromAFileNeedADocumentFirst(t *testing.T) {
 	}
 	if h.asked != 0 {
 		t.Errorf("the file chooser was shown %d times with nothing open", h.asked)
+	}
+}
+
+// drawnOn is what one page of the document, as it would be saved, draws.
+func drawnOn(t *testing.T, s *state, page int) string {
+	t.Helper()
+	src, msg := s.reopen()
+	if msg != "" {
+		t.Fatalf("the document could not be written and read back: %s", msg)
+	}
+	data, err := src.PageContent(page)
+	if err != nil {
+		t.Fatalf("page %d: %v", page, err)
+	}
+	return string(data)
+}
+
+func TestAPrintedContentsIsWrittenFromTheDocumentsOwnBookmarks(t *testing.T) {
+	s := openOutlined(t, 6, []mark{
+		{"One", 1, -1},
+		{"Under one", 2, 0},
+		{"Two", 4, -1},
+	}, nil)
+
+	s.contentsPage()
+
+	if s.doc.PageCount() != 7 {
+		t.Fatalf("the document has %d pages: %q", s.doc.PageCount(), s.note)
+	}
+	if !strings.Contains(s.note, "3 entries on 1 page") {
+		t.Errorf("the status line says %q", s.note)
+	}
+	said := drawnOn(t, s, 1)
+	// ⛔ "Unde..." and not "Under one": this fixture's pages are 200 points
+	// across, so a nested entry's title is cut to what is left after the number
+	// and the indentation — which is the library's rule and worth asserting
+	// here, because it is what a reader of a narrow document will see.
+	for _, want := range []string{"(Contents)", "(One)", "(Unde...)", "(Two)", "(...."} {
+		if !strings.Contains(said, want) {
+			t.Errorf("the contents page does not draw %s; it draws:\n%s", want, said)
+		}
+	}
+	// ⛔ The printed numbers account for the page it added: Two was on page 4
+	// and is on page 5 now.
+	if !strings.Contains(said, "(5)") {
+		t.Errorf("the contents does not point Two at page 5:\n%s", said)
+	}
+	// ⛔ And the bookmarks were NOT rewritten: the rail still shows the row that
+	// points nowhere... there is none here, so what this says is simpler — the
+	// tree still has its three entries, pointing at the pages they followed.
+	if got := titlesOf(marksOf(t, s)); len(got) != 3 {
+		t.Errorf("the outline came back as %v", got)
+	}
+}
+
+// TestALongContentsRunsOntoASecondPageAndSaysSo: the status line counts the
+// pages it added, because a contents that spilled silently would read as a
+// document that gained one page and lost nine entries.
+func TestALongContentsRunsOntoASecondPageAndSaysSo(t *testing.T) {
+	var marks []mark
+	for i := range 12 {
+		marks = append(marks, mark{"Part " + strconv.Itoa(i+1), 1 + i%3, -1})
+	}
+	s := openOutlined(t, 3, marks, nil)
+
+	s.contentsPage()
+
+	if !strings.Contains(s.note, "12 entries on 2 pages") {
+		t.Errorf("the status line says %q", s.note)
+	}
+	if s.doc.PageCount() != 5 {
+		t.Fatalf("the document has %d pages", s.doc.PageCount())
+	}
+	// The heading is on the first contents page only, and the last entries are
+	// on the second.
+	if first := drawnOn(t, s, 1); !strings.Contains(first, "(Contents)") {
+		t.Errorf("the first page is not the contents:\n%s", first)
+	}
+	second := drawnOn(t, s, 2)
+	if strings.Contains(second, "(Contents)") {
+		t.Errorf("the heading was drawn twice:\n%s", second)
+	}
+	if !strings.Contains(second, "(Part 12)") {
+		t.Errorf("the last entry is on neither page:\n%s", second)
+	}
+}
+
+func TestTheHeadingBoxTitlesTheContentsPage(t *testing.T) {
+	s := openOutlined(t, 3, []mark{{"One", 1, -1}}, nil)
+	s.tools.heading.Set("What is in here")
+
+	s.contentsPage()
+
+	if said := drawnOn(t, s, 1); !strings.Contains(said, "(What is in here)") {
+		t.Errorf("the heading typed beside it was not used:\n%s", said)
+	}
+}
+
+func TestAContentsPageNeedsBookmarksFirst(t *testing.T) {
+	s, _ := opened(t, 3)
+
+	s.contentsPage()
+
+	if !strings.Contains(s.note, "carries no bookmarks") {
+		t.Errorf("the status line says %q", s.note)
+	}
+	if s.doc.PageCount() != 3 {
+		t.Errorf("a refusal left the document with %d pages", s.doc.PageCount())
+	}
+}
+
+// TestTheLibrarysContentsRefusalReachesTheStatusLine: on this fixture's narrow
+// page an entry nested three deep has no room for its title, and ops refuses
+// rather than printing a page number with nothing to read beside it.
+func TestTheLibrarysContentsRefusalReachesTheStatusLine(t *testing.T) {
+	s := openOutlined(t, 5, []mark{
+		{"One", 1, -1},
+		{"Two", 2, 0},
+		{"Three", 3, 1},
+		{"Four", 4, 2},
+	}, nil)
+
+	s.contentsPage()
+
+	if !strings.Contains(s.note, "has no room for its title") {
+		t.Errorf("the status line says %q", s.note)
+	}
+	if s.doc.PageCount() != 5 {
+		t.Errorf("a refusal left the document with %d pages", s.doc.PageCount())
 	}
 }
 
