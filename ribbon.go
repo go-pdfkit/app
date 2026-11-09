@@ -89,7 +89,20 @@ var ribbonTabs = []struct {
 	{groupMarks, []verbGroup{
 		{"Watermark", []string{"watermark"}},
 		{"Numbers", []string{"number", "bates"}},
-		{"Stamp", []string{"stamp"}},
+	}},
+	// ⛔⛔ THE STAMP, THE HEADER AND FOOTER AND THE PICTURE MOVED OFF MARKS
+	// because its PANEL ran out of room: adding the two boxes a header and a
+	// footer need took it 109 pixels past the room it is given, and a control
+	// that can only be scrolled to is one a reader does not know is there. The
+	// line is the question each verb asks — Marks writes the same thing across
+	// every page by a rule, these put something where you CHOOSE — and the
+	// chooser that answers it is on this panel with them.
+	//
+	// ⛔ The group may not be called "Stamp" here: that is this tab's own name,
+	// and a group named like its tab reports no rectangle at all once the strip
+	// compacts. See scene_test.go for what that cost twice.
+	{groupStamp, []verbGroup{
+		{"A line of text", []string{"stamp", "headFoot"}},
 		{"Picture", []string{"placePicture"}},
 	}},
 	{groupFile, []verbGroup{
@@ -401,6 +414,16 @@ var verbs = map[string]verb{
 		label: "Stamp them", tip: "Write the stamp where it is placed beside it.",
 		icon: "label", large: true,
 		run: (*state).stamp,
+	},
+	// ⛔ One press for both. `Stamp them` above could already write either — the
+	// nine places include the top and the foot, and the tokens are filled in
+	// wherever a stamp goes — so this verb buys the GESTURE: a header and a
+	// footer are asked for together, and the second press is the one people
+	// forget.
+	"headFoot": {
+		label: "Head and foot them", tip: "Write the header at the top of the pages and the footer at their foot, in one go. {page} and {pages} are filled in; a box left empty writes nothing there.",
+		icon: "text-box",
+		run:  (*state).headFoot,
 	},
 	"placePicture": {
 		label: "Draw a picture on them", tip: "Choose a picture and draw it where it is placed beside it, at the width beside it — a signature, a logo, a seal.",

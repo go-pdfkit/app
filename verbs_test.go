@@ -23,9 +23,18 @@ import (
 // The heights of the rows of the groups this file drives. Functions, for the
 // reason given on pagesRows() in panel_test.go.
 
+// marksRows: which pages, the watermark, the page numbers, the Bates prefix,
+// then its two numbers on one row.
 func marksRows() []int {
+	return []int{labelledH(), labelledH(), labelledH(), labelledH(), labelledH()}
+}
+
+// stampRows: which pages again — the same datum, shown on both panels — then
+// the stamp, the place and size on one row, the header, the footer, and the
+// width a picture is drawn at.
+func stampRows() []int {
 	return []int{labelledH(), labelledH(), labelledH(), labelledH(), labelledH(),
-		labelledH(), labelledH()}
+		labelledH()}
 }
 
 func fileRows() []int {
@@ -129,15 +138,31 @@ func TestTheMarksPanelWritesWhatWasTypedWhereItWasAsked(t *testing.T) {
 		t.Errorf("the Bates number is not on the first page: %q", s.note)
 	}
 
+}
+
+// TestTheStampPanelWritesWhatWasTypedWhereItWasAsked is the other half, on the
+// tab the stamp moved to when the Marks panel ran out of room.
+func TestTheStampPanelWritesWhatWasTypedWhereItWasAsked(t *testing.T) {
+	s, _ := opened(t, 3)
+	openGroup(t, s, groupStamp)
+
+	// ⛔ The range typed on THIS panel is the one the Marks verbs read too: one
+	// datum, two boxes. A reader who typed it before stamping must not find it
+	// gone after choosing the other tab.
+	typeInto(t, s, stampRows(), 0, "1")
+	if got := s.tools.markSpec.Get(); got != "1" {
+		t.Fatalf("the range box on the Stamp panel holds %q", got)
+	}
+
 	// A stamp, where the list says.
-	typeInto(t, s, marksRows(), 5, "?")
+	typeInto(t, s, stampRows(), 1, "?")
 	// The + of the point size, which shares its row with the list of places.
-	x, y = plusAt(t, s, marksRows(), 6)
+	x, y := plusAt(t, s, stampRows(), 2)
 	press(s, x, y)
 	if s.tools.size.Get() != 13 {
 		t.Fatalf("the stamp is %d points", s.tools.size.Get())
 	}
-	chooseAt(t, s, marksRows(), 6, 1)
+	chooseAt(t, s, stampRows(), 2, 1)
 	if s.tools.at.Get() == 0 {
 		t.Fatal("no place was chosen from the list")
 	}
@@ -147,6 +172,69 @@ func TestTheMarksPanelWritesWhatWasTypedWhereItWasAsked(t *testing.T) {
 	}
 	if !strings.Contains(s.note, places[s.tools.at.Get()].name) {
 		t.Errorf("the status line says %q", s.note)
+	}
+
+	// The header and the footer, written together.
+	typeInto(t, s, stampRows(), 3, "Report")
+	typeInto(t, s, stampRows(), 4, "!")
+	pressVerb(t, s, "headFoot")
+	drawn := content(t, s.doc)
+	if !bytes.Contains(drawn, []byte("(Report) Tj")) {
+		t.Errorf("the header is not on the first page: %q", s.note)
+	}
+	if !bytes.Contains(drawn, []byte("(1 of 3!) Tj")) {
+		t.Errorf("the footer is not on the first page, filled in: %q", s.note)
+	}
+	if !strings.Contains(s.note, "put a header and a footer on 1") {
+		t.Errorf("the status line says %q", s.note)
+	}
+}
+
+// TestAHeaderOrAFooterAloneIsWrittenAlone: an empty box means "nothing there",
+// not an error — and the status line says which one was written.
+func TestAHeaderOrAFooterAloneIsWrittenAlone(t *testing.T) {
+	for _, c := range []struct{ head, foot, says, drawn string }{
+		{"Only a header", "", "put a header on", "(Only a header) Tj"},
+		{"", "Only a footer", "put a footer on", "(Only a footer) Tj"},
+	} {
+		s, _ := opened(t, 2)
+		s.tools.header.Set(c.head)
+		s.tools.footer.Set(c.foot)
+
+		s.headFoot()
+
+		if !strings.Contains(s.note, c.says) {
+			t.Errorf("with %q and %q the status line says %q", c.head, c.foot, s.note)
+		}
+		if !bytes.Contains(content(t, s.doc), []byte(c.drawn)) {
+			t.Errorf("%s is not on the page", c.drawn)
+		}
+	}
+}
+
+func TestAHeaderAndFooterBothEmptyIsRefused(t *testing.T) {
+	s, _ := opened(t, 2)
+	s.tools.header.Set("")
+	s.tools.footer.Set("   ")
+
+	s.headFoot()
+
+	if !strings.Contains(s.note, "type a header or a footer first") {
+		t.Errorf("the status line says %q", s.note)
+	}
+}
+
+// TestAHeaderOnARangeThatIsNotOneSaysSo: ops refuses a range it cannot read,
+// and that refusal is the useful answer.
+func TestAHeaderOnARangeThatIsNotOneSaysSo(t *testing.T) {
+	s, _ := opened(t, 2)
+	s.tools.markSpec.Set("9-")
+	s.tools.header.Set("Report")
+
+	s.headFoot()
+
+	if strings.Contains(s.note, "put a header") {
+		t.Errorf("a range past the end was accepted: %q", s.note)
 	}
 }
 

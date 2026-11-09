@@ -140,10 +140,12 @@ func TestATickAndAListAlsoFollowTheirDatum(t *testing.T) {
 		t.Errorf("%q was turned back on and its box is not ticked", name)
 	}
 
-	openGroup(t, s, "Marks")
-	lists := dropsIn(s.tools.built["Marks"])
+	// ⛔ The Stamp panel, not the Marks one: `Where it goes` moved with the verbs
+	// that ask it when the Marks panel ran out of room (see groupStamp).
+	openGroup(t, s, groupStamp)
+	lists := dropsIn(s.tools.built[groupStamp])
 	if len(lists) == 0 {
-		t.Fatal("the Marks panel has no list to choose from")
+		t.Fatal("the Stamp panel has no list to choose from")
 	}
 	want := len(placeNames()) - 1
 	s.tools.at.Set(want)
