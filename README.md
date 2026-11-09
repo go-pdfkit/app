@@ -610,8 +610,15 @@ view answers and a mark meaning both would answer neither.
   Rendering a second set at another size would double what a forty-page document
   costs to look at, and the tiles further out are a frame and a number either way
   — which, for putting pages in order, is most of what a tile is for.
-- **leaving the grid lets go of what was held.** A page picked up in a view that
-  is no longer on the screen is a move nobody can finish.
+- **leaving the grid lets go of what was held**, whichever reading is asked for
+  next. A page held in a view nobody is looking at is a move the next press would
+  finish by surprise.
+- **the page picked up is the page the verbs act on.** Rotate, Delete, Crop and
+  the rest act on *the page*, so without that a reader who could **see** the
+  upside-down page in the grid still had to find it again in the rail to turn
+  it. And any change to the document puts down what was held, in the one place
+  every verb passes through: a number is not a page, and deleting page 3 while
+  holding page 5 would leave the next press moving something nobody pointed at.
 
 ## Writing the table of contents
 
