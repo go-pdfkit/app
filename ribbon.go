@@ -404,7 +404,7 @@ var verbs = map[string]verb{
 		run:  (*state).scanned,
 	},
 	"merge": {
-		label: "Add a file after this one", tip: "Choose another PDF and put its pages after these.",
+		label: "Add files after this one", tip: "Choose one or more files and put their pages after these, in the order you chose them. A picture, a drawing or a comic archive counts as a file: each becomes pages.",
 		icon: "page-plus", large: true,
 		run: (*state).merge,
 	},

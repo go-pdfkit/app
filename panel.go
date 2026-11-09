@@ -738,9 +738,75 @@ func (s *state) booklet() {
 	s.refresh()
 }
 
-// merge adds another file's pages after this one's.
+// merge adds the pages of one or more other files after this one's, in the
+// order they were chosen.
+//
+// ⛔ SEVERAL AT ONCE, which is what the row this answers asks for: a merge is
+// nearly always "these five scans into one document", and one file at a time
+// means five presses and five dialogs, each of which can be cancelled, leaving
+// somebody with a document that is part-way through a job and no record of how
+// far. The other verbs that ask for a file take exactly one and keep the single
+// picker.
+//
+// ⛔ A file among them that cannot be read STOPS the merge and says which one.
+// Appending the ones before it and dropping the rest would leave a document
+// nobody asked for, and saying nothing about the others would be worse.
 func (s *state) merge() {
-	s.withAnother("added", func(d, other *ops.Doc) error { d.Append(other); return nil })
+	if s.doc == nil {
+		s.fail("open a document first")
+		return
+	}
+	s.host.OpenMany(func(files []chosen) {
+		if len(files) == 0 {
+			return // the person changed their mind, which is not an error
+		}
+		others := make([]*ops.Doc, 0, len(files))
+		names := make([]string, 0, len(files))
+		for _, f := range files {
+			other, ok := s.documentOf(f)
+			if !ok {
+				return // the arm that refused it has said why
+			}
+			others = append(others, other)
+			names = append(names, f.name)
+		}
+		said := "added " + names[0]
+		if len(names) > 1 {
+			said = fmt.Sprintf("added %d files: %s", len(names), strings.Join(names, ", "))
+		}
+		s.changeSaying(said, func(d *ops.Doc) error {
+			for _, other := range others {
+				d.Append(other)
+			}
+			return nil
+		})
+	})
+}
+
+// documentOf is one chosen file as a document, whatever shape it arrived in,
+// or false with the reason already on the status line.
+//
+// ⛔⛔ A CHOSEN FILE IS WHATEVER THE FIRST ONE MAY BE. There is one filter list
+// behind every picker, so the moment Open accepted a picture, a drawing and a
+// comic archive, these choosers started offering them too — and refusing them
+// here is the SECOND direction of the gate in opened.go: a file the dialog shows
+// and the code will not take is a file somebody chose for nothing.
+func (s *state) documentOf(f chosen) (*ops.Doc, bool) {
+	other, err := ops.Open(f.data)
+	if err == nil {
+		return other, true
+	}
+	// Putting a scan after a document, laying a signature over a page and
+	// interleaving a photographed back page are the three things anybody tries.
+	from, tried := s.documentFrom(f.data)
+	if !tried {
+		s.fail("cannot open " + f.name + ": " + err.Error())
+		return nil, false
+	}
+	if from.doc == nil {
+		return nil, false // the arm that recognised it has already said why
+	}
+	return from.doc, true
 }
 
 // overlay draws another file's pages on top of this one's.
@@ -758,28 +824,9 @@ func (s *state) withAnother(said string, join func(d, other *ops.Doc) error) {
 		return
 	}
 	s.host.Open(func(name string, data []byte) {
-		other, err := ops.Open(data)
-		if err != nil {
-			// ⛔⛔ THE SECOND FILE IS WHATEVER THE FIRST ONE MAY BE. There is one
-			// file dialog and one filter list behind it, so the moment Open
-			// accepted a picture, a drawing and a comic archive, this chooser
-			// started offering them too — and this refused them, which is the
-			// SECOND direction of the gate in opened.go: a file the dialog shows
-			// and the code will not take is a file somebody chose for nothing.
-			//
-			// It is also the useful behaviour. Putting a scan after a document,
-			// laying a signature over a page and interleaving a photographed
-			// back page are the three things anybody would try.
-			from, tried := s.documentFrom(data)
-			if !tried {
-				s.fail("cannot open " + name + ": " + err.Error())
-				return
-			}
-			if from.doc == nil {
-				// The arm that recognised it has already said why.
-				return
-			}
-			other = from.doc
+		other, ok := s.documentOf(chosen{name: name, data: data})
+		if !ok {
+			return
 		}
 		s.changeSaying(said+" "+name, func(d *ops.Doc) error { return join(d, other) })
 	})

@@ -21,9 +21,23 @@ import (
 // A host is what the workbench needs from the page it is running in: a way to
 // ask for a file and a way to hand one back. The browser supplies one; a test
 // supplies another, which is what keeps the rest of this file testable.
+// A chosen file: what the person called it and what is in it.
+type chosen struct {
+	name string
+	data []byte
+}
+
 type host interface {
 	// Open asks the person for a file and calls back with what they chose.
 	Open(func(name string, data []byte))
+	// OpenMany asks for ONE OR MORE files and calls back with all of them, in
+	// the order the picker reports — which is the order a merge needs.
+	//
+	// ⛔ A SECOND METHOD AND A SECOND INPUT, rather than `multiple` on the one
+	// every verb shares. Everything else that asks for a file wants exactly one,
+	// and a picker that allowed several would hand back a list the code then
+	// took the first of, in silence.
+	OpenMany(func([]chosen))
 	// Save hands a file to the person under the given name.
 	Save(name string, data []byte)
 	// SystemDark says whether the page is being shown in a dark colour scheme,

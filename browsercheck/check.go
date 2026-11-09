@@ -282,7 +282,115 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 	}
 	fmt.Println("the mark written from the ribbon is in the saved file")
 
+	if err := mergeTakesSeveralFiles(ctx, c, sid, sample, doc.PageCount(), dl, again); err != nil {
+		return err
+	}
+
 	return shellReaches(ctx, c, sid, page)
+}
+
+// mergeTakesSeveralFiles drives `Add a file after this one` with TWO files at
+// once and reads the page count back out of what the tab hands over.
+//
+// ⛔⛔ THE ONLY PLACE THIS CODE RUNS. The multiple picker is a second
+// <input type=file> and a second method on the host, and both live in the
+// js/wasm half of this program — which `go test` never compiles, because it is
+// behind a build tag. The unit tests drive the verb through a fake host, which
+// says what the verb does with a list of files and NOTHING about whether the
+// page hands it one: a picker that opened and never called back would pass every
+// one of them. So the files go in through DOM.setFileInputFiles, which is how
+// Open is already driven here, with two paths instead of one.
+func mergeTakesSeveralFiles(ctx context.Context, c *conn, sid, sample string, was int, dl string, notThis []byte) error {
+	rows, err := contentsOf(ctx, c, sid)
+	if err != nil {
+		return err
+	}
+	wasRows := len(rows)
+	at, err := controls(ctx, c, sid)
+	if err != nil {
+		return err
+	}
+	if err := pressControl(ctx, c, sid, at, "Sheet"); err != nil {
+		return err
+	}
+	at, err = controls(ctx, c, sid)
+	if err != nil {
+		return err
+	}
+	drain(c)
+	if err := pressControl(ctx, c, sid, at, "merge"); err != nil {
+		return err
+	}
+	ev, ok := waitEvent(c, "Page.fileChooserOpened", 5*time.Second)
+	if !ok {
+		say(c)
+		return fmt.Errorf("pressing the merge verb asked for no file")
+	}
+	var p struct {
+		BackendNodeID int `json:"backendNodeId"`
+	}
+	json.Unmarshal(ev.Params, &p)
+	abs, _ := filepath.Abs(sample)
+	// ⛔ The SAME file twice, which is the point: the document doubles, so the
+	// page count alone says both arrived. Two different samples would also need
+	// two fixtures to tell apart.
+	if _, err := c.call(ctx, "DOM.setFileInputFiles", map[string]any{
+		"files": []string{abs, abs}, "backendNodeId": p.BackendNodeID}, sid); err != nil {
+		return err
+	}
+	fmt.Printf("the merge verb's picker opened and was handed %s twice\n", filepath.Base(sample))
+
+	// ⛔⛔ WAIT FOR THE MERGE BEFORE PRESSING SAVE. Handing the files over is
+	// not the merge happening: a browser reads each one through a promise, so
+	// the verb finishes some time after setFileInputFiles returns. The first
+	// version of this pressed Save at once and PASSED on an ordinary display
+	// and FAILED on a Retina one, where everything is slower — it saved the
+	// document as it was, three pages, and called that the merge's answer. A
+	// check whose result depends on which display it runs on is measuring the
+	// display.
+	//
+	// The contents pane is the signal, and it is read as "MORE THAN BEFORE"
+	// rather than as a number: what it lists is this sample's LINKS, not its
+	// pages, and how many of them survive a merge is the library's business
+	// rather than this check's. The page count is asserted below, on the file
+	// itself, which is where that question belongs.
+	want := was * 3
+	if err := until(ctx, 20*time.Second, func() (bool, error) {
+		rows, err := contentsOf(ctx, c, sid)
+		if err != nil {
+			return false, nil
+		}
+		return len(rows) > wasRows, nil
+	}); err != nil {
+		say(c)
+		rows, _ := contentsOf(ctx, c, sid)
+		return fmt.Errorf("after two files were chosen the contents pane still lists %d rows, "+
+			"as it did before them: the merge never happened", len(rows))
+	}
+	fmt.Println("the contents pane grew, so the merge landed before Save was pressed")
+
+	at, err = controls(ctx, c, sid)
+	if err != nil {
+		return err
+	}
+	if err := pressControl(ctx, c, sid, at, "save"); err != nil {
+		return err
+	}
+	merged, err := waitForPDF(ctx, dl, notThis, 20*time.Second)
+	if err != nil {
+		say(c)
+		return fmt.Errorf("the merge of two files handed nothing back: %w", err)
+	}
+	back, err := reader.Open(merged)
+	if err != nil {
+		return fmt.Errorf("what the tab saved after the merge does not open: %w", err)
+	}
+	if got := back.PageCount(); got != want {
+		return fmt.Errorf("merging two copies of a %d-page document gave %d pages, want %d",
+			was, got, want)
+	}
+	fmt.Printf("two files chosen at once became %d pages from %d\n", back.PageCount(), was)
+	return nil
 }
 
 // A contentsRow is one row of the contents pane as the workbench publishes it.
