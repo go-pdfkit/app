@@ -108,7 +108,8 @@ What each tab commands, and what its panel holds:
   to be rebuilt to read it. Files travelling inside the document are listed
   here too, with a way of putting one in, taking one out or dropping it.
 - **Contents** — the table of contents a reader navigates by: bookmark the page
-  on the screen, write a whole tree from a text file, or drop the bookmarks.
+  on the screen, write a whole tree from a text file, or drop the bookmarks —
+  and the **printed** kind, a contents page written from those same entries.
   See *Writing the table of contents* below.
 - **Protect** — open a file that has a password, put a user and an owner
   password on this one and say what a reader may do with it, or take the
@@ -589,6 +590,18 @@ The **Contents** tab answers the other half.
   care. A line it cannot read is a refusal **naming the line**, handed on
   unchanged — a table of contents quietly missing an entry is worse than one
   that refuses to be written.
+
+- **Write a contents page** is the other kind of table of contents: the
+  **printed** one. A page at the front with a line for each bookmark, its page
+  number at the right and dots leading to it, built from the entries the rail is
+  already showing. The numbers account for the page it adds — an entry that
+  pointed at page 7 is on page 8 once a contents page is in front of it, and
+  printing the 7 would send a reader one page short of every heading in the
+  book. It does **not** rewrite the bookmarks: `ops` carries a document's own
+  outline over and remaps each entry to the page object it still points at, so
+  the tree follows its pages across the insertion, where writing it back from
+  this program's own walk would lose the entries that point nowhere and anything
+  past the thousand it reads.
 
 ⛔ **Adding one bookmark means handing over the whole tree.** `SetOutline`
 writes what it is given *instead of* the sources' own, so the existing
