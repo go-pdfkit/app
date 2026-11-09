@@ -13,11 +13,17 @@
 //
 // ⛔ The refusal comes from the library and reaches the status line unchanged.
 // ops.Doc.Redact will not remove text it cannot remove completely — text inside
-// a form, across an image, under an annotation, or drawn by an operator that
-// also draws words outside the selection — and says which. Those messages are
-// the useful part: a reader told "this line is drawn in one piece, and taking
-// it would take more than you asked for" can select the whole line instead. A
-// workbench that swallowed them and drew a box would be the leak.
+// a form, under an annotation, or drawn by an operator that also draws words
+// outside the selection — and says which. A picture the region crosses is no
+// longer one of those: since ops v0.35.0 the samples under the region are
+// DESTROYED and the picture written back, as ISO 32000-1 12.5.6.23 requires,
+// for a plain, upright picture drawn once; the pictures it still cannot
+// rewrite — a JPEG, a turned one, one drawn twice — are refused by name.
+//
+// Those messages are the useful part: a reader told "this line is drawn in one
+// piece, and taking it would take more than you asked for" can select the whole
+// line instead. A workbench that swallowed them and drew a box would be the
+// leak.
 
 package main
 
