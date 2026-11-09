@@ -152,6 +152,7 @@ type tools struct {
 	// The Pages group.
 	spec   *mvvm.Observable[string] // which pages, empty for the one on the screen
 	turn   *mvvm.Observable[int]    // a quarter turn, in degrees
+	angle  *mvvm.Observable[int]    // any turn at all, in degrees clockwise
 	moveTo *mvvm.Observable[int]    // where the page on the screen is to go
 	box    *mvvm.Observable[string] // a crop box, as four numbers
 	before *mvvm.Observable[int]    // where a blank page goes
@@ -242,9 +243,13 @@ type tools struct {
 // newTools builds the panel's state with the defaults each control starts at.
 func newTools() *tools {
 	return &tools{
-		built:       map[string]toolkit.Widget{},
-		spec:        mvvm.NewObservable(""),
-		turn:        mvvm.NewObservable(90),
+		built: map[string]toolkit.Widget{},
+		spec:  mvvm.NewObservable(""),
+		turn:  mvvm.NewObservable(90),
+		// Not 90: this box is for the angles the cycle button beside it cannot
+		// say, and a box that starts at 90 invites the press that does nothing
+		// new. 30 is a turn anybody can see went round.
+		angle:       mvvm.NewObservable(30),
 		moveTo:      mvvm.NewObservable(1),
 		box:         mvvm.NewObservable(""),
 		before:      mvvm.NewObservable(1),
@@ -420,7 +425,21 @@ func (s *state) pagesGroup() *column {
 	// readable only forwards, with no way for anything else to put a quarter
 	// turn on the screen.
 	tkbind.BindCycleValues(s.tools.turn, turns, quarterTurns, s.repaint)
-	box.add(toolkit.NewFormField("Turn them by", turns), labelledH())
+
+	// ⛔⛔ THE FREE ANGLE SHARES THE TURNING ROW, and the reason is measured
+	// rather than tidy-minded: given a row of its own, the Pages panel was laid
+	// out 44 pixels past the bottom of its box and
+	// TestNoPanelOverflowsTheRoomItIsGiven went red. This panel is full. The
+	// pair belongs side by side anyway — one row, two ways to say how far —
+	// the way Cut across and `and down` already are.
+	//
+	// The range is the one BentoPDF's own input carries, −360 to 360. A range
+	// rather than a free number: every angle is some angle between −360 and
+	// 360, so one outside says only that somebody mistyped.
+	box.add(buttons(
+		toolkit.NewFormField("Turn them by", turns),
+		s.boundedSpinRow("or this angle", -360, 360, s.tools.angle),
+	), labelledH())
 
 	box.add(s.spinRow("Move this page to", 1, s.tools.moveTo), labelledH())
 	box.add(s.entryRow("Crop to, in points", "x0,y0,x1,y1", s.tools.box), labelledH())
@@ -469,7 +488,15 @@ func (s *state) entryRow(label, hint string, to *mvvm.Observable[string]) toolki
 
 // spinRow is a named number.
 func (s *state) spinRow(label string, min int, to *mvvm.Observable[int]) toolkit.Widget {
-	sp := toolkit.NewSpinButton(min, pageCeiling, to.Get(), 1)
+	return s.boundedSpinRow(label, min, pageCeiling, to)
+}
+
+// boundedSpinRow is the same with a ceiling of its own, for the numbers that
+// are not counts of pages. ⛔ One function underneath both, because the pair
+// that existed before this differed by one argument and the second would have
+// been where a later change to the binding failed to arrive.
+func (s *state) boundedSpinRow(label string, min, max int, to *mvvm.Observable[int]) toolkit.Widget {
+	sp := toolkit.NewSpinButton(min, max, to.Get(), 1)
 	tkbind.BindSpin(to, sp, s.repaint)
 	return toolkit.NewFormField(label, sp)
 }
@@ -602,6 +629,23 @@ func (s *state) turnRange() {
 	spec, by := s.where(), s.tools.turn.Get()
 	s.changeSaying(fmt.Sprintf("turned %s by %d degrees", spec, by),
 		func(d *ops.Doc) error { return d.Rotate(spec, by) })
+}
+
+// turnByAngle turns the pages the range names by the angle beside it, which is
+// any angle rather than a quarter of a circle.
+//
+// ⛔ IT SAYS THE PAPER GREW, because that is the part a reader is not expecting
+// and cannot undo: a page turned by thirty degrees comes back on a bigger
+// sheet, since a sheet that stayed the same size would have two corners of the
+// page off the edge of it. The status line is where a workbench tells somebody
+// what it did to their document beyond what they asked.
+func (s *state) turnByAngle() {
+	spec, by := s.where(), s.tools.angle.Get()
+	note := fmt.Sprintf("turned %s by %d degrees", spec, by)
+	if by%90 != 0 {
+		note += " — the paper grew to hold the corners"
+	}
+	s.changeSaying(note, func(d *ops.Doc) error { return d.Turn(spec, float64(by)) })
 }
 
 // reverse puts the pages in the opposite order.

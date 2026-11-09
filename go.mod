@@ -8,7 +8,7 @@ require (
 	github.com/go-pdfkit/convert v0.16.0
 	github.com/go-pdfkit/extract v0.11.0
 	github.com/go-pdfkit/forms v0.6.0
-	github.com/go-pdfkit/ops v0.35.0
+	github.com/go-pdfkit/ops v0.36.0
 	github.com/go-pdfkit/reader v0.10.0
 	github.com/go-pdfkit/render v0.69.1
 	github.com/go-widgets/mvvm v0.15.0

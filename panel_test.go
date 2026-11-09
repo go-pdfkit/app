@@ -38,13 +38,16 @@ import (
 //
 // The rows, in order, so the indices below can be read against something:
 //
-//	0 Which pages   1 Turn them by   2 Move this page to   3 Crop to, in points
-//	4 Put a blank page before   5 Set the paper to   6 Paint the text
-//	7 Split into files of
+//	0 Which pages   1 Turn them by + or this angle   2 Move this page to
+//	3 Crop to, in points   4 Put a blank page before   5 Set the paper to
+//	6 Paint the text   7 Split into files of
 //
 // Finding a row by the label of the control on it would remove this copy
 // altogether, and is worth doing the next time one of these presses lands
-// somewhere unexpected.
+// somewhere unexpected. ⛔ It nearly happened again on 2026-11-09: the free
+// angle was first given a row of its own, which moved four presses — and then
+// the panel turned out to be FULL, so it went beside the cycle button instead
+// and the indices never moved. The refactor is filed as app#108.
 func pagesRows() []int {
 	return []int{
 		labelledH(), labelledH(), labelledH(), labelledH(),
@@ -171,6 +174,41 @@ func spinsIn(w toolkit.Widget) []*toolkit.SpinButton {
 	}
 	walk(w)
 	return out
+}
+
+// spinFor is the spin button of the labelled row that holds it.
+//
+// ⛔ BY LABEL, because a position in the panel is not a name. The alternative —
+// `spinsIn(panel)[0]` — reads the control that happens to come first, so a row
+// added above it silently moves every assertion onto the wrong number and the
+// test goes on passing or fails somewhere unrelated. It is the same mistake
+// pagesRows() documents for presses, and this is the half of it that can be
+// fixed in one function.
+func spinFor(t *testing.T, w toolkit.Widget, label string) *toolkit.SpinButton {
+	t.Helper()
+	var found *toolkit.SpinButton
+	var walk func(toolkit.Widget)
+	walk = func(w toolkit.Widget) {
+		if w == nil || found != nil {
+			return
+		}
+		if f, ok := w.(*toolkit.FormField); ok && f.Label == label {
+			if sp := spinsIn(f); len(sp) > 0 {
+				found = sp[0]
+				return
+			}
+		}
+		if c, ok := w.(kids); ok {
+			for _, k := range c.Children() {
+				walk(k)
+			}
+		}
+	}
+	walk(w)
+	if found == nil {
+		t.Fatalf("no row labelled %q carries a spin button", label)
+	}
+	return found
 }
 
 // dropsIn collects the drop-down lists under a widget.
@@ -419,7 +457,10 @@ func TestEveryControlInThePagesPanelIsWiredToItsVerb(t *testing.T) {
 
 	// Turning: the panel says how far, the ribbon does it. One press of the
 	// cycle takes a quarter turn to a half.
-	x, y = rowAt(t, s, pagesRows(), 1, 1)
+	//
+	// ⛔ The LEFT of the row, because the row holds two controls now: the cycle
+	// and the free angle beside it. Its middle is the seam between them.
+	x, y = rowAt(t, s, pagesRows(), 1, 0)
 	press(s, x, y)
 	if s.tools.turn.Get() != 180 {
 		t.Fatalf("the turn is %d degrees", s.tools.turn.Get())
@@ -431,6 +472,36 @@ func TestEveryControlInThePagesPanelIsWiredToItsVerb(t *testing.T) {
 	if got, _ := s.doc.Rotation(1); got != 0 {
 		t.Errorf("page one was turned too, to %d", got)
 	}
+
+	// ⛔ AND THE ANGLE BESIDE IT, which is the other verb entirely: a quarter
+	// turn is a number written on the page, and any other angle rewrites the
+	// page onto a bigger sheet. So this asks the SHEET, not the rotation —
+	// `Rotation` would answer 0 for a page turned thirty degrees and look like
+	// a verb that did nothing.
+	paperOf := func(n int) [2]float64 {
+		t.Helper()
+		page, err := s.src.Page(n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		w, h := pageSize(s.src, page)
+		return [2]float64{w, h}
+	}
+	s.tools.spec.Set("1")
+	was := paperOf(1)
+	pressVerb(t, s, "turnBy")
+	now := paperOf(1)
+	if now[0] <= was[0] || now[1] <= was[1] {
+		t.Errorf("a page turned by an angle went from %g by %g to %g by %g: the paper did not grow, "+
+			"so its corners are off it", was[0], was[1], now[0], now[1])
+	}
+	if !strings.Contains(s.note, "the paper grew") {
+		t.Errorf("the status line says %q, and does not mention the paper", s.note)
+	}
+	if other := paperOf(3); other != was {
+		t.Errorf("page 3 is %v by %v and only page 1 was named", other[0], other[1])
+	}
+	s.tools.spec.Set("2-3")
 
 	// Reversing, which needs no telling.
 	pressVerb(t, s, "reverse")

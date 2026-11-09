@@ -26,9 +26,13 @@ func TestTheControlFollowsTheModelAndNotOnlyTheOtherWayRound(t *testing.T) {
 	s.tools.moveTo.Set(8)
 	s.draw(buffer())
 
-	spins := spinsIn(s.tools.built["Pages"])
-	if len(spins) < 3 {
-		t.Fatalf("the Pages panel has %d spin buttons, which is not the panel this is about", len(spins))
+	// ⛔ The two controls are found by the labels of their rows, not by their
+	// place in the panel: a row added above them must not quietly move these
+	// assertions onto somebody else's number.
+	panel := s.tools.built["Pages"]
+	spins := []*toolkit.SpinButton{
+		spinFor(t, panel, "Move this page to"),
+		spinFor(t, panel, "Put a blank page before"),
 	}
 	shown := func() []int {
 		var out []int
@@ -50,7 +54,7 @@ func TestTheControlFollowsTheModelAndNotOnlyTheOtherWayRound(t *testing.T) {
 	}
 
 	after := shown()
-	for i, got := range after[:2] {
+	for i, got := range after {
 		if got > 2 {
 			t.Errorf("spin button %d still offers page %d of a document with 2 pages: the control did not "+
 				"hear the model change, which is the direction a one-way Subscribe does not have", i, got)
