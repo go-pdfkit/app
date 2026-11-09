@@ -36,17 +36,24 @@ const (
 func (s *state) readGroup() *column {
 	box := newColumn()
 	box.add(s.entryRow("Find", "a word or a phrase", s.tools.find), labelledH())
+	// ⛔ And now the promise is true again. It was false for a while — the marks
+	// and Redact sat on this tab under a line saying "nothing on this tab
+	// changes the document", which is the kind of reassurance that costs
+	// somebody their only copy. They have moved to the Mark up tab, so the
+	// sentence says what is left here and nothing more.
+	box.add(toolkit.NewLabel("Nothing on this tab changes the document."), bareH())
+	return box
+}
+
+// markUpGroup is the panel beside the verbs that mark, comment on or alter the
+// page through the selection: the two boxes those verbs read.
+func (s *state) markUpGroup() *column {
+	box := newColumn()
 	box.add(s.commentRow(), labelledH())
 	box.add(s.entryRow("Replace with", "what the page should say instead",
 		s.tools.replacement), labelledH())
-	// ⛔ The promise is now narrower than it was, because two verbs on this tab
-	// DO change the document: a sticky note and a margin comment are
-	// annotations, written into the file. The marks and Redact were always here
-	// too — the old sentence was already wrong about them, and saying "nothing
-	// here changes anything" beside a verb that permanently removes text is the
-	// kind of reassurance that costs somebody their only copy.
-	box.add(toolkit.NewLabel("Reading changes nothing. A mark, a comment or a "+
-		"redaction is written into the document."), bareH())
+	box.add(toolkit.NewLabel("Drag across words on the page first. "+
+		"Everything here is written into the document."), bareH())
 	return box
 }
 

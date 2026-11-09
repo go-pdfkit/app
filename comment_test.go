@@ -22,6 +22,13 @@ func narrowPagePDF(t *testing.T) []byte {
 // can choose how much room there is around the words.
 func pagePDFOfSize(t *testing.T, pw, ph int) []byte {
 	t.Helper()
+	return pagePDFOfSizeAt(t, pw, ph, 20)
+}
+
+// pagePDFOfSizeAt is the same with the line's left edge chosen too, for the
+// tests that need a margin on a particular side.
+func pagePDFOfSizeAt(t *testing.T, pw, ph int, left float64) []byte {
+	t.Helper()
 	w := reader.NewWriter("1.7")
 	pagesRef := w.Reserve()
 	widths := make(reader.Array, 0, 224)
@@ -35,7 +42,7 @@ func pagePDFOfSize(t *testing.T, pw, ph int) []byte {
 		"Encoding": reader.Name("WinAnsiEncoding"),
 	})
 	var body strings.Builder
-	x := 20.0
+	x := left
 	for _, ch := range "the first chapter" {
 		if ch == ' ' {
 			x += 3.3

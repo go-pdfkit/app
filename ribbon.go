@@ -95,9 +95,13 @@ var ribbonTabs = []struct {
 	{groupFile, []verbGroup{
 		{"Clean", []string{"sanitize", "flatten", "dropAnnots", "dropOutlines"}},
 		{"Files inside", []string{"attach", "showCarried"}},
-		{"Redraw the pixels", []string{"invert", "greyscale", "onGround", "adjust", "scanned"}},
 		{"Size", []string{"compress"}},
 		{"About it", []string{"setInfo", "showInfo", "clearInfo"}},
+	}},
+	{groupRedraw, []verbGroup{
+		// ⛔ "The pixels", not "Redraw": a group may not be named like its own
+		// tab — see the gate in scene_test.go and what it cost once.
+		{"The pixels", []string{"invert", "greyscale", "onGround", "adjust", "scanned"}},
 	}},
 	{groupProtect, []verbGroup{
 		{"Password", []string{"encrypt", "decrypt"}},
@@ -119,13 +123,24 @@ var ribbonTabs = []struct {
 		{"Readings", []string{"readText", "readImages", "readPage", "readTables"}},
 		{"Search", []string{"find", "findNext"}},
 		{"Selected", []string{"copyText"}},
-		{"Mark up", []string{"highlight", "underline", "strikeOut", "squiggle"}},
-		{"Say something", []string{"noteOn", "marginComment"}},
+	}},
+	{groupMarkUp, []verbGroup{
+		// ⛔ "Text", not "Mark up": a group whose label is its own TAB's label
+		// is ambiguous to the ribbon, and its controls report no rectangle once
+		// the strip compacts. That cost four readings an afternoon ago; the gate
+		// in scene_test.go now refuses the shape outright.
+		{"Text", []string{"highlight", "underline", "strikeOut", "squiggle"}},
+		// ⛔ Apart from the four above, which write TEXT markup: those follow
+		// the words line by line and a reader asks for them by saying "this
+		// sentence". These three put a SHAPE over a region, asked for by saying
+		// "this bit of the page". Same gesture, different question.
+		{"Shapes", []string{"boxWords", "ringWords", "arrowAtWords"}},
+		{"Comments", []string{"noteOn", "marginComment"}},
 		// ⛔ The two verbs that change what the document SAYS, together and
 		// apart from the marks and the comments: one takes words out, the other
 		// puts different words in. A reader deciding between them is deciding
 		// the same question, so they sit in one group.
-		{"Change the text", []string{"redactText", "replaceWords"}},
+		{"Change it", []string{"redactText", "replaceWords"}},
 	}},
 	{groupHandOver, []verbGroup{
 		{"This page", []string{"pagePicture", "textFile", "jsonFile"}},
@@ -481,6 +496,29 @@ var verbs = map[string]verb{
 		label: "Strike out", tip: "Strike through the words selected on the page. The text itself is untouched.",
 		icon: "strikethrough",
 		run:  (*state).strikeSelection,
+		when: func(s *state) bool { return !s.sel.IsEmpty() },
+	},
+	// ⛔ THESE THREE DRAW RATHER THAN WRITE, and each leaves the words legible:
+	// a box and a ring go ROUND the passage with paper between, and an arrow
+	// comes in from the margin and stops short of the glyphs. A line drawn
+	// through a passage would be a strike-out, and there is already a verb for
+	// that two controls along.
+	"boxWords": {
+		label: "Box them", tip: "Draw a red rectangle round the words selected on the page, with a little paper between the border and the glyphs.",
+		icon: "square-dashed", large: true,
+		run:  (*state).boxSelection,
+		when: func(s *state) bool { return !s.sel.IsEmpty() },
+	},
+	"ringWords": {
+		label: "Ring them", tip: "Draw a red ellipse round the words selected on the page, the way somebody circles a word on paper.",
+		icon: "circle",
+		run:  (*state).ringSelection,
+		when: func(s *state) bool { return !s.sel.IsEmpty() },
+	},
+	"arrowAtWords": {
+		label: "Point at them", tip: "Draw a red arrow from the margin to the words selected on the page, stopping just short of them.",
+		icon: "arrow-right-circle",
+		run:  (*state).arrowToSelection,
 		when: func(s *state) bool { return !s.sel.IsEmpty() },
 	},
 	// ⛔ THESE TWO WRITE SOMETHING OF THEIR OWN, which is what separates them
