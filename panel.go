@@ -226,6 +226,11 @@ type tools struct {
 	comment *mvvm.Observable[string]
 	// replacement is what `Replace the words` puts in place of the selection.
 	replacement *mvvm.Observable[string]
+	// fieldName is what a field made from a selection is called, or empty to
+	// take the name from the words themselves; fieldKind is which kind of
+	// field, by position in fieldKinds.
+	fieldName *mvvm.Observable[string]
+	fieldKind *mvvm.Observable[int]
 
 	// The Read group: which reading of the document is on the screen instead
 	// of the picture of it, or empty for the picture, and which of the
@@ -282,6 +287,8 @@ func newTools() *tools {
 		find:        mvvm.NewObservable(""),
 		comment:     mvvm.NewObservable(""),
 		replacement: mvvm.NewObservable(""),
+		fieldName:   mvvm.NewObservable(""),
+		fieldKind:   mvvm.NewObservable(0),
 		reading:     mvvm.NewObservable(""),
 		picture:     mvvm.NewObservable(0),
 	}

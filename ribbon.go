@@ -166,6 +166,11 @@ var ribbonTabs = []struct {
 		// puts different words in. A reader deciding between them is deciding
 		// the same question, so they sit in one group.
 		{"Change it", []string{"redactText", "replaceWords"}},
+		// ⛔ Its own group, because it is a different act from the three above
+		// it: the marks draw ON the words, `Change it` alters the words, and
+		// this adds a place for somebody ELSE to write. A blank printed form is
+		// a page of questions, and this is the answer to one.
+		{"Fill-in", []string{"makeField"}},
 	}},
 	{groupHandOver, []verbGroup{
 		{"This page", []string{"pagePicture", "textFile", "jsonFile"}},
@@ -539,6 +544,15 @@ var verbs = map[string]verb{
 	// on this tab is a layer that comes off or a removal that announces itself;
 	// this puts words in the author's mouth, so its tip says what it is and its
 	// status line says both the old words and the new ones.
+	// ⛔ ops.AddFields has been able to put fields into a document since the
+	// verb existed and nothing here called it: `pdfops addfields` was the only
+	// way, which for the people who open a PDF in a browser tab is no way at
+	// all. A capability written, tested, released and unreachable.
+	"makeField": {
+		label: "Make a field for this", tip: "Put a fillable field under the selected words, named after them: a box to type in, or a tick. Drag across a question on a blank form and this is the answer to it.",
+		icon: "input-field", large: true,
+		run: (*state).makeField,
+	},
 	"replaceWords": {
 		label: "Replace the words", tip: "Put the text typed beside it in place of the words selected on the page. ⚠ This changes what the document says, and the page keeps its layout: whatever follows on the line stays where it was.",
 		icon: "edit-pencil",
