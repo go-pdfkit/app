@@ -106,6 +106,8 @@ func (s *state) readingView(src *reader.Document) toolkit.Widget {
 		return s.carriedView()
 	case readingArrange:
 		return s.arrangeView(src)
+	case readingCompare:
+		return s.compareView()
 	}
 	return s.imagesView(src)
 }

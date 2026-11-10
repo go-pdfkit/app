@@ -221,7 +221,11 @@ type state struct {
 	// grid is the arranging grid's tiles with the page each stands for, kept so
 	// that a press can be answered after the layout has given them rectangles.
 	grid []gridTile
-	note string
+	// comparison is the last report of what changed between this document and
+	// another version of it, or nil. It is dropped by any change to the
+	// document: see the note on the type.
+	comparison *comparison
+	note       string
 
 	// dirty says something has changed since the canvas last showed it. A
 	// file arrives from the browser long after the press that asked for it,
@@ -521,6 +525,11 @@ func (s *state) changeSaying(said string, apply func(*ops.Doc) error) bool {
 	// would move what is now a different page. One line, in the one place every
 	// verb goes through, rather than a line in each of them.
 	s.held = 0
+	// ⛔ AND THE COMPARISON GOES WITH IT, for the same reason and in the same
+	// place: a report of what changed against another file stops being true the
+	// moment this document changes, and it would go on naming pages and
+	// differences as confidently as it did a second before.
+	s.comparison = nil
 	s.note = said
 	s.refresh()
 	return true
