@@ -11,9 +11,27 @@ Then it presses on until something is downloaded, which is Save, and checks
 what landed on disk begins with `%PDF`.
 
 ```
-go run ./browsercheck ../web            # a document it makes up
-go run ./browsercheck ../web some.pdf   # one of yours
+go run ./browsercheck ../web                              # a document it makes up
+go run ./browsercheck ../web some.pdf                     # one of yours
+go run ./browsercheck ../web "" /tmp/shot.png 2 dark      # Retina, dark
 ```
+
+The arguments are the directory to serve, a document, where to put the
+screenshot, the display's pixel ratio, and the colour scheme the browser is to
+report — `light` (the default), `dark`, or `system` to take the machine's own.
+
+⛔ **The scheme is said, not inherited, and CI runs both.** Headless Chrome
+reports whatever the machine reports, so a run used to mean the display of
+whoever started it — and these runners are light. Two defects came of that: the
+page-arrival check asked for *more* ink than the empty band had, which is only
+true when the paper is lighter than what is behind it; and the theme gate
+asserted its **first** transition, and so reported a defect twice about working
+code — once on a dark laptop, once on a light runner. Both were a check that
+knew one theme.
+
+The gate is proved rather than assumed: putting the old light-only assumption
+back makes the **light** run pass and the **dark** run fail with *"the document
+never appeared where the page is drawn"*.
 
 `CHROME` names a browser outright; otherwise the usual places are tried.
 
