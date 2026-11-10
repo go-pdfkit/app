@@ -286,8 +286,144 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 		return err
 	}
 
+	if err := themeFollowsTheBrowser(ctx, c, sid); err != nil {
+		return err
+	}
+
 	return shellReaches(ctx, c, sid, page)
 }
+
+// themeFollowsTheBrowser proves that the BROWSER's prefers-color-scheme reaches
+// the CANVAS, and that the reader's own choice then overrides it.
+//
+// ⛔⛔ NOTHING ELSE HERE CAN SEE THIS. The workbench's Go tests drive the theme
+// through fakeHost.flipSystem, which says what the workbench does when it is
+// TOLD the system changed — and nothing about whether the page ever tells it. A
+// listener never registered, or registered on the wrong media query, leaves
+// every one of those tests green. The landing repository had a `themecheck`
+// that asked this of the editor it published; that editor was retired on
+// 2026-11-10 and this is the gate carried over rather than dropped (#111).
+//
+// ⛔ AND IT ASKS FOR A MOVE, NOT A SHADE. "More than half the pixels are dark"
+// is a threshold that depends on the window size, the sample document and
+// whatever is on the ribbon; a check written on one was what made the earlier
+// version of the page-arrival test unable to run on a dark display at all. What
+// is asserted is that the canvas goes substantially darker when the browser
+// says dark and substantially lighter when it says light.
+func themeFollowsTheBrowser(ctx context.Context, c *conn, sid string) error {
+	darkness := func() (float64, error) {
+		v, err := look(ctx, c, sid)
+		if err != nil {
+			return 0, err
+		}
+		if v.Total == 0 {
+			return 0, fmt.Errorf("the canvas has no pixels to read a colour scheme from")
+		}
+		return float64(v.Dark) / float64(v.Total), nil
+	}
+	// setScheme asks the browser to report a colour scheme, and waits for the
+	// canvas to answer it: a repaint is a frame away, so reading immediately
+	// reads the frame before.
+	setScheme := func(want string, rose bool, was float64) (float64, error) {
+		if _, err := c.call(ctx, "Emulation.setEmulatedMedia", map[string]any{
+			"features": []map[string]string{{"name": "prefers-color-scheme", "value": want}},
+		}, sid); err != nil {
+			return 0, err
+		}
+		var now float64
+		err := until(ctx, 10*time.Second, func() (bool, error) {
+			d, err := darkness()
+			if err != nil {
+				return false, err
+			}
+			now = d
+			if rose {
+				return d > was+schemeMove, nil
+			}
+			return d < was-schemeMove, nil
+		})
+		return now, err
+	}
+
+	// ⛔ LIGHT FIRST, BECAUSE THE CANVAS MAY ALREADY BE DARK. Headless Chrome
+	// reports whatever the machine reports, and a check that began by asking
+	// for the scheme the page is already in would assert that nothing happens
+	// and pass on a workbench that follows nothing at all. Starting with the
+	// OTHER one makes the first assertion a real change whichever way the run
+	// begins.
+	was, err := darkness()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("the canvas is %.3f dark before anything is emulated\n", was)
+
+	light, err := setScheme("light", false, was)
+	if err != nil {
+		return fmt.Errorf("the browser reported prefers-color-scheme: light and the canvas stayed "+
+			"as it was (%.3f of its pixels dark): the page's own media query does not reach the "+
+			"workbench: %w", light, err)
+	}
+	fmt.Printf("the browser said light and the canvas went from %.3f to %.3f dark\n", was, light)
+
+	dark, err := setScheme("dark", true, light)
+	if err != nil {
+		return fmt.Errorf("the browser went to prefers-color-scheme: dark and the canvas stayed "+
+			"light (%.3f): it followed the system once and not again: %w", dark, err)
+	}
+	fmt.Printf("the browser said dark and the canvas went to %.3f dark\n", dark)
+
+	// ⛔ THE READER'S OWN CHOICE WINS. One press of Theme takes the workbench
+	// out of the system's hands — that is the whole point of the third state —
+	// and the system flipping afterwards must change nothing.
+	at, err := controls(ctx, c, sid)
+	if err != nil {
+		return err
+	}
+	if err := pressControl(ctx, c, sid, at, "theme"); err != nil {
+		return err
+	}
+	chosen, err := darkness()
+	if err != nil {
+		return err
+	}
+	if _, err := c.call(ctx, "Emulation.setEmulatedMedia", map[string]any{
+		"features": []map[string]string{{"name": "prefers-color-scheme", "value": "dark"}},
+	}, sid); err != nil {
+		return err
+	}
+	// ⛔ A TIMER, AND IT IS THE ASSERTION RATHER THAN A GUESS AT ONE. Everywhere
+	// else here waits for an observed state, because waiting out a delay is how
+	// a check comes to pass for the wrong reason. What is being asserted now is
+	// that NOTHING happens, and nothing has no state to wait for — so this waits
+	// as long as the two changes above each took to arrive, and calls the canvas
+	// still standing a pass.
+	var after float64
+	err = until(ctx, 5*time.Second, func() (bool, error) {
+		d, err := darkness()
+		if err != nil {
+			return false, err
+		}
+		after = d
+		return d > chosen+schemeMove || d < chosen-schemeMove, nil
+	})
+	if err == nil {
+		return fmt.Errorf("the reader chose a theme and the system then went dark, and the canvas "+
+			"followed the system anyway (%.3f dark, and %.3f when they chose): the choice does not "+
+			"take it out of the system's hands", after, chosen)
+	}
+	fmt.Println("the reader's own choice survived the system changing under it")
+	// Left as the reader's choice would leave it: the page is not navigated
+	// again after this, and a check that undid its own last step would be
+	// asserting something it then threw away.
+	return nil
+}
+
+// schemeMove is how much of the canvas has to change colour before a change of
+// scheme is called a change. A tenth is far larger than any antialiasing
+// difference and far smaller than the shift between the two themes, which the
+// run above prints so that a tightening of this number can be read against real
+// figures rather than guessed at.
+const schemeMove = 0.10
 
 // mergeTakesSeveralFiles drives `Add a file after this one` with TWO files at
 // once and reads the page count back out of what the tab hands over.
@@ -928,6 +1064,12 @@ func say(c *conn) {
 // canvas is what the tab actually has on its canvas.
 type canvas struct {
 	N int `json:"n"`
+	// Total is every pixel looked at, which N is not: N counts the pixels that
+	// DIFFER from the top-left one, so it is "how much is drawn" and can be far
+	// smaller than the area — or, on a canvas whose corner pixel is itself part
+	// of the drawing, far smaller than Dark. A fraction of the canvas needs
+	// this as its denominator; using N gave a ratio of 1.166.
+	Total int `json:"total"`
 	// Dark is how many pixels are nearly black. It tells a lit control from an
 	// unlit one, which is what it is for.
 	Dark int `json:"dark"`
@@ -992,7 +1134,7 @@ func lookAt(ctx context.Context, c *conn, sid string, at spot) (canvas, error) {
 	    if ((d[i] * 299 + d[i+1] * 587 + d[i+2] * 114) / 1000 < 128) ink++;
 	    hash = (hash * 31 + d[i] + d[i+1] * 3 + d[i+2] * 7) | 0;
 	  }
-	  return JSON.stringify({n, dark, ink, hash});
+	  return JSON.stringify({n, total: d.length / 4, dark, ink, hash});
 	})()`, box)
 	var out canvas
 	s, err := eval(ctx, c, sid, js)
