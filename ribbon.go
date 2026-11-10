@@ -148,6 +148,11 @@ var ribbonTabs = []struct {
 		{"Readings", []string{"readText", "readImages", "readPage", "readTables"}},
 		{"Search", []string{"find", "findNext"}},
 		{"Selected", []string{"copyText"}},
+		// ⛔ Its own group rather than a fifth Reading: those four read THIS
+		// page of THIS document, and this one reads two documents against each
+		// other. It is shown the same way — a report where the picture was —
+		// but a reader looking for it is asking a different question.
+		{"Another version", []string{"compareFile"}},
 	}},
 	{groupMarkUp, []verbGroup{
 		// ⛔ "Text", not "Mark up": a group whose label is its own TAB's label
@@ -687,6 +692,11 @@ var verbs = map[string]verb{
 		label: "What this page carries", tip: "List the pictures drawn on the page.",
 		icon: "media-image",
 		run:  func(s *state) { s.read(readingImages) },
+	},
+	"compareFile": {
+		label: "Compare with a file", tip: "Choose an earlier version of this document and read what changed between it and this one: pages added or dropped, words, pictures and comments.",
+		icon: "git-compare", large: true,
+		run: (*state).compareWithAFile,
 	},
 	"readPage": {
 		label: "Show the page again", tip: "Put the picture of the page back.",

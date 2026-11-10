@@ -141,7 +141,9 @@ What each tab commands, and what its panel holds:
   JSON with every piece of text and where it sits.
   The formats offered are the ones `gfx` can write, asked of it rather than
   listed here; a page that ran out of time is still handed over, and the status
-  line says how far it got.
+  line says how far it got. And **Compare with a file** reads an earlier
+  version of the document against this one, which is the same tab's question
+  asked of two documents instead of one page.
 - **Hand over** — a copy of the document in some other form, and nothing on it
   changes what is open: this page or every page as a picture, the words as a
   text file, the grids as CSV or JSON, every page zipped or as a `.cbz`, and
@@ -1021,6 +1023,35 @@ Two things the tests had to be talked out of:
   write-back does not unmake the comment — it spoils the preview, and Save is
   what reports it. What the test pins down now is that the comment is in the
   document even when the preview could not be rebuilt.
+
+## Comparing this document with an earlier version
+
+**Compare with a file**, on the Read tab, asks for another version and reads
+what changed between it and the one on the screen. It is a **reading**, like
+the text and the grids: it replaces the picture of the page, and pressing the
+verb again puts the page back.
+
+⛔ **The direction is said out loud, in the report.** A comparison has two
+documents in it, and a reader who has the order backwards reads every addition
+as a deletion. The file chosen is the **earlier** version, the document open is
+the later one, and the heading says *"the left page is draft1.pdf; the right
+page is this document"* rather than leaving it to be worked out from the page
+numbers. The test reads that sentence, and then reads a change back to check
+the words really went the way it claims.
+
+⛔ **Any change to the document drops the report.** It names pages and
+differences; after a page is dropped it names pages that are not there, while
+looking exactly as authoritative as it did a second earlier. One line, in
+`changeSaying` — the one place every verb goes through — next to the line that
+puts down whatever the arranging grid was holding, and for the same reason.
+
+The comparison is against what **Save** would write, not against
+`doc.Bytes()`: a form that has been filled in is saved as the file it came from
+with the answers appended, and those are not the same bytes.
+
+The pairing, the diff and the categories are
+[`ops.Compare`](https://github.com/go-pdfkit/ops); what the workbench adds is
+the picker, the direction and the report.
 
 ## Finding words, and why a match is a selection
 
