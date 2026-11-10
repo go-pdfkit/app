@@ -121,6 +121,19 @@ jobs:
       # otherwise, so for as long as this ran once it could only ever see the
       # display nobody has a problem with — and the workbench came out at half
       # the size it should be on every Retina screen while this stayed green.
+      # ⛔⛔ AND IN BOTH COLOUR SCHEMES, WHICH IS THE SAME LESSON A SECOND TIME.
+      # Headless Chrome reports whatever the machine reports, so these runs saw
+      # the display of whoever started them — and these runners are light. Two
+      # defects came of it: the page-arrival check asked for MORE ink than the
+      # empty band had, which is only true when the paper is lighter than what
+      # is behind it, so it could not run on a dark display at all; and the
+      # theme gate asserted its FIRST transition and reported a defect twice
+      # about working code. Both were a check that knew one theme.
+      #
+      # The browser is now TOLD which scheme to report, and told both. Proved
+      # by putting the old light-only assumption back: the light run passed and
+      # the dark run failed with "the document never appeared where the page is
+      # drawn".
       - name: Open a PDF in it and save one back out, on an ordinary display
         working-directory: browsercheck
         # The runner has no user namespaces to sandbox the renderer in, and
@@ -128,10 +141,26 @@ jobs:
         # itself.
         env:
           CHROME_NO_SANDBOX: "1"
-        run: go run . ../web
+        run: go run . ../web "" /tmp/browsercheck-light.png 1 light
+
+      - name: The same with the browser reporting a dark colour scheme
+        working-directory: browsercheck
+        env:
+          CHROME_NO_SANDBOX: "1"
+        run: go run . ../web "" /tmp/browsercheck-dark.png 1 dark
 
       - name: The same on a Retina display
         working-directory: browsercheck
         env:
           CHROME_NO_SANDBOX: "1"
-        run: go run . ../web "" /tmp/browsercheck-2x.png 2
+        run: go run . ../web "" /tmp/browsercheck-2x.png 2 light
+
+      # ⛔ The two dimensions are crossed in full rather than sampled: the
+      # Retina run is the slow one, where a page is four times the pixels and a
+      # check that waits on a repaint has the least slack — so it is the run
+      # most likely to show what the others hide.
+      - name: The same on a Retina display, dark
+        working-directory: browsercheck
+        env:
+          CHROME_NO_SANDBOX: "1"
+        run: go run . ../web "" /tmp/browsercheck-2x-dark.png 2 dark

@@ -14,7 +14,7 @@ import (
 
 // check is the protocol: boot, look, open a file the way a person does, look
 // again, save, and read what came out.
-func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
+func check(ctx context.Context, c *conn, page, sample, shot, dl, scheme string) error {
 	r, err := c.call(ctx, "Target.createTarget", map[string]any{"url": "about:blank"}, "")
 	if err != nil {
 		return err
@@ -40,6 +40,17 @@ func check(ctx context.Context, c *conn, page, sample, shot, dl string) error {
 	}
 	if _, err := c.call(ctx, "Page.setInterceptFileChooserDialog", map[string]any{"enabled": true}, sid); err != nil {
 		return err
+	}
+	// ⛔ BEFORE THE PAGE IS LOADED. The whole run is then in a scheme this
+	// program chose rather than one the machine happened to be in — which is
+	// what every check below is read against. See the ⛔⛔ in main.go for the
+	// two defects that came of inheriting it.
+	if scheme != "system" {
+		if _, err := c.call(ctx, "Emulation.setEmulatedMedia", map[string]any{
+			"features": []map[string]string{{"name": "prefers-color-scheme", "value": scheme}},
+		}, sid); err != nil {
+			return err
+		}
 	}
 	if _, err := c.call(ctx, "Browser.setDownloadBehavior", map[string]any{
 		"behavior": "allowAndName", "downloadPath": dl, "eventsEnabled": true}, ""); err != nil {

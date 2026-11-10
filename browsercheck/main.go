@@ -82,6 +82,31 @@ func run() error {
 		}
 		dpr = v
 	}
+	// ⛔⛔ THE COLOUR SCHEME IS SAID, NOT INHERITED, AND THIS IS THE THIRD TIME
+	// IT HAS COST SOMETHING. Headless Chrome reports whatever the machine
+	// reports, so a run meant the display of whoever started it:
+	//
+	//   - the page-arrival check asked for MORE ink than the empty band had,
+	//     which is only true when the paper is lighter than what is behind it;
+	//     it could not run on a dark display at all, and was green in CI
+	//     because the runners are light (see the ⛔⛔ in check.go);
+	//   - the theme gate asserted its FIRST transition, and so reported a
+	//     defect twice about working code — once on a dark laptop, once on a
+	//     light runner.
+	//
+	// Both are a check that knew one theme. A default of "light" makes a bare
+	// local run say the same thing as CI, and `dark` is what the gate runs
+	// beside it so that neither can go on knowing only one.
+	scheme := "light"
+	if len(os.Args) > 5 {
+		scheme = os.Args[5]
+	}
+	switch scheme {
+	case "light", "dark", "system":
+	default:
+		return fmt.Errorf("%q is not a colour scheme: light, dark, or system to take the "+
+			"machine's own and be at its mercy", os.Args[5])
+	}
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -121,7 +146,7 @@ func run() error {
 		"--window-size=1060,1040",
 		"--force-device-scale-factor=" + strconv.FormatFloat(dpr, 'g', -1, 64),
 	}
-	fmt.Printf("driving the workbench at a pixel ratio of %g\n", dpr)
+	fmt.Printf("driving the workbench at a pixel ratio of %g, with the browser reporting %s\n", dpr, scheme)
 	if os.Getenv("CHROME_NO_SANDBOX") != "" {
 		// A build runner has no user namespaces to put the renderer in, so
 		// Chrome refuses to start at all. Turning its sandbox off is safe
@@ -153,7 +178,7 @@ func run() error {
 	}
 	defer c.close()
 
-	return check(ctx, c, page, sample, shot, dl)
+	return check(ctx, c, page, sample, shot, dl, scheme)
 }
 
 // noStore keeps the browser from serving a stale build out of its own HTTP
