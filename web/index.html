@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PDF workbench — offline, in your tab</title>
+<title>PDF playground — offline, in your tab</title>
 <meta name="description" content="Open, rearrange, stamp and save a PDF entirely inside your browser tab. No upload, no server, works with the network off.">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
@@ -40,12 +40,19 @@
 <body>
 <div class="stage" id="stage">
   <canvas id="screen" width="1000" height="720"></canvas>
-  <!-- Everything that is not the workbench lives in here, and goes when the
-       first frame is painted: once it is loaded the page is the tool. -->
+  <!-- Everything that is not the playground lives in here, and goes when the
+       first frame is painted: once it is loaded the page is the tool.
+
+       ⛔ IT SAYS WHAT THE ADDRESS SAYS. This page is served at /playground/,
+       and a loading screen that announced a "workbench" named something the
+       reader had not asked for and could not find again. The tool is still a
+       workbench in its own documentation, where the word describes what it
+       does; here, where it is the first thing a visitor reads and sits under
+       an address, it uses the address's own word. -->
   <div id="loading">
-    <h1>PDF workbench</h1>
+    <h1>PDF playground</h1>
     <p class="tagline">Open a PDF, rearrange it, stamp it, save it — without it leaving this tab.</p>
-    <div>loading the workbench</div>
+    <div>loading the playground</div>
     <div class="track"><div class="fill" id="fill"></div></div>
     <div id="pct">0%</div>
     <pre id="err"></pre>

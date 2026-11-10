@@ -1,5 +1,5 @@
 {
-  "name": "PDF workbench",
+  "name": "PDF playground",
   "short_name": "PDF",
   "description": "Open, rearrange, stamp and save a PDF entirely inside your browser tab.",
   "start_url": "./",
