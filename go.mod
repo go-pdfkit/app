@@ -1,4 +1,4 @@
-module github.com/go-pdfkit/app
+module github.com/go-pdfkit/playground
 
 go 1.27.2
 

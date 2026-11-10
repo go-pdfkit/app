@@ -1,4 +1,4 @@
-module github.com/go-pdfkit/app/browsercheck
+module github.com/go-pdfkit/playground/browsercheck
 
 go 1.27.2
 

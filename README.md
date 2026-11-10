@@ -1,6 +1,6 @@
-# app
+# playground
 
-[![CI](https://github.com/go-pdfkit/app/actions/workflows/ci.yml/badge.svg)](https://github.com/go-pdfkit/app/actions/workflows/ci.yml)
+[![CI](https://github.com/go-pdfkit/playground/actions/workflows/ci.yml/badge.svg)](https://github.com/go-pdfkit/playground/actions/workflows/ci.yml)
 [![License: BSD-3-Clause](https://img.shields.io/badge/License-BSD--3--Clause-blue.svg)](LICENSE)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](#how-it-is-checked)
 
@@ -1198,7 +1198,7 @@ release notes.
   **683,406 of them are not `convert`** and are not a dependency bump either —
   the control's `go.mod` and this branch's are byte-identical. 134 lines of Go
   do not weigh 667 KiB, so something else here reaches code the control does
-  not — filed as [app#85](https://github.com/go-pdfkit/app/issues/85) rather
+  not — filed as [#85](https://github.com/go-pdfkit/playground/issues/85) rather
   than rounded away, because this batch was *gated* on an increment measurement
   and a control that can under-report by 2.5× puts every decision taken on one
   of those numbers in doubt, including the ones that said no. The figure to
@@ -1357,7 +1357,7 @@ distribution and must match the toolchain that built the binary.
 [**pdffont**](https://github.com/go-pdfkit/pdffont) is what a document says about a font ·
 [**extract**](https://github.com/go-pdfkit/extract) reads a page back ·
 [**coedit**](https://github.com/go-pdfkit/coedit) is a PDF several people edit at once ·
-[**app**](https://github.com/go-pdfkit/app) is the browser workbench.
+[**playground**](https://github.com/go-pdfkit/playground) is the browser workbench.
 
 Documentation for all of it: <https://go-pdfkit.github.io/docs/>
 
