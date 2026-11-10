@@ -89,7 +89,7 @@ jobs:
       # "Create Pages site failed: Resource not accessible by integration":
       # creating the site is a repository-administration call, and the token a
       # workflow gets cannot make it. Pages is turned on once, out of band
-      # (`gh api -X POST repos/go-pdfkit/app/pages -f build_type=workflow`),
+      # (`gh api -X POST repos/go-pdfkit/playground/pages -f build_type=workflow`),
       # which is what the landing repository already does.
       - uses: actions/configure-pages@v6
 
