@@ -321,6 +321,22 @@ func themeFollowsTheBrowser(ctx context.Context, c *conn, sid string) error {
 		}
 		return float64(v.Dark) / float64(v.Total), nil
 	}
+	// steady reads the canvas until two readings running agree, so that a value
+	// taken right after a repaint was asked for is the repainted one rather
+	// than the frame before it.
+	steady := func() (float64, error) {
+		prev, now := -1.0, 0.0
+		err := until(ctx, 10*time.Second, func() (bool, error) {
+			d, err := darkness()
+			if err != nil {
+				return false, err
+			}
+			same := prev >= 0 && d == prev
+			prev, now = d, d
+			return same, nil
+		})
+		return now, err
+	}
 	// setScheme asks the browser to report a colour scheme, and waits for the
 	// canvas to answer it: a repaint is a frame away, so reading immediately
 	// reads the frame before.
@@ -345,32 +361,41 @@ func themeFollowsTheBrowser(ctx context.Context, c *conn, sid string) error {
 		return now, err
 	}
 
-	// ⛔ LIGHT FIRST, BECAUSE THE CANVAS MAY ALREADY BE DARK. Headless Chrome
-	// reports whatever the machine reports, and a check that began by asking
-	// for the scheme the page is already in would assert that nothing happens
-	// and pass on a workbench that follows nothing at all. Starting with the
-	// OTHER one makes the first assertion a real change whichever way the run
-	// begins.
-	was, err := darkness()
-	if err != nil {
+	// ⛔⛔ THE FIRST SCHEME IS SET AND NOT ASSERTED, and both of the mistakes
+	// that taught me this are worth the lines. A run begins in whatever colour
+	// scheme the machine reports — dark on the laptop this was written on,
+	// light on the build runner — so a check that ASSERTS its first transition
+	// asserts a change that does not happen on half the machines in the world,
+	// about a workbench that is following the system perfectly. Both versions
+	// of that were written here: "dark first" failed locally at 0.755 before
+	// and after, "light first" failed in CI at 0.198 before and after. Setting
+	// one scheme without a claim normalises the run; the two transitions after
+	// it are real on every machine.
+	if _, err := c.call(ctx, "Emulation.setEmulatedMedia", map[string]any{
+		"features": []map[string]string{{"name": "prefers-color-scheme", "value": "light"}},
+	}, sid); err != nil {
 		return err
 	}
-	fmt.Printf("the canvas is %.3f dark before anything is emulated\n", was)
-
-	light, err := setScheme("light", false, was)
+	light, err := steady()
 	if err != nil {
-		return fmt.Errorf("the browser reported prefers-color-scheme: light and the canvas stayed "+
-			"as it was (%.3f of its pixels dark): the page's own media query does not reach the "+
-			"workbench: %w", light, err)
+		return fmt.Errorf("the canvas never settled after the colour scheme was set: %w", err)
 	}
-	fmt.Printf("the browser said light and the canvas went from %.3f to %.3f dark\n", was, light)
+	fmt.Printf("the canvas is %.3f dark with the browser reporting light\n", light)
 
 	dark, err := setScheme("dark", true, light)
 	if err != nil {
-		return fmt.Errorf("the browser went to prefers-color-scheme: dark and the canvas stayed "+
-			"light (%.3f): it followed the system once and not again: %w", dark, err)
+		return fmt.Errorf("the browser reported prefers-color-scheme: dark and the canvas stayed "+
+			"as it was (%.3f of its pixels dark, and %.3f before): the page's own media query "+
+			"does not reach the workbench: %w", dark, light, err)
 	}
-	fmt.Printf("the browser said dark and the canvas went to %.3f dark\n", dark)
+	fmt.Printf("the browser said dark and the canvas went from %.3f to %.3f dark\n", light, dark)
+
+	back, err := setScheme("light", false, dark)
+	if err != nil {
+		return fmt.Errorf("the browser went back to prefers-color-scheme: light and the canvas "+
+			"stayed dark (%.3f): it followed the system once and not again: %w", back, err)
+	}
+	fmt.Printf("the browser said light again and the canvas went back to %.3f dark\n", back)
 
 	// ⛔ THE READER'S OWN CHOICE WINS. One press of Theme takes the workbench
 	// out of the system's hands — that is the whole point of the third state —
