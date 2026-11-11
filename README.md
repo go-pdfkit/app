@@ -523,9 +523,19 @@ they would do with a rectangle instead, which is the thing this exists to stop.
 under the region are **destroyed** and the picture written back, which is what
 ISO 32000-1 §12.5.6.23 asks for — *"clipping or image masks shall not be used to
 hide that data"*. That is done for a picture whose samples are plain, eight bits
-a component, in `DeviceGray` or `DeviceRGB`, drawn upright and drawn once; the
-rest — a JPEG, a turned one, one drawn twice, one carrying a mask — are refused
-**by name**, with the reason, so the reader learns which kind of page they have.
+a component, in `DeviceGray` or `DeviceRGB`, drawn upright and drawn once; a
+turned one, one drawn twice, one carrying a mask are refused **by name**, with
+the reason, so the reader learns which kind of page they have.
+
+⛔ **And since [ops
+v0.38.0](https://github.com/go-pdfkit/ops/releases/tag/v0.38.0), a scan.** Every
+scanner writes JPEG, so until that release *"redaction works on scanned paper"*
+was true of a page no reader actually has: they opened their own scan, met the
+refusal, and were left with the rectangle this verb exists to stop them drawing.
+The JPEG is now decoded and written back as **plain samples** rather than as
+another JPEG — re-encoding would re-quantise every block of the picture, the
+whole photograph degraded in order to destroy a corner of it. The page grows,
+which is the trade.
 
 ⛔ **And it refuses, out loud, where it cannot remove the words completely.**
 [`ops.Doc.Redact`](https://github.com/go-pdfkit/ops) will not take out text that
