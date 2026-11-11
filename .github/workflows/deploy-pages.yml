@@ -38,7 +38,7 @@ jobs:
           # Pinned, not `stable`. wasm_exec.js is copied out of the toolchain
           # below and MUST match the compiler that built the binary beside it;
           # an unpinned toolchain changes both with no commit to point at.
-          go-version: '1.27.3'
+          go-version: '1.27.4'
 
       - name: Build the wasm binary, with the version it is built from in it
         env:
