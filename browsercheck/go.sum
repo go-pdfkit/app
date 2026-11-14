@@ -1,4 +1,4 @@
 github.com/coder/websocket v1.8.15 h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNUA=
 github.com/coder/websocket v1.8.15/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
-github.com/go-pdfkit/reader v0.9.0 h1:4U2oZXozJl+1bRyzK90sb6pQB+Qm6dCPjBAk4c71tqU=
-github.com/go-pdfkit/reader v0.9.0/go.mod h1:EYHHREPKT/orDzlGiFPnPVPPuaRDLiAYezIr0cCFXaA=
+github.com/go-pdfkit/reader v0.11.0 h1:eJDFA+AWvW/Yo2Y63+wIVylxsq5jFLB7cdnX9tb/1IY=
+github.com/go-pdfkit/reader v0.11.0/go.mod h1:EYHHREPKT/orDzlGiFPnPVPPuaRDLiAYezIr0cCFXaA=
